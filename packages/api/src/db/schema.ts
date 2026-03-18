@@ -1,0 +1,154 @@
+import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
+
+/** Tenant (organization/workspace) */
+export const tenants = sqliteTable('tenants', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  slug: text('slug').notNull().unique(),
+  plan: text('plan').notNull().default('free'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
+/** User account */
+export const users = sqliteTable('users', {
+  id: text('id').primaryKey(),
+  email: text('email').notNull().unique(),
+  name: text('name').notNull(),
+  avatarUrl: text('avatar_url'),
+  provider: text('provider').notNull(), // google | github
+  providerId: text('provider_id').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
+/** Tenant membership (user ↔ tenant relationship) */
+export const tenantMemberships = sqliteTable('tenant_memberships', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  userId: text('user_id').notNull().references(() => users.id),
+  role: text('role').notNull().default('viewer'), // admin | editor | viewer | agent
+  invitedBy: text('invited_by'),
+  joinedAt: integer('joined_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
+/** Session (refresh tokens) */
+export const sessions = sqliteTable('sessions', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id),
+  tokenHash: text('token_hash').notNull(),
+  expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
+/** API keys for agent/CLI access */
+export const apiKeys = sqliteTable('api_keys', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  name: text('name').notNull(),
+  keyPrefix: text('key_prefix').notNull(), // first 8 chars for identification
+  keyHash: text('key_hash').notNull(),
+  keySalt: text('key_salt').notNull(),
+  scopes: text('scopes', { mode: 'json' }).$type<string[]>().notNull(),
+  createdBy: text('created_by').notNull().references(() => users.id),
+  lastUsedAt: integer('last_used_at', { mode: 'timestamp_ms' }),
+  expiresAt: integer('expires_at', { mode: 'timestamp_ms' }),
+  revokedAt: integer('revoked_at', { mode: 'timestamp_ms' }),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
+/** Immutable audit log */
+export const auditLogs = sqliteTable('audit_logs', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull(),
+  userId: text('user_id'),
+  action: text('action').notNull(),
+  resourceType: text('resource_type'),
+  resourceId: text('resource_id'),
+  metadata: text('metadata', { mode: 'json' }).$type<Record<string, unknown>>(),
+  ip: text('ip'),
+  userAgent: text('user_agent'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
+/** Documents (knowledge items) */
+export const documents = sqliteTable('documents', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  folderId: text('folder_id'),
+  title: text('title').notNull(),
+  slug: text('slug').notNull(),
+  content: text('content').notNull().default(''), // markdown body
+  contentJson: text('content_json', { mode: 'json' }).$type<unknown>(), // BlockNote JSON
+  summary: text('summary'), // AI-generated
+  category: text('category'),
+  accessLevel: text('access_level').notNull().default('private'),
+  createdBy: text('created_by').notNull().references(() => users.id),
+  updatedBy: text('updated_by'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  deletedAt: integer('deleted_at', { mode: 'timestamp_ms' }),
+})
+
+/** Document tags (many-to-many) */
+export const documentTags = sqliteTable('document_tags', {
+  id: text('id').primaryKey(),
+  documentId: text('document_id').notNull().references(() => documents.id),
+  tag: text('tag').notNull(),
+})
+
+/** Document version history (append-only) */
+export const documentVersions = sqliteTable('document_versions', {
+  id: text('id').primaryKey(),
+  documentId: text('document_id').notNull().references(() => documents.id),
+  version: integer('version').notNull(),
+  content: text('content').notNull(),
+  contentJson: text('content_json', { mode: 'json' }).$type<unknown>(),
+  changeSummary: text('change_summary'),
+  createdBy: text('created_by').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
+/** Wikilinks between documents */
+export const documentLinks = sqliteTable('document_links', {
+  id: text('id').primaryKey(),
+  sourceDocId: text('source_doc_id').notNull().references(() => documents.id),
+  targetDocId: text('target_doc_id').notNull().references(() => documents.id),
+  context: text('context'), // surrounding text for preview
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
+/** Folders for document organization */
+export const folders = sqliteTable('folders', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  parentId: text('parent_id'),
+  name: text('name').notNull(),
+  slug: text('slug').notNull(),
+  position: integer('position').notNull().default(0),
+  createdBy: text('created_by').notNull().references(() => users.id),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
+/** Share links for documents */
+export const shareLinks = sqliteTable('share_links', {
+  id: text('id').primaryKey(),
+  documentId: text('document_id').notNull().references(() => documents.id),
+  token: text('token').notNull().unique(),
+  accessLevel: text('access_level').notNull().default('read'),
+  createdBy: text('created_by').notNull().references(() => users.id),
+  expiresAt: integer('expires_at', { mode: 'timestamp_ms' }),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
+/** File uploads (R2 metadata) */
+export const uploads = sqliteTable('uploads', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  documentId: text('document_id'),
+  fileKey: text('file_key').notNull(),
+  filename: text('filename').notNull(),
+  contentType: text('content_type').notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  uploadedBy: text('uploaded_by').notNull().references(() => users.id),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+})

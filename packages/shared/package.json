@@ -1,0 +1,19 @@
+{
+  "name": "@agentwiki/shared",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint src/",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "typescript-eslint": "^8.0.0",
+    "eslint": "^9.0.0"
+  }
+}

@@ -1,0 +1,37 @@
+name = "agentwiki-api"
+main = "src/index.ts"
+compatibility_date = "2026-03-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+APP_URL = "https://agentwiki.cc"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "agentwiki-main"
+database_id = "placeholder-create-via-wrangler"
+migrations_dir = "src/db/migrations"
+
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "agentwiki-files"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "placeholder-create-via-wrangler"
+
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "agentwiki-vectors"
+
+[[queues.producers]]
+binding = "QUEUE"
+queue = "agentwiki-jobs"
+
+[[queues.consumers]]
+queue = "agentwiki-jobs"
+max_batch_size = 10
+max_batch_timeout = 30
+
+[ai]
+binding = "AI"

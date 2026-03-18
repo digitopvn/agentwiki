@@ -1,0 +1,95 @@
+/** Cloudflare Queue consumer — processes async jobs */
+
+import { embedDocument } from '../services/embedding-service'
+import { drizzle } from 'drizzle-orm/d1'
+import { eq } from 'drizzle-orm'
+import { documents } from '../db/schema'
+import type { Env } from '../env'
+
+interface QueueMessage {
+  type: string
+  documentId: string
+  tenantId: string
+}
+
+/** Queue consumer entry point */
+export async function handleQueueBatch(
+  batch: MessageBatch<QueueMessage>,
+  env: Env,
+) {
+  for (const message of batch.messages) {
+    try {
+      await processMessage(message.body, env)
+      message.ack()
+    } catch (err) {
+      console.error(`Queue job failed [${message.body.type}]:`, err)
+      message.retry()
+    }
+  }
+}
+
+async function processMessage(msg: QueueMessage, env: Env) {
+  switch (msg.type) {
+    case 'generate-summary':
+      await generateSummary(env, msg.documentId, msg.tenantId)
+      break
+    case 'embed':
+      await embedDocumentJob(env, msg.documentId, msg.tenantId)
+      break
+    default:
+      console.warn(`Unknown queue message type: ${msg.type}`)
+  }
+}
+
+/** Generate AI summary for a document */
+async function generateSummary(env: Env, documentId: string, tenantId: string) {
+  const db = drizzle(env.DB)
+  const doc = await db
+    .select({ content: documents.content, title: documents.title })
+    .from(documents)
+    .where(eq(documents.id, documentId))
+    .limit(1)
+
+  if (!doc.length || !doc[0].content) return
+
+  // Truncate content for AI (avoid token limits)
+  const truncated = doc[0].content.slice(0, 3000)
+
+  const result = await (env.AI as Ai).run('@cf/meta/llama-3.1-8b-instruct' as never, {
+    messages: [
+      {
+        role: 'system',
+        content: 'Summarize the following document in 1-2 concise sentences. Return only the summary.',
+      },
+      {
+        role: 'user',
+        content: `Title: ${doc[0].title}\n\n${truncated}`,
+      },
+    ],
+    max_tokens: 150,
+  } as never) as { response: string }
+
+  if (result.response) {
+    await db
+      .update(documents)
+      .set({ summary: result.response.trim() })
+      .where(eq(documents.id, documentId))
+  }
+
+  // Also trigger embedding
+  await embedDocumentJob(env, documentId, tenantId)
+}
+
+/** Generate embeddings for a document */
+async function embedDocumentJob(env: Env, documentId: string, tenantId: string) {
+  const db = drizzle(env.DB)
+  const doc = await db
+    .select({ content: documents.content })
+    .from(documents)
+    .where(eq(documents.id, documentId))
+    .limit(1)
+
+  if (!doc.length || !doc[0].content) return
+
+  await embedDocument(env, documentId, doc[0].content, tenantId)
+}
