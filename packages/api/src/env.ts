@@ -7,6 +7,7 @@ export type Env = {
   QUEUE: Queue
   AI: Ai
   APP_URL: string
+  API_URL?: string // separate API URL for dev (localhost:8787); in prod, same as APP_URL
   JWT_SECRET: string
   GOOGLE_CLIENT_ID: string
   GOOGLE_CLIENT_SECRET: string

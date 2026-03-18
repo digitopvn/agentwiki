@@ -9,13 +9,18 @@ import { TOKEN_TTL } from '@agentwiki/shared'
 import type { Env } from '../env'
 import type { JwtPayload, Role } from '@agentwiki/shared'
 
+/** Get the API base URL (same as APP_URL in prod, separate in dev) */
+function getApiUrl(env: Env): string {
+  return env.API_URL ?? env.APP_URL
+}
+
 /** Create Arctic OAuth providers from env */
 export function createGoogleAuth(env: Env) {
-  return new Google(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, `${env.APP_URL}/api/auth/google/callback`)
+  return new Google(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, `${getApiUrl(env)}/api/auth/google/callback`)
 }
 
 export function createGithubAuth(env: Env) {
-  return new GitHub(env.GITHUB_CLIENT_ID, env.GITHUB_CLIENT_SECRET, `${env.APP_URL}/api/auth/github/callback`)
+  return new GitHub(env.GITHUB_CLIENT_ID, env.GITHUB_CLIENT_SECRET, `${getApiUrl(env)}/api/auth/github/callback`)
 }
 
 interface OAuthProfile {
