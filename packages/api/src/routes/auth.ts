@@ -22,11 +22,15 @@ import type { Env } from '../env'
 
 const auth = new Hono<{ Bindings: Env }>()
 
-const COOKIE_OPTS = {
-  httpOnly: true,
-  secure: true,
-  sameSite: 'Lax' as const,
-  path: '/',
+/** Cookie options — secure only in production (HTTPS) */
+function getCookieOpts(c: { env: { APP_URL: string } }) {
+  const isProduction = c.env.APP_URL.startsWith('https')
+  return {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'Lax' as const,
+    path: '/',
+  }
 }
 
 // --- Google OAuth ---
@@ -37,8 +41,8 @@ auth.get('/google', async (c) => {
   const codeVerifier = generateCodeVerifier()
   const url = google.createAuthorizationURL(state, codeVerifier, ['openid', 'email', 'profile'])
 
-  setCookie(c, 'oauth_state', state, { ...COOKIE_OPTS, maxAge: 600 })
-  setCookie(c, 'code_verifier', codeVerifier, { ...COOKIE_OPTS, maxAge: 600 })
+  setCookie(c, 'oauth_state', state, { ...getCookieOpts(c), maxAge: 600 })
+  setCookie(c, 'code_verifier', codeVerifier, { ...getCookieOpts(c), maxAge: 600 })
   return c.redirect(url.toString())
 })
 
@@ -64,15 +68,16 @@ auth.get('/google/callback', async (c) => {
 
     const { accessToken, refreshToken } = await issueTokens(c.env, user.id, tenantId, role)
 
-    setCookie(c, 'access_token', accessToken, { ...COOKIE_OPTS, maxAge: 900 })
-    setCookie(c, 'refresh_token', refreshToken, { ...COOKIE_OPTS, maxAge: 604800 })
+    setCookie(c, 'access_token', accessToken, { ...getCookieOpts(c), maxAge: 900 })
+    setCookie(c, 'refresh_token', refreshToken, { ...getCookieOpts(c), maxAge: 604800 })
 
     logAudit(c as never, 'auth.login', 'user', user.id, { provider: 'google' })
 
     return c.redirect(c.env.APP_URL)
   } catch (err) {
-    console.error('Google OAuth error:', err)
-    return c.json({ error: 'Authentication failed' }, 500)
+    const errMsg = err instanceof Error ? err.message : String(err)
+    console.error('Google OAuth error:', errMsg, err instanceof Error ? err.stack : '')
+    return c.json({ error: 'Authentication failed', detail: errMsg }, 500)
   }
 })
 
@@ -83,7 +88,7 @@ auth.get('/github', async (c) => {
   const state = generateState()
   const url = github.createAuthorizationURL(state, [])
 
-  setCookie(c, 'oauth_state', state, { ...COOKIE_OPTS, maxAge: 600 })
+  setCookie(c, 'oauth_state', state, { ...getCookieOpts(c), maxAge: 600 })
   return c.redirect(url.toString())
 })
 
@@ -107,15 +112,17 @@ auth.get('/github/callback', async (c) => {
 
     const { accessToken, refreshToken } = await issueTokens(c.env, user.id, tenantId, role)
 
-    setCookie(c, 'access_token', accessToken, { ...COOKIE_OPTS, maxAge: 900 })
-    setCookie(c, 'refresh_token', refreshToken, { ...COOKIE_OPTS, maxAge: 604800 })
+    setCookie(c, 'access_token', accessToken, { ...getCookieOpts(c), maxAge: 900 })
+    setCookie(c, 'refresh_token', refreshToken, { ...getCookieOpts(c), maxAge: 604800 })
 
     logAudit(c as never, 'auth.login', 'user', user.id, { provider: 'github' })
 
     return c.redirect(c.env.APP_URL)
   } catch (err) {
-    console.error('GitHub OAuth error:', err)
-    return c.json({ error: 'Authentication failed' }, 500)
+    const errMsg = err instanceof Error ? err.message : String(err)
+    const errStack = err instanceof Error ? err.stack : undefined
+    console.error('GitHub OAuth error:', errMsg, errStack)
+    return c.json({ error: 'Authentication failed', detail: errMsg }, 500)
   }
 })
 
@@ -128,7 +135,7 @@ auth.post('/refresh', async (c) => {
   const newAccessToken = await refreshAccessToken(c.env, refreshToken)
   if (!newAccessToken) return c.json({ error: 'Invalid refresh token' }, 401)
 
-  setCookie(c, 'access_token', newAccessToken, { ...COOKIE_OPTS, maxAge: 900 })
+  setCookie(c, 'access_token', newAccessToken, { ...getCookieOpts(c), maxAge: 900 })
   return c.json({ ok: true })
 })
 
