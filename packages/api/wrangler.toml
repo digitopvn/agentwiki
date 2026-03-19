@@ -18,7 +18,7 @@ bucket_name = "agentwiki-files"
 
 [[kv_namespaces]]
 binding = "KV"
-id = "placeholder-create-via-wrangler"
+id = "9d78e2d1ff0c462594a0b40a64ad4b2d"
 
 [[vectorize]]
 binding = "VECTORIZE"
