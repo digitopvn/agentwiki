@@ -65,13 +65,13 @@ export function TabItem({ tab, isActive }: TabItemProps) {
       <button
         onClick={handleClose}
         className={cn(
-          'shrink-0 cursor-pointer rounded-md p-0.5 opacity-0 group-hover:opacity-100',
-          isActive && 'opacity-60 hover:opacity-100',
+          'shrink-0 cursor-pointer rounded-md p-1 md:p-0.5 opacity-60 md:opacity-0 md:group-hover:opacity-100',
+          isActive && 'opacity-60 md:hover:opacity-100',
           isDark ? 'hover:bg-surface-3 hover:text-neutral-200' : 'hover:bg-neutral-200 hover:text-neutral-700',
         )}
         title="Close tab"
       >
-        <X className="h-3 w-3" />
+        <X className="h-3.5 w-3.5 md:h-3 md:w-3" />
       </button>
     </div>
   )

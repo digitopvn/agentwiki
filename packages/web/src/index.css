@@ -74,6 +74,27 @@ select:focus-visible,
   outline: none;
 }
 
+/* Prevent 300ms tap delay on mobile */
+html {
+  touch-action: manipulation;
+}
+
+/* Mobile drawer slide-in animations */
+@keyframes slide-in-left {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+@keyframes slide-in-right {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.animate-slide-in-left {
+  animation: slide-in-left 200ms ease-out;
+}
+.animate-slide-in-right {
+  animation: slide-in-right 200ms ease-out;
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

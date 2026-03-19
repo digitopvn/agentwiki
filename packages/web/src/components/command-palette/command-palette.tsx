@@ -85,7 +85,7 @@ export function CommandPalette() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]"
+      className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-[10vh] md:px-0 md:pt-[20vh]"
       onClick={() => setOpen(false)}
     >
       {/* Backdrop */}

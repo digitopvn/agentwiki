@@ -2,9 +2,10 @@
 
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Plus, Sun, Moon, PanelLeftClose, PanelLeft, FolderPlus, Filter, Settings, User } from 'lucide-react'
+import { Search, Plus, Sun, Moon, PanelLeftClose, PanelLeft, FolderPlus, Filter, Settings, User, X } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAppStore } from '../../stores/app-store'
+import { useIsMobile } from '../../hooks/use-is-mobile'
 import { useAuth } from '../../hooks/use-auth'
 import { FolderTree } from '../sidebar/folder-tree'
 import { BrowsePanel, type BrowseFilter } from '../sidebar/browse-panel'
@@ -14,7 +15,7 @@ import { useCreateDocument, useDocuments } from '../../hooks/use-documents'
 import { FileText } from 'lucide-react'
 
 export function Sidebar() {
-  const { sidebarCollapsed, setSidebarCollapsed, theme, toggleTheme } = useAppStore()
+  const { sidebarCollapsed, setSidebarCollapsed, theme, toggleTheme, setMobileSidebarOpen } = useAppStore()
   const [search, setSearch] = useState('')
   const [showBrowse, setShowBrowse] = useState(false)
   const [folderModalOpen, setFolderModalOpen] = useState(false)
@@ -24,6 +25,7 @@ export function Sidebar() {
   const { openTab, setActiveTab } = useAppStore()
   const { user } = useAuth()
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
 
   const isDark = theme === 'dark'
 
@@ -42,6 +44,7 @@ export function Sidebar() {
       openTab({ id: tabId, documentId: doc.id, title: doc.title })
       setActiveTab(tabId)
       navigate(`/doc/${doc.slug}`)
+      if (isMobile) setMobileSidebarOpen(false)
     } catch (err) {
       console.error('Failed to create document:', err)
     }
@@ -55,7 +58,16 @@ export function Sidebar() {
     }
   }
 
-  if (sidebarCollapsed) {
+  const handleOpenDoc = (doc: { id: string; title: string; slug: string }) => {
+    const tabId = `tab-${doc.id}`
+    openTab({ id: tabId, documentId: doc.id, title: doc.title })
+    setActiveTab(tabId)
+    navigate(`/doc/${doc.slug}`)
+    if (isMobile) setMobileSidebarOpen(false)
+  }
+
+  // On desktop, show collapsed state
+  if (!isMobile && sidebarCollapsed) {
     return (
       <div
         className={cn(
@@ -80,7 +92,8 @@ export function Sidebar() {
   return (
     <div
       className={cn(
-        'flex w-[260px] shrink-0 flex-col border-r',
+        'flex h-full shrink-0 flex-col border-r',
+        isMobile ? 'w-full' : 'w-[260px]',
         isDark ? 'border-white/[0.06] bg-surface-1' : 'border-neutral-200 bg-white',
       )}
     >
@@ -99,16 +112,29 @@ export function Sidebar() {
             AgentWiki
           </span>
         </div>
-        <button
-          onClick={() => setSidebarCollapsed(true)}
-          className={cn(
-            'cursor-pointer rounded-md p-1',
-            isDark ? 'text-neutral-500 hover:bg-surface-3 hover:text-neutral-300' : 'text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700',
-          )}
-          title="Collapse sidebar"
-        >
-          <PanelLeftClose className="h-4 w-4" />
-        </button>
+        {isMobile ? (
+          <button
+            onClick={() => setMobileSidebarOpen(false)}
+            className={cn(
+              'rounded-lg p-2',
+              isDark ? 'text-neutral-500 active:bg-surface-3' : 'text-neutral-400 active:bg-neutral-100',
+            )}
+            aria-label="Close sidebar"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        ) : (
+          <button
+            onClick={() => setSidebarCollapsed(true)}
+            className={cn(
+              'cursor-pointer rounded-md p-1',
+              isDark ? 'text-neutral-500 hover:bg-surface-3 hover:text-neutral-300' : 'text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700',
+            )}
+            title="Collapse sidebar"
+          >
+            <PanelLeftClose className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {/* Search */}
@@ -121,7 +147,7 @@ export function Sidebar() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className={cn(
-              'w-full rounded-lg border py-1.5 pl-8 pr-3 text-xs outline-none',
+              'w-full rounded-lg border py-2 pl-8 pr-3 text-sm outline-none md:py-1.5 md:text-xs',
               isDark
                 ? 'border-white/[0.06] bg-surface-2 text-neutral-200 placeholder-neutral-500 focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/30'
                 : 'border-neutral-200 bg-neutral-50 text-neutral-900 placeholder-neutral-400 focus:border-brand-500 focus:ring-1 focus:ring-brand-500/30',
@@ -136,40 +162,40 @@ export function Sidebar() {
           onClick={handleNewDocument}
           disabled={createDocument.isPending}
           className={cn(
-            'flex flex-1 cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium',
+            'flex flex-1 items-center gap-1.5 rounded-lg px-2 py-2.5 text-sm font-medium md:py-1.5 md:text-xs',
             isDark
-              ? 'text-neutral-400 hover:bg-surface-3 hover:text-neutral-200'
-              : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800',
+              ? 'text-neutral-400 hover:bg-surface-3 hover:text-neutral-200 active:bg-surface-3'
+              : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800 active:bg-neutral-100',
           )}
         >
-          <Plus className="h-3.5 w-3.5" />
+          <Plus className="h-4 w-4 md:h-3.5 md:w-3.5" />
           New doc
         </button>
         <button
           onClick={() => setFolderModalOpen(true)}
           disabled={createFolder.isPending}
           className={cn(
-            'flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs',
+            'flex items-center gap-1.5 rounded-lg px-2 py-2.5 text-sm md:py-1.5 md:text-xs',
             isDark
-              ? 'text-neutral-400 hover:bg-surface-3 hover:text-neutral-200'
-              : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800',
+              ? 'text-neutral-400 hover:bg-surface-3 hover:text-neutral-200 active:bg-surface-3'
+              : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800 active:bg-neutral-100',
           )}
         >
-          <FolderPlus className="h-3.5 w-3.5" />
+          <FolderPlus className="h-4 w-4 md:h-3.5 md:w-3.5" />
         </button>
         <button
           onClick={() => { setShowBrowse((v) => !v); if (showBrowse) setBrowseFilter(null) }}
           className={cn(
-            'flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs',
+            'flex items-center gap-1.5 rounded-lg px-2 py-2.5 text-sm md:py-1.5 md:text-xs',
             showBrowse
               ? 'bg-brand-600 text-white'
               : isDark
-                ? 'text-neutral-400 hover:bg-surface-3 hover:text-neutral-200'
-                : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800',
+                ? 'text-neutral-400 hover:bg-surface-3 hover:text-neutral-200 active:bg-surface-3'
+                : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800 active:bg-neutral-100',
           )}
           title="Browse by tags/categories"
         >
-          <Filter className="h-3.5 w-3.5" />
+          <Filter className="h-4 w-4 md:h-3.5 md:w-3.5" />
         </button>
       </div>
 
@@ -192,19 +218,14 @@ export function Sidebar() {
               <div
                 key={doc.id}
                 className={cn(
-                  'flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 text-xs',
+                  'flex items-center gap-2 rounded-lg px-2 py-2.5 text-sm md:py-1 md:text-xs',
                   isDark
-                    ? 'text-neutral-400 hover:bg-surface-3 hover:text-neutral-200'
-                    : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800',
+                    ? 'text-neutral-400 hover:bg-surface-3 hover:text-neutral-200 active:bg-surface-3'
+                    : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800 active:bg-neutral-100',
                 )}
-                onClick={() => {
-                  const tabId = `tab-${doc.id}`
-                  openTab({ id: tabId, documentId: doc.id, title: doc.title })
-                  setActiveTab(tabId)
-                  navigate(`/doc/${doc.slug}`)
-                }}
+                onClick={() => handleOpenDoc(doc)}
               >
-                <FileText className="h-3.5 w-3.5 shrink-0 text-neutral-500" />
+                <FileText className="h-4 w-4 shrink-0 text-neutral-500 md:h-3.5 md:w-3.5" />
                 <span className="truncate">{doc.title}</span>
               </div>
             ))}
@@ -215,7 +236,7 @@ export function Sidebar() {
             )}
           </div>
         ) : (
-          <FolderTree searchQuery={search} />
+          <FolderTree searchQuery={search} onDocumentOpen={isMobile ? () => setMobileSidebarOpen(false) : undefined} />
         )}
       </div>
 
@@ -228,28 +249,28 @@ export function Sidebar() {
       >
         <div className="flex items-center gap-2">
           <button
-            onClick={() => navigate('/profile')}
+            onClick={() => { navigate('/profile'); if (isMobile) setMobileSidebarOpen(false) }}
             className={cn(
-              'flex cursor-pointer items-center gap-1.5 rounded-md p-1',
-              isDark ? 'text-neutral-500 hover:bg-surface-3 hover:text-neutral-300' : 'text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700',
+              'flex items-center gap-1.5 rounded-md p-2 md:p-1',
+              isDark ? 'text-neutral-500 hover:bg-surface-3 hover:text-neutral-300 active:bg-surface-3' : 'text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 active:bg-neutral-100',
             )}
             title="Profile"
           >
             {user?.avatarUrl ? (
               <img src={user.avatarUrl} alt="" className="h-5 w-5 rounded-full" />
             ) : (
-              <User className="h-4 w-4" />
+              <User className="h-5 w-5 md:h-4 md:w-4" />
             )}
           </button>
           <button
-            onClick={() => navigate('/settings')}
+            onClick={() => { navigate('/settings'); if (isMobile) setMobileSidebarOpen(false) }}
             className={cn(
-              'cursor-pointer rounded-md p-1',
-              isDark ? 'text-neutral-500 hover:bg-surface-3 hover:text-neutral-300' : 'text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700',
+              'rounded-md p-2 md:p-1',
+              isDark ? 'text-neutral-500 hover:bg-surface-3 hover:text-neutral-300 active:bg-surface-3' : 'text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 active:bg-neutral-100',
             )}
             title="Settings"
           >
-            <Settings className="h-4 w-4" />
+            <Settings className="h-5 w-5 md:h-4 md:w-4" />
           </button>
         </div>
 
@@ -260,12 +281,12 @@ export function Sidebar() {
           <button
             onClick={toggleTheme}
             className={cn(
-              'cursor-pointer rounded-md p-1',
-              isDark ? 'text-neutral-500 hover:bg-surface-3 hover:text-neutral-300' : 'text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700',
+              'rounded-md p-2 md:p-1',
+              isDark ? 'text-neutral-500 hover:bg-surface-3 hover:text-neutral-300 active:bg-surface-3' : 'text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 active:bg-neutral-100',
             )}
             title="Toggle theme"
           >
-            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            {isDark ? <Sun className="h-5 w-5 md:h-4 md:w-4" /> : <Moon className="h-5 w-5 md:h-4 md:w-4" />}
           </button>
         </div>
       </div>
