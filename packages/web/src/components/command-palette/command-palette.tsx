@@ -113,7 +113,7 @@ export function CommandPalette() {
               onValueChange={setQuery}
               placeholder="Search documents or type a command..."
               className={cn(
-                'flex-1 bg-transparent text-sm outline-none',
+                'flex-1 bg-transparent text-base outline-none md:text-sm',
                 isDark ? 'text-neutral-100 placeholder-neutral-500' : 'text-neutral-900 placeholder-neutral-400',
               )}
               autoFocus

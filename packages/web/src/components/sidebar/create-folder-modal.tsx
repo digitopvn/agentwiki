@@ -76,7 +76,7 @@ export function CreateFolderModal({ open, onClose, onSubmit, parentName }: Creat
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Engineering, Product..."
               className={cn(
-                'w-full rounded-lg border px-3 py-2 text-sm outline-none',
+                'w-full rounded-lg border px-3 py-2 text-base outline-none md:text-sm',
                 isDark
                   ? 'border-white/[0.06] bg-surface-3 text-neutral-100 placeholder-neutral-500 focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/30'
                   : 'border-neutral-200 bg-neutral-50 text-neutral-900 placeholder-neutral-400 focus:border-brand-500 focus:ring-1 focus:ring-brand-500/30',

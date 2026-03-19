@@ -147,7 +147,7 @@ export function Sidebar() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className={cn(
-              'w-full rounded-lg border py-2 pl-8 pr-3 text-sm outline-none md:py-1.5 md:text-xs',
+              'w-full rounded-lg border py-2 pl-8 pr-3 text-base outline-none md:py-1.5 md:text-xs',
               isDark
                 ? 'border-white/[0.06] bg-surface-2 text-neutral-200 placeholder-neutral-500 focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/30'
                 : 'border-neutral-200 bg-neutral-50 text-neutral-900 placeholder-neutral-400 focus:border-brand-500 focus:ring-1 focus:ring-brand-500/30',

@@ -36,7 +36,7 @@ export function DocumentProperties({ documentId }: DocumentPropertiesProps) {
   const labelCls = cn('text-xs font-medium', isDark ? 'text-neutral-400' : 'text-neutral-500')
   const valueCls = cn('text-xs', isDark ? 'text-neutral-200' : 'text-neutral-800')
   const inputCls = cn(
-    'w-full rounded border px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-blue-500',
+    'w-full rounded border px-2 py-1.5 text-base outline-none focus:ring-1 focus:ring-blue-500 md:py-1 md:text-xs',
     isDark
       ? 'border-neutral-700 bg-neutral-800 text-neutral-100 placeholder-neutral-500'
       : 'border-neutral-300 bg-white text-neutral-900',

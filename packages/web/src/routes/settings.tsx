@@ -119,7 +119,7 @@ function MembersTab({ isDark }: { isDark: boolean }) {
               <select
                 value={m.role}
                 onChange={(e) => updateRole.mutate({ id: m.id, role: e.target.value })}
-                className={cn('rounded border px-2 py-1.5 text-xs outline-none', isDark ? 'border-white/[0.06] bg-surface-2 text-neutral-200' : 'border-neutral-200 bg-white text-neutral-700')}
+                className={cn('rounded border px-2 py-1.5 text-base outline-none md:text-xs', isDark ? 'border-white/[0.06] bg-surface-2 text-neutral-200' : 'border-neutral-200 bg-white text-neutral-700')}
               >
                 <option value="admin">Admin</option>
                 <option value="editor">Editor</option>
