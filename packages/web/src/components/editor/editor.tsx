@@ -26,7 +26,20 @@ export function Editor({ documentId, tabId }: EditorProps) {
     latestDocRef.current = doc
   }, [doc])
 
-  const editor = useCreateBlockNote()
+  const editor = useCreateBlockNote({
+    uploadFile: async (file: File) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch('/api/uploads', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      })
+      if (!res.ok) throw new Error('Upload failed')
+      const data = await res.json() as { fileKey: string }
+      return `/api/files/${data.fileKey}`
+    },
+  })
 
   // Load initial content once doc is fetched
   useEffect(() => {
@@ -116,6 +129,19 @@ export function Editor({ documentId, tabId }: EditorProps) {
             'w-full bg-transparent text-3xl font-bold outline-none placeholder-neutral-500',
             theme === 'dark' ? 'text-neutral-100' : 'text-neutral-900',
           )}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              const newTitle = e.currentTarget.value.trim() || 'Untitled'
+              if (newTitle !== doc.title) {
+                updateTabTitle(tabId, newTitle)
+                updateDocument.mutateAsync({ id: documentId, title: newTitle }).catch((err) =>
+                  console.error('Failed to update title:', err),
+                )
+              }
+              editor.focus()
+            }
+          }}
           onBlur={async (e) => {
             const newTitle = e.target.value.trim() || 'Untitled'
             if (newTitle === doc.title) return
