@@ -82,7 +82,7 @@ auth.get('/google/callback', async (c) => {
     // Send welcome email for new signups (non-blocking)
     if (isNewUser) {
       c.executionCtx.waitUntil(
-        sendWelcomeEmail(c.env, user.email, user.name ?? 'there').catch((err) =>
+        sendWelcomeEmail(c.env, user.email, user.name ?? 'there').catch((err: unknown) =>
           console.error('Welcome email failed:', err)
         )
       )
@@ -135,7 +135,7 @@ auth.get('/github/callback', async (c) => {
     // Send welcome email for new signups (non-blocking)
     if (isNewUser) {
       c.executionCtx.waitUntil(
-        sendWelcomeEmail(c.env, user.email, user.name ?? 'there').catch((err) =>
+        sendWelcomeEmail(c.env, user.email, user.name ?? 'there').catch((err: unknown) =>
           console.error('Welcome email failed:', err)
         )
       )
