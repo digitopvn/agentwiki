@@ -9,7 +9,7 @@ APP_URL = "https://agentwiki.cc"
 [[d1_databases]]
 binding = "DB"
 database_name = "agentwiki-main"
-database_id = "placeholder-create-via-wrangler"
+database_id = "77fc1ed2-9a0c-4978-806f-09484ef067f2"
 migrations_dir = "src/db/migrations"
 
 [[r2_buckets]]

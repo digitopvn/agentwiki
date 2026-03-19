@@ -12,20 +12,20 @@
     "db:migrate:remote": "wrangler d1 migrations apply agentwiki-main --remote"
   },
   "dependencies": {
-    "hono": "^4.7.0",
+    "@agentwiki/shared": "workspace:*",
     "@hono/zod-openapi": "^0.18.0",
-    "drizzle-orm": "^0.38.0",
     "arctic": "^3.5.0",
+    "drizzle-orm": "^0.38.0",
+    "hono": "^4.7.0",
     "nanoid": "^5.1.0",
-    "zod": "^3.24.0",
-    "@agentwiki/shared": "workspace:*"
+    "zod": "^3.24.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260301.0",
-    "wrangler": "^3.108.0",
     "drizzle-kit": "^0.30.0",
-    "vitest": "^3.0.0",
+    "eslint": "^9.0.0",
     "typescript-eslint": "^8.0.0",
-    "eslint": "^9.0.0"
+    "vitest": "^3.0.0",
+    "wrangler": "^4.75.0"
   }
 }

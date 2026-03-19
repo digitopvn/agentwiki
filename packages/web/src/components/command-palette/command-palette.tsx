@@ -1,11 +1,11 @@
-/** Cmd/Ctrl+K command palette: hybrid search, recent docs, quick actions */
+/** Cmd/Ctrl+K command palette: autocomplete suggestions, hybrid search, recent docs, quick actions */
 
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Command } from 'cmdk'
-import { Search, FileText, Plus, FolderPlus, X, Clock } from 'lucide-react'
+import { Search, FileText, Plus, FolderPlus, X, Clock, Sparkles, History } from 'lucide-react'
 import { useDocuments, useCreateDocument } from '../../hooks/use-documents'
-import { useSearch } from '../../hooks/use-search'
+import { useSearch, useSuggest } from '../../hooks/use-search'
 import { useDebounce } from '../../hooks/use-debounce'
 import { useCreateFolder } from '../../hooks/use-folders'
 import { useAppStore } from '../../stores/app-store'
@@ -15,11 +15,14 @@ export function CommandPalette() {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const debouncedQuery = useDebounce(query.trim(), 250)
+  const debouncedSuggestQuery = useDebounce(query.trim(), 150)
 
   const { theme, openTab, setActiveTab } = useAppStore()
   const navigate = useNavigate()
 
-  // Hybrid search for typed queries
+  // Autocomplete suggestions (faster debounce, >= 1 char)
+  const { data: suggestData } = useSuggest(debouncedSuggestQuery)
+  // Hybrid search for typed queries (>= 2 chars)
   const { data: searchData } = useSearch(debouncedQuery)
   // Recent docs when no query
   const { data: recentData } = useDocuments({ limit: 5 })
@@ -51,6 +54,16 @@ export function CommandPalette() {
     setQuery('')
   }
 
+  const handleSuggestionClick = (item: { text: string; documentId?: string; slug?: string; source: string }) => {
+    if (item.documentId && item.slug) {
+      // Title or fuzzy suggestion — navigate directly
+      openDocument({ id: item.documentId, title: item.text, slug: item.slug })
+    } else {
+      // History suggestion — fill search input to trigger full search
+      setQuery(item.text)
+    }
+  }
+
   const handleNewDoc = async () => {
     setOpen(false)
     try {
@@ -78,10 +91,19 @@ export function CommandPalette() {
 
   if (!open) return null
 
+  const suggestions = suggestData?.suggestions ?? []
   const searchResults = searchData?.results ?? []
   const recentDocs = recentData?.data ?? []
-  const showSearch = debouncedQuery.length >= 2
-  const showRecent = !showSearch && recentDocs.length > 0
+  const showSuggestions = debouncedSuggestQuery.length >= 1 && suggestions.length > 0
+  const showSearch = debouncedQuery.length >= 2 && searchResults.length > 0
+  const showRecent = !showSuggestions && !showSearch && recentDocs.length > 0
+
+  /** Icon for suggestion source type */
+  const suggestIcon = (source: string) => {
+    if (source === 'history') return <History className="h-3.5 w-3.5" />
+    if (source === 'fuzzy') return <Sparkles className="h-3.5 w-3.5" />
+    return <FileText className="h-3.5 w-3.5" />
+  }
 
   return (
     <div
@@ -158,8 +180,30 @@ export function CommandPalette() {
               />
             </Command.Group>
 
+            {/* Autocomplete suggestions */}
+            {showSuggestions && (
+              <Command.Group
+                heading={
+                  <span className={cn('px-2 py-1 text-[11px] font-semibold uppercase tracking-wider', isDark ? 'text-neutral-600' : 'text-neutral-400')}>
+                    Suggestions
+                  </span>
+                }
+              >
+                {suggestions.map((item, idx) => (
+                  <CommandItem
+                    key={`suggest-${idx}`}
+                    icon={suggestIcon(item.source)}
+                    label={item.text}
+                    sublabel={item.source === 'fuzzy' ? 'fuzzy match' : item.source === 'history' ? 'recent search' : undefined}
+                    onSelect={() => handleSuggestionClick(item)}
+                    isDark={isDark}
+                  />
+                ))}
+              </Command.Group>
+            )}
+
             {/* Search results */}
-            {showSearch && searchResults.length > 0 && (
+            {showSearch && (
               <Command.Group
                 heading={
                   <span className={cn('px-2 py-1 text-[11px] font-semibold uppercase tracking-wider', isDark ? 'text-neutral-600' : 'text-neutral-400')}>
