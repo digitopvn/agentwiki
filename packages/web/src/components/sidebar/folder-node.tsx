@@ -9,6 +9,7 @@ import { useAppStore } from '../../stores/app-store'
 import { useUpdateFolder, useDeleteFolder, useCreateFolder } from '../../hooks/use-folders'
 import { useCreateDocument, useDocuments } from '../../hooks/use-documents'
 import { DocumentContextMenu } from './document-context-menu'
+import { CreateFolderModal } from './create-folder-modal'
 
 interface FolderTreeNode {
   id: string
@@ -30,6 +31,7 @@ export function FolderNode({ folder, depth = 0, searchQuery = '' }: FolderNodePr
     x: number
     y: number
   } | null>(null)
+  const [subfolderModalOpen, setSubfolderModalOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const { theme, openTab, setActiveTab } = useAppStore()
@@ -70,11 +72,13 @@ export function FolderNode({ folder, depth = 0, searchQuery = '' }: FolderNodePr
     await deleteFolder.mutateAsync(folder.id)
   }
 
-  const handleNewSubfolder = async () => {
+  const handleNewSubfolder = () => {
     setContextMenu(null)
-    const name = window.prompt('New subfolder name:')
-    if (!name?.trim()) return
-    await createFolder.mutateAsync({ name: name.trim(), parentId: folder.id })
+    setSubfolderModalOpen(true)
+  }
+
+  const handleCreateSubfolder = async (name: string) => {
+    await createFolder.mutateAsync({ name, parentId: folder.id })
     setExpanded(true)
   }
 
@@ -185,6 +189,13 @@ export function FolderNode({ folder, depth = 0, searchQuery = '' }: FolderNodePr
           onClose={() => setDocMenu(null)}
         />
       )}
+
+      <CreateFolderModal
+        open={subfolderModalOpen}
+        onClose={() => setSubfolderModalOpen(false)}
+        onSubmit={handleCreateSubfolder}
+        parentName={folder.name}
+      />
     </div>
   )
 }

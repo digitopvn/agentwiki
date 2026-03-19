@@ -8,6 +8,7 @@ import { useAppStore } from '../../stores/app-store'
 import { useAuth } from '../../hooks/use-auth'
 import { FolderTree } from '../sidebar/folder-tree'
 import { BrowsePanel, type BrowseFilter } from '../sidebar/browse-panel'
+import { CreateFolderModal } from '../sidebar/create-folder-modal'
 import { useCreateFolder } from '../../hooks/use-folders'
 import { useCreateDocument, useDocuments } from '../../hooks/use-documents'
 import { FileText } from 'lucide-react'
@@ -16,6 +17,7 @@ export function Sidebar() {
   const { sidebarCollapsed, setSidebarCollapsed, theme, toggleTheme } = useAppStore()
   const [search, setSearch] = useState('')
   const [showBrowse, setShowBrowse] = useState(false)
+  const [folderModalOpen, setFolderModalOpen] = useState(false)
   const [browseFilter, setBrowseFilter] = useState<BrowseFilter | null>(null)
   const createFolder = useCreateFolder()
   const createDocument = useCreateDocument()
@@ -45,11 +47,9 @@ export function Sidebar() {
     }
   }
 
-  const handleNewFolder = async () => {
-    const name = window.prompt('Folder name:')
-    if (!name?.trim()) return
+  const handleNewFolder = async (name: string) => {
     try {
-      await createFolder.mutateAsync({ name: name.trim() })
+      await createFolder.mutateAsync({ name })
     } catch (err) {
       console.error('Failed to create folder:', err)
     }
@@ -146,7 +146,7 @@ export function Sidebar() {
           New doc
         </button>
         <button
-          onClick={handleNewFolder}
+          onClick={() => setFolderModalOpen(true)}
           disabled={createFolder.isPending}
           className={cn(
             'flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs',
@@ -269,6 +269,12 @@ export function Sidebar() {
           </button>
         </div>
       </div>
+
+      <CreateFolderModal
+        open={folderModalOpen}
+        onClose={() => setFolderModalOpen(false)}
+        onSubmit={handleNewFolder}
+      />
     </div>
   )
 }

@@ -1,9 +1,8 @@
 /** R2 Storage management: file grid with upload, preview, delete */
 
 import { useRef, useState } from 'react'
-import { Upload, Trash2, FileIcon, Image, Download } from 'lucide-react'
+import { Upload, Trash2, FileIcon, Image, Download, Cloud, Info } from 'lucide-react'
 import { useUploads, useUploadFile, useDeleteUpload } from '../../hooks/use-uploads'
-import { useAppStore } from '../../stores/app-store'
 import { cn } from '../../lib/utils'
 
 function formatBytes(bytes: number): string {
@@ -56,6 +55,39 @@ export function StorageTab({ isDark }: { isDark: boolean }) {
             {uploadFile.isPending ? 'Uploading...' : 'Upload file'}
           </button>
           <input ref={fileInputRef} type="file" onChange={handleUpload} className="hidden" />
+        </div>
+      </div>
+
+      {/* R2 Configuration info */}
+      <div className={cn('rounded-lg border p-4 space-y-2', isDark ? 'border-white/[0.06] bg-surface-1' : 'border-neutral-200 bg-white')}>
+        <div className="flex items-center gap-2">
+          <Cloud className="h-4 w-4 text-brand-400" />
+          <span className={cn('text-xs font-semibold', isDark ? 'text-neutral-200' : 'text-neutral-700')}>Cloudflare R2</span>
+          <span className="rounded-full bg-green-500/15 px-1.5 py-0.5 text-[10px] font-medium text-green-400">Connected</span>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <span className={cn('text-[10px] uppercase tracking-wider', isDark ? 'text-neutral-600' : 'text-neutral-400')}>Bucket</span>
+            <p className={cn('text-xs font-mono mt-0.5', isDark ? 'text-neutral-300' : 'text-neutral-600')}>agentwiki-files</p>
+          </div>
+          <div>
+            <span className={cn('text-[10px] uppercase tracking-wider', isDark ? 'text-neutral-600' : 'text-neutral-400')}>Max file size</span>
+            <p className={cn('text-xs mt-0.5', isDark ? 'text-neutral-300' : 'text-neutral-600')}>10 MB</p>
+          </div>
+          <div>
+            <span className={cn('text-[10px] uppercase tracking-wider', isDark ? 'text-neutral-600' : 'text-neutral-400')}>Total files</span>
+            <p className={cn('text-xs mt-0.5', isDark ? 'text-neutral-300' : 'text-neutral-600')}>{files.length}</p>
+          </div>
+          <div>
+            <span className={cn('text-[10px] uppercase tracking-wider', isDark ? 'text-neutral-600' : 'text-neutral-400')}>Total size</span>
+            <p className={cn('text-xs mt-0.5', isDark ? 'text-neutral-300' : 'text-neutral-600')}>{formatBytes(totalSize)}</p>
+          </div>
+        </div>
+        <div className="flex items-start gap-1.5 mt-1">
+          <Info className={cn('h-3 w-3 mt-0.5 shrink-0', isDark ? 'text-neutral-600' : 'text-neutral-400')} />
+          <p className={cn('text-[11px]', isDark ? 'text-neutral-500' : 'text-neutral-400')}>
+            R2 storage is configured via Cloudflare dashboard. Images dragged into the editor are automatically uploaded here.
+          </p>
         </div>
       </div>
 

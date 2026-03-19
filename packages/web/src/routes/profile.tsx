@@ -19,7 +19,13 @@ export function ProfilePage() {
   const [name, setName] = useState(user?.name ?? '')
 
   const updateProfile = useMutation({
-    mutationFn: (body: { name: string }) => apiClient.put('/api/auth/me', body),
+    mutationFn: (body: { name: string }) =>
+      fetch('/api/auth/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      }).then((r) => { if (!r.ok) throw new Error('Failed'); return r.json() }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['auth', 'me'] }),
   })
 
@@ -37,7 +43,13 @@ export function ProfilePage() {
     await updateProfile.mutateAsync({ name: name.trim() })
   }
 
-  if (!user) return null
+  if (!user) {
+    return (
+      <div className={cn('flex h-screen items-center justify-center', isDark ? 'bg-surface-0' : 'bg-neutral-50')}>
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-800 border-t-brand-500" />
+      </div>
+    )
+  }
 
   const inputCls = cn(
     'w-full rounded-lg border px-3 py-2 text-sm outline-none',
