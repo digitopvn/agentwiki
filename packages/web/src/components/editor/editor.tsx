@@ -3,9 +3,26 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useCreateBlockNote } from '@blocknote/react'
 import { BlockNoteView } from '@blocknote/mantine'
+import {
+  SuggestionMenuController,
+  getDefaultReactSlashMenuItems,
+  FormattingToolbarController,
+  FormattingToolbar,
+  BlockTypeSelect,
+  BasicTextStyleButton,
+  TextAlignButton,
+  ColorStyleButton,
+  NestBlockButton,
+  UnnestBlockButton,
+  CreateLinkButton,
+} from '@blocknote/react'
+import { filterSuggestionItems } from '@blocknote/core'
 import '@blocknote/mantine/style.css'
 import { useDocument, useUpdateDocument } from '../../hooks/use-documents'
 import { useAppStore } from '../../stores/app-store'
+import { useAI } from '../../hooks/use-ai'
+import { getAISlashMenuItems } from './ai-slash-commands'
+import { AISelectionToolbar } from './ai-selection-toolbar'
 import { cn } from '../../lib/utils'
 
 interface EditorProps {
@@ -17,6 +34,7 @@ export function Editor({ documentId, tabId }: EditorProps) {
   const { data: doc, isLoading } = useDocument(documentId)
   const updateDocument = useUpdateDocument()
   const { markTabDirty, updateTabTitle, theme } = useAppStore()
+  const { isGenerating, error: aiError, generate, transform } = useAI()
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const initializedRef = useRef(false)
@@ -155,14 +173,59 @@ export function Editor({ documentId, tabId }: EditorProps) {
         />
       </div>
 
-      {/* BlockNote editor */}
+      {/* AI error indicator */}
+      {aiError && (
+        <div className="mx-4 mb-2 rounded bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-950 dark:text-red-400">
+          AI error: {aiError}
+        </div>
+      )}
+
+      {/* BlockNote editor with AI slash commands and selection toolbar */}
       <div className="flex-1 overflow-y-auto px-1 md:px-4">
         <BlockNoteView
           editor={editor}
           onChange={handleChange}
           theme={theme}
           className="min-h-full"
-        />
+          slashMenu={false}
+          formattingToolbar={false}
+        >
+          <SuggestionMenuController
+            triggerCharacter="/"
+            getItems={async (query) =>
+              filterSuggestionItems(
+                [...getDefaultReactSlashMenuItems(editor), ...getAISlashMenuItems(editor, documentId, generate)],
+                query,
+              )
+            }
+          />
+          <FormattingToolbarController
+            formattingToolbar={() => (
+              <FormattingToolbar>
+                <BlockTypeSelect key="blockTypeSelect" />
+                <BasicTextStyleButton basicTextStyle="bold" key="boldStyleButton" />
+                <BasicTextStyleButton basicTextStyle="italic" key="italicStyleButton" />
+                <BasicTextStyleButton basicTextStyle="underline" key="underlineStyleButton" />
+                <BasicTextStyleButton basicTextStyle="strike" key="strikeStyleButton" />
+                <BasicTextStyleButton basicTextStyle="code" key="codeStyleButton" />
+                <TextAlignButton textAlignment="left" key="textAlignLeftButton" />
+                <TextAlignButton textAlignment="center" key="textAlignCenterButton" />
+                <TextAlignButton textAlignment="right" key="textAlignRightButton" />
+                <ColorStyleButton key="colorStyleButton" />
+                <NestBlockButton key="nestBlockButton" />
+                <UnnestBlockButton key="unnestBlockButton" />
+                <CreateLinkButton key="createLinkButton" />
+                <AISelectionToolbar
+                  key="aiToolbar"
+                  editor={editor}
+                  documentId={documentId}
+                  transform={transform}
+                  isGenerating={isGenerating}
+                />
+              </FormattingToolbar>
+            )}
+          />
+        </BlockNoteView>
       </div>
     </div>
   )

@@ -9,6 +9,7 @@ Comprehensive architecture documentation covering layers, data flow, deployment 
 │                        Frontend Layer                       │
 │        React 19 + BlockNote + TailwindCSS v4               │
 │      Cloudflare Pages (cdn.agentwiki.cc)                   │
+│      (AI Slash Commands, Selection Toolbar)                │
 └────────────────────────┬────────────────────────────────────┘
                          │ HTTPS REST API
                          │
@@ -16,9 +17,10 @@ Comprehensive architecture documentation covering layers, data flow, deployment 
 │                    API Gateway Layer                        │
 │       Hono on Cloudflare Workers (api.agentwiki.cc)        │
 │  ┌──────────────────────────────────────────────────────┐  │
-│  │ Routes: Auth, Documents, Folders, Search, Upload...  │  │
+│  │ Routes: Auth, Docs, Folders, Search, Upload, AI...   │  │
+│  │ AI Layer: Provider Registry, Adapters (6 providers)   │  │
 │  │ Middleware: AuthGuard, RateLimit, Permission Check   │  │
-│  │ Services: DocumentService, SearchService, etc.       │  │
+│  │ Services: DocumentService, SearchService, AIService  │  │
 │  └──────────────────────────────────────────────────────┘  │
 └────────────────────────┬────────────────────────────────────┘
                          │
@@ -27,14 +29,16 @@ Comprehensive architecture documentation covering layers, data flow, deployment 
     ┌───▼──┐         ┌───▼──┐        ┌───▼──┐
     │  D1  │         │  R2  │        │  KV  │
     │(SQL) │         │Files │        │Cache │
-    └──────┘         └──────┘        └──────┘
+    │+2 AI │         │      │        │      │
+    │tables│         └──────┘        └──────┘
+    └──────┘
         │
-        └──────────────┬──────────────┐
-                       │              │
-                   ┌───▼──┐      ┌───▼────────┐
-                   │Queue │      │ Workers AI │
-                   └──────┘      │+ Vectorize │
-                                 └────────────┘
+        └──────────────┬──────────────┬──────────────┐
+                       │              │              │
+                   ┌───▼──┐      ┌───▼────────┐  ┌──▼──────────────┐
+                   │Queue │      │ Workers AI │  │ External LLMs   │
+                   └──────┘      │+ Vectorize │  │ (OpenAI, etc)   │
+                                 └────────────┘  └─────────────────┘
 ```
 
 ## Layered Architecture
@@ -62,7 +66,42 @@ Comprehensive architecture documentation covering layers, data flow, deployment 
 - **React Query**: Server state (documents, folders, search results)
 - **Local**: Component state (editor content before save)
 
-### 2. API Layer (Backend)
+### 2. AI Layer (Backend)
+
+**Technology**: 6 multi-vendor provider adapters + unified interface
+
+**Supported Providers**:
+- OpenAI (gpt-4, gpt-3.5-turbo)
+- Anthropic (claude-opus, claude-haiku)
+- Google Gemini (gemini-pro)
+- OpenRouter (aggregator)
+- MiniMax (specialized)
+- Alibaba (specialized)
+
+**Features**:
+- **Slash Commands** (5): `/generate`, `/transform`, `/expand`, `/summarize`, `/suggest`
+- **Selection Toolbar** (6 actions): Rewrite, Expand, Summarize, Simplify, Translate, Check grammar
+- **Auto-Summarize**: Upgrades to tenant's configured provider (fallback: Workers AI)
+- **Smart Suggestions**: RAG-powered suggestions via Vectorize indexing
+- **Encrypted Keys**: API keys encrypted at rest in `ai_settings` table
+- **Usage Tracking**: Token counts + estimated cost in `ai_usage` table
+
+**Request Flow**:
+```
+AI Request (slash command or toolbar action)
+    ↓
+AIService resolves provider + model from ai_settings
+    ↓
+Provider adapter (OpenAI, Anthropic, etc.) prepares request
+    ↓
+Call external LLM API with auth header
+    ↓
+Stream or batch response back to client
+    ↓
+Log usage metrics (tokens, cost) to ai_usage table
+```
+
+### 3. API Layer (Backend)
 
 **Technology**: Hono framework on Cloudflare Workers
 
@@ -71,7 +110,7 @@ Comprehensive architecture documentation covering layers, data flow, deployment 
 - Authentication (OAuth, JWT, API keys)
 - Authorization (RBAC via middleware)
 - Input validation (Zod schemas)
-- Business logic orchestration
+- Business logic orchestration + AI integration
 - Response serialization
 
 **Request Flow**:
@@ -107,15 +146,23 @@ Response (JSON)
 - `/api/tags` — Tag enumeration
 - `/api/graph` — Document graph export
 
-### 3. Service Layer
+### 4. Service Layer
 
 **Responsibilities**:
 - Pure business logic (no HTTP concerns)
 - Database transactions
 - Multi-step workflows
-- External service calls (OAuth, Vectorize)
+- External service calls (OAuth, Vectorize, LLMs)
 
 **Key Services**:
+
+#### AIService
+- Provider registry lookup
+- Encrypted key retrieval from `ai_settings`
+- Request formatting per provider API spec
+- Stream or batch response handling
+- Token counting & usage logging
+- Fallback to Workers AI if no config
 
 #### AuthService
 - OAuth profile fetching (Google, GitHub)
@@ -150,7 +197,7 @@ Response (JSON)
 - Expiration tracking
 - Public access validation
 
-### 4. Data Access Layer (Drizzle ORM)
+### 5. Data Access Layer (Drizzle ORM)
 
 **Technology**: Drizzle ORM on Cloudflare D1 (SQLite)
 
@@ -176,7 +223,7 @@ await db.transaction(async (tx) => {
 })
 ```
 
-### 5. Data Storage Layer
+### 6. Data Storage Layer
 
 #### D1 (SQLite Database)
 - **Multi-tenant schema**: All tables have `tenantId` column

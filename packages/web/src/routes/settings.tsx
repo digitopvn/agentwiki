@@ -2,19 +2,21 @@
 
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Users, Building2, Key, Keyboard, Trash2, HardDrive } from 'lucide-react'
+import { ArrowLeft, Users, Building2, Key, Keyboard, Trash2, HardDrive, Sparkles } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAppStore } from '../stores/app-store'
 import { apiClient } from '../lib/api-client'
 import { cn } from '../lib/utils'
 import { StorageTab } from '../components/settings/storage-tab'
+import { AISettingsTab } from '../components/settings/ai-settings-tab'
 
-type TabId = 'members' | 'workspace' | 'api-keys' | 'shortcuts' | 'storage'
+type TabId = 'members' | 'workspace' | 'api-keys' | 'ai' | 'storage' | 'shortcuts'
 
 const TABS: { id: TabId; label: string; icon: typeof Users }[] = [
   { id: 'members', label: 'Members', icon: Users },
   { id: 'workspace', label: 'Workspace', icon: Building2 },
   { id: 'api-keys', label: 'API Keys', icon: Key },
+  { id: 'ai', label: 'AI', icon: Sparkles },
   { id: 'storage', label: 'Storage', icon: HardDrive },
   { id: 'shortcuts', label: 'Shortcuts', icon: Keyboard },
 ]
@@ -62,6 +64,7 @@ export function SettingsPage() {
         {activeTab === 'members' && <MembersTab isDark={isDark} />}
         {activeTab === 'workspace' && <WorkspaceTab isDark={isDark} />}
         {activeTab === 'api-keys' && <ApiKeysTab isDark={isDark} />}
+        {activeTab === 'ai' && <AISettingsTab isDark={isDark} />}
         {activeTab === 'storage' && <StorageTab isDark={isDark} />}
         {activeTab === 'shortcuts' && <ShortcutsTab isDark={isDark} />}
       </div>

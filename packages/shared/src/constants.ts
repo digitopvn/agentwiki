@@ -29,3 +29,16 @@ export const TOKEN_TTL = {
 
 /** API key prefix */
 export const API_KEY_PREFIX = 'aw_'
+
+/** Supported AI providers with available models */
+export const AI_PROVIDERS = {
+  openai: { name: 'OpenAI', models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'] },
+  anthropic: { name: 'Anthropic', models: ['claude-sonnet-4-20250514', 'claude-haiku-4-5-20251001'] },
+  google: { name: 'Google Gemini', models: ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro'] },
+  openrouter: { name: 'OpenRouter', models: ['auto'] },
+  minimax: { name: 'MiniMax', models: ['MiniMax-M1', 'MiniMax-T1'] },
+  alibaba: { name: 'Alibaba', models: ['qwen-turbo', 'qwen-plus', 'qwen-max'] },
+} as const
+
+/** AI rate limit: requests per user per minute */
+export const AI_RATE_LIMIT = { maxRequests: 15, intervalMs: 60_000 } as const

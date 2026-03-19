@@ -140,6 +140,31 @@ export const shareLinks = sqliteTable('share_links', {
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 })
 
+/** AI provider settings per tenant (encrypted API keys) */
+export const aiSettings = sqliteTable('ai_settings', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  providerId: text('provider_id').notNull(),
+  encryptedApiKey: text('encrypted_api_key').notNull(),
+  defaultModel: text('default_model').notNull(),
+  isEnabled: integer('is_enabled', { mode: 'boolean' }).notNull().default(true),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
+/** AI usage tracking for token consumption monitoring */
+export const aiUsage = sqliteTable('ai_usage', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  userId: text('user_id').notNull().references(() => users.id),
+  providerId: text('provider_id').notNull(),
+  model: text('model').notNull(),
+  action: text('action').notNull(),
+  inputTokens: integer('input_tokens').notNull().default(0),
+  outputTokens: integer('output_tokens').notNull().default(0),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
 /** File uploads (R2 metadata) */
 export const uploads = sqliteTable('uploads', {
   id: text('id').primaryKey(),
