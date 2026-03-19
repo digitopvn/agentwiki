@@ -22,19 +22,35 @@ Comprehensive architecture documentation covering layers, data flow, deployment 
 │  └──────────────────────────────────────────────────────┘  │
 └────────────────────────┬────────────────────────────────────┘
                          │
-        ┌────────────────┼────────────────┐
-        │                │                │
-    ┌───▼──┐         ┌───▼──┐        ┌───▼──┐
-    │  D1  │         │  R2  │        │  KV  │
-    │(SQL) │         │Files │        │Cache │
-    └──────┘         └──────┘        └──────┘
+     ┌──────────────────┼──────────────────┐
+     │                  │                  │
+┌────▼──────────────┐   │          ┌───────▼────────────┐
+│   MCP Server      │   │          │   Shared Bindings  │
+│ Cloudflare Worker │   │          │  (D1, R2, KV, AI)  │
+│ (mcp.agentwiki.cc)    │          │                    │
+│ ┌────────────────┐    │          └────────────────────┘
+│ │ 25 Tools       │    │
+│ │ 6 Resources    │    │
+│ │ 4 Prompts      │    │
+│ │ Auth: API Keys │    │
+│ └────────────────┘    │
+└──────────────────────┘│
+                        │
+        ┌───────────────┼───────────────┐
+        │               │               │
+    ┌───▼──┐        ┌───▼──┐      ┌───▼────────┐
+    │  D1  │        │  R2  │      │ Workers AI │
+    │(SQL) │        │Files │      │+ Vectorize │
+    └──────┘        └──────┘      └────────────┘
         │
-        └──────────────┬──────────────┐
-                       │              │
-                   ┌───▼──┐      ┌───▼────────┐
-                   │Queue │      │ Workers AI │
-                   └──────┘      │+ Vectorize │
-                                 └────────────┘
+    ┌───▼──┐
+    │  KV  │
+    │Cache │
+    └──────┘
+        │
+    ┌───▼────┐
+    │ Queue  │
+    └────────┘
 ```
 
 ## Layered Architecture
@@ -107,7 +123,73 @@ Response (JSON)
 - `/api/tags` — Tag enumeration
 - `/api/graph` — Document graph export
 
-### 3. Service Layer
+### 3. MCP Server Layer (Agent Integration)
+
+**Technology**: Model Context Protocol (MCP) on Cloudflare Workers
+
+**Deployment**: `mcp.agentwiki.cc` (stateless HTTP)
+
+**Responsibilities**:
+- Expose AgentWiki capabilities via standardized MCP protocol
+- Enable AI agents to manage documents, search, and collaborate
+- Provide 25 MCP tools covering core operations
+- Offer 6 context resources for multi-step AI workflows
+- Supply 4 system prompts for consistent agent behavior
+
+**Authentication**:
+- API keys (format: `aw_*`) via header, Bearer token, or query param
+- PBKDF2 hashing with scope-based RBAC (same as REST API)
+- Key validation against `api_keys` table
+
+**Direct Bindings**:
+- Shares same D1, R2, KV, Vectorize, Queue, and AI bindings as REST API
+- Code reuse: Imports services from `packages/api`
+
+**Tool Categories** (25 tools):
+
+| Category | Count | Examples |
+|----------|-------|----------|
+| Documents | 7 | create, read, update, delete, list, get versions, extract links |
+| Search & Graph | 4 | keyword search, semantic search, get graph, analyze relationships |
+| Folders | 4 | create, move, list, delete |
+| Tags | 2 | add tag, list tags |
+| Uploads | 2 | upload file, delete upload |
+| Members | 2 | invite user, list members |
+| API Keys | 2 | create key, revoke key |
+| Sharing | 2 | create share link, revoke share link |
+
+**Resources** (6 total):
+- Document contents (full markdown)
+- Search results (snippets + metadata)
+- Folder structure (tree view)
+- Member list (team info)
+- API key metadata (for audit)
+- Share link status
+
+**Prompts** (4 system prompts):
+- Wiki writer (document creation)
+- Research assistant (search + analysis)
+- Team coordinator (member management)
+- Knowledge architect (graph analysis)
+
+**Request Format**:
+```
+POST /mcp/message HTTP/1.1
+Host: mcp.agentwiki.cc
+Authorization: Bearer aw_key_xxxxx
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "create_document",
+    "arguments": { "title": "...", "content": "..." }
+  }
+}
+```
+
+### 4. Service Layer
 
 **Responsibilities**:
 - Pure business logic (no HTTP concerns)
@@ -150,7 +232,7 @@ Response (JSON)
 - Expiration tracking
 - Public access validation
 
-### 4. Data Access Layer (Drizzle ORM)
+### 5. Data Access Layer (Drizzle ORM)
 
 **Technology**: Drizzle ORM on Cloudflare D1 (SQLite)
 
@@ -176,7 +258,7 @@ await db.transaction(async (tx) => {
 })
 ```
 
-### 5. Data Storage Layer
+### 6. Data Storage Layer
 
 #### D1 (SQLite Database)
 - **Multi-tenant schema**: All tables have `tenantId` column

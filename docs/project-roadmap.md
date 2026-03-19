@@ -170,7 +170,7 @@ AgentWiki is an enterprise knowledge management platform serving humans and AI a
 ### Phase 7: Graph & Hardening 🔄 IN PROGRESS
 
 **Timeline**: Mar 2026 - Mar 2026
-**Status**: 90% Complete
+**Status**: 95% Complete
 
 **Deliverables**:
 - [x] Document graph endpoint (nodes + edges)
@@ -182,6 +182,33 @@ AgentWiki is an enterprise knowledge management platform serving humans and AI a
 - [ ] Enhanced error handling
 - [ ] E2E test suite
 - [ ] Load testing & optimization
+
+### Phase 8: MCP Server Implementation ✅ COMPLETE
+
+**Timeline**: Mar 2026 - Mar 2026
+**Status**: Shipped
+
+**Deliverables**:
+- [x] Model Context Protocol (MCP) server on Cloudflare Workers
+- [x] 25 MCP tools (document, search, folder, tag, upload, member, key, share operations)
+- [x] 6 context resources (documents, search results, folder tree, members, keys, shares)
+- [x] 4 system prompts for AI agent guidance (wiki writer, research, coordination, architecture)
+- [x] API key authentication (PBKDF2 + scope-based RBAC)
+- [x] Streamable HTTP transport (stateless)
+- [x] Service reuse from packages/api (D1, R2, KV, Vectorize, Queue, AI bindings)
+- [x] Audit logging for MCP actions
+- [x] Error handling & serialization
+
+**Key Files**:
+- `packages/mcp/src/server.ts` — McpServer factory
+- `packages/mcp/src/tools/*` — Tool implementations
+- `packages/mcp/src/resources/wiki-resources.ts` — Context resources
+- `packages/mcp/src/prompts/wiki-prompts.ts` — System prompts
+- `packages/mcp/src/auth/api-key-auth.ts` — Authentication
+
+**Deployment**:
+- URL: `https://mcp.agentwiki.cc`
+- Bindings: Shared with REST API (D1, R2, KV, Vectorize, Queue, AI)
 
 **Key Files**:
 - `packages/api/src/routes/graph.ts` — Graph API
@@ -220,6 +247,7 @@ AgentWiki is an enterprise knowledge management platform serving humans and AI a
 | Sharing | ✅ | 100% | Token-based links |
 | Publishing | ✅ | 100% | Public web pages |
 | AI-assisted writing | ✅ | 100% | 6 providers, 11 commands |
+| MCP server | ✅ | 100% | 25 tools, 6 resources, 4 prompts |
 | CLI tool | ✅ | 100% | All major commands |
 | API completeness | ✅ | 100% | RESTful, type-safe |
 
@@ -479,6 +507,7 @@ AgentWiki is an enterprise knowledge management platform serving humans and AI a
 - Web editor (BlockNote)
 - Document sharing
 - Audit logging
+- MCP server for AI agent integration (25 tools, 6 resources, 4 prompts)
 
 ### 0.2.0 (Planned Q2 2026)
 - Real-time collaborative editing
