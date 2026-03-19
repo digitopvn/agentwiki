@@ -21,7 +21,7 @@ export function MainPanel() {
       {isMobile && (
         <div
           className={cn(
-            'flex items-center justify-between px-2 py-2 border-b shrink-0',
+            'safe-area-top flex items-center justify-between px-2 py-2 border-b shrink-0',
             isDark ? 'border-white/[0.06] bg-surface-1' : 'border-neutral-200 bg-white',
           )}
         >

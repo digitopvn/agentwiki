@@ -75,21 +75,21 @@ export function ShareLinkDisplay({ documentId }: ShareLinkDisplayProps) {
         <button
           onClick={handleCopy}
           className={cn(
-            'shrink-0 cursor-pointer rounded p-1',
-            isDark ? 'text-neutral-400 hover:bg-surface-4 hover:text-neutral-200' : 'text-neutral-400 hover:bg-neutral-200',
+            'shrink-0 cursor-pointer rounded p-2 md:p-1',
+            isDark ? 'text-neutral-400 hover:bg-surface-4 hover:text-neutral-200 active:bg-surface-4' : 'text-neutral-400 hover:bg-neutral-200 active:bg-neutral-200',
           )}
           title="Copy link"
         >
-          {copied ? <Check className="h-3 w-3 text-green-400" /> : <Copy className="h-3 w-3" />}
+          {copied ? <Check className="h-4 w-4 md:h-3 md:w-3 text-green-400" /> : <Copy className="h-4 w-4 md:h-3 md:w-3" />}
         </button>
         <button
           onClick={handleRevoke}
           className={cn(
-            'shrink-0 cursor-pointer rounded p-1 text-red-400 hover:bg-red-500/10',
+            'shrink-0 cursor-pointer rounded p-2 md:p-1 text-red-400 hover:bg-red-500/10 active:bg-red-500/10',
           )}
           title="Revoke link"
         >
-          <Trash2 className="h-3 w-3" />
+          <Trash2 className="h-4 w-4 md:h-3 md:w-3" />
         </button>
       </div>
     </div>

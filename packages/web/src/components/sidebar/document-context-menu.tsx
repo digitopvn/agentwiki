@@ -89,7 +89,7 @@ export function DocumentContextMenu({ doc, position, onClose }: DocumentContextM
         <div
           ref={menuRef}
           className={cn(
-            'relative z-10 w-full max-w-md rounded-t-2xl pb-6 pt-2',
+            'safe-area-bottom relative z-10 w-full max-w-md rounded-t-2xl pb-6 pt-2',
             isDark ? 'bg-surface-2' : 'bg-white',
           )}
           onClick={(e) => e.stopPropagation()}

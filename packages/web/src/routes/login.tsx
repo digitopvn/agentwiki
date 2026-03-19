@@ -34,7 +34,7 @@ export function LoginPage() {
         <div className="space-y-3">
           <button
             onClick={handleGoogle}
-            className="group flex w-full cursor-pointer items-center justify-center gap-3 rounded-xl border border-neutral-800 bg-surface-2 px-4 py-3 text-sm font-medium text-neutral-200 hover:border-neutral-700 hover:bg-surface-3 focus-visible:ring-2 focus-visible:ring-brand-500"
+            className="group flex w-full cursor-pointer items-center justify-center gap-3 rounded-xl border border-neutral-800 bg-surface-2 px-4 py-3 text-sm font-medium text-neutral-200 hover:border-neutral-700 hover:bg-surface-3 active:bg-surface-3 focus-visible:ring-2 focus-visible:ring-brand-500"
           >
             <GoogleIcon />
             Continue with Google
@@ -42,7 +42,7 @@ export function LoginPage() {
 
           <button
             onClick={handleGitHub}
-            className="group flex w-full cursor-pointer items-center justify-center gap-3 rounded-xl border border-neutral-800 bg-surface-2 px-4 py-3 text-sm font-medium text-neutral-200 hover:border-neutral-700 hover:bg-surface-3 focus-visible:ring-2 focus-visible:ring-brand-500"
+            className="group flex w-full cursor-pointer items-center justify-center gap-3 rounded-xl border border-neutral-800 bg-surface-2 px-4 py-3 text-sm font-medium text-neutral-200 hover:border-neutral-700 hover:bg-surface-3 active:bg-surface-3 focus-visible:ring-2 focus-visible:ring-brand-500"
           >
             <GitHubIcon />
             Continue with GitHub

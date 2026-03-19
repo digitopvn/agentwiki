@@ -92,7 +92,7 @@ export function StorageTab({ isDark }: { isDark: boolean }) {
       </div>
 
       {/* File grid */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         {files.map((file) => (
           <div
             key={file.id}
@@ -127,21 +127,21 @@ export function StorageTab({ isDark }: { isDark: boolean }) {
             </div>
 
             {/* Actions overlay */}
-            <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="absolute top-1 right-1 flex gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
               <a
                 href={`/api/files/${file.fileKey}`}
                 download={file.filename}
-                className="rounded-md bg-black/60 p-1 text-white hover:bg-black/80"
+                className="rounded-md bg-black/60 p-2 text-white hover:bg-black/80 active:bg-black/80 md:p-1"
                 title="Download"
               >
-                <Download className="h-3 w-3" />
+                <Download className="h-4 w-4 md:h-3 md:w-3" />
               </a>
               <button
                 onClick={() => handleDelete(file.id, file.filename)}
-                className="cursor-pointer rounded-md bg-black/60 p-1 text-red-400 hover:bg-black/80"
+                className="cursor-pointer rounded-md bg-black/60 p-2 text-red-400 hover:bg-black/80 active:bg-black/80 md:p-1"
                 title="Delete"
               >
-                <Trash2 className="h-3 w-3" />
+                <Trash2 className="h-4 w-4 md:h-3 md:w-3" />
               </button>
             </div>
           </div>

@@ -65,16 +65,16 @@ export function ProfilePage() {
   return (
     <div className={cn('min-h-screen', isDark ? 'bg-surface-0' : 'bg-neutral-50')}>
       {/* Header */}
-      <div className={cn('border-b px-6 py-4', isDark ? 'border-white/[0.06]' : 'border-neutral-200')}>
+      <div className={cn('border-b px-4 py-4 md:px-6', isDark ? 'border-white/[0.06]' : 'border-neutral-200')}>
         <div className="mx-auto flex max-w-2xl items-center gap-3">
-          <button onClick={() => navigate('/')} className={cn('cursor-pointer rounded-lg p-1.5', isDark ? 'hover:bg-surface-3 text-neutral-400' : 'hover:bg-neutral-100 text-neutral-500')}>
-            <ArrowLeft className="h-4 w-4" />
+          <button onClick={() => navigate('/')} className={cn('cursor-pointer rounded-lg p-2 md:p-1.5', isDark ? 'hover:bg-surface-3 active:bg-surface-3 text-neutral-400' : 'hover:bg-neutral-100 active:bg-neutral-100 text-neutral-500')}>
+            <ArrowLeft className="h-5 w-5 md:h-4 md:w-4" />
           </button>
           <h1 className={cn('text-lg font-semibold', isDark ? 'text-neutral-100' : 'text-neutral-900')}>Profile</h1>
         </div>
       </div>
 
-      <div className="mx-auto max-w-2xl px-6 py-8 space-y-8">
+      <div className="mx-auto max-w-2xl px-4 py-6 space-y-8 md:px-6 md:py-8">
         {/* Avatar + basic info */}
         <div className="flex items-center gap-4">
           {user?.avatarUrl ? (
@@ -106,7 +106,7 @@ export function ProfilePage() {
           <button
             onClick={handleSave}
             disabled={updateProfile.isPending || name.trim() === userName}
-            className="flex cursor-pointer items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-500 disabled:opacity-50"
+            className="flex cursor-pointer items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-500 active:bg-brand-500 disabled:opacity-50"
           >
             <Save className="h-3.5 w-3.5" />
             {updateProfile.isPending ? 'Saving...' : 'Save changes'}
@@ -119,7 +119,7 @@ export function ProfilePage() {
           <p className={cn('mt-1 text-xs', isDark ? 'text-neutral-500' : 'text-neutral-400')}>
             Sign out of your account on this device.
           </p>
-          <button onClick={handleLogout} className="mt-3 flex cursor-pointer items-center gap-2 rounded-lg border border-red-500/30 px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10">
+          <button onClick={handleLogout} className="mt-3 flex cursor-pointer items-center gap-2 rounded-lg border border-red-500/30 px-3 py-2.5 text-sm text-red-400 hover:bg-red-500/10 active:bg-red-500/10 md:py-1.5 md:text-xs">
             <LogOut className="h-3 w-3" />
             Sign out
           </button>

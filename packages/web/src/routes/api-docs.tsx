@@ -169,8 +169,8 @@ function EndpointRow({ endpoint, isDark, hasBorder }: { endpoint: { method: stri
       </span>
       <code className={cn('font-mono text-xs flex-1', isDark ? 'text-neutral-300' : 'text-neutral-700')}>{endpoint.path}</code>
       <span className={cn('text-xs hidden sm:block', isDark ? 'text-neutral-500' : 'text-neutral-400')}>{endpoint.desc}</span>
-      <button onClick={handleCopy} className="opacity-0 group-hover:opacity-100 cursor-pointer rounded p-1 text-neutral-500 hover:text-neutral-300 transition-opacity">
-        {copied ? <Check className="h-3 w-3 text-green-400" /> : <Copy className="h-3 w-3" />}
+      <button onClick={handleCopy} className="md:opacity-0 md:group-hover:opacity-100 cursor-pointer rounded p-2 md:p-1 text-neutral-500 hover:text-neutral-300 active:text-neutral-300 transition-opacity">
+        {copied ? <Check className="h-4 w-4 md:h-3 md:w-3 text-green-400" /> : <Copy className="h-4 w-4 md:h-3 md:w-3" />}
       </button>
     </div>
   )

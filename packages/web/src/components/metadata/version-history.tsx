@@ -30,7 +30,7 @@ export function VersionHistory({ documentId }: VersionHistoryProps) {
     <div className="space-y-2">
       <button
         onClick={() => setExpanded((v) => !v)}
-        className="flex w-full items-center gap-1.5 text-left"
+        className="flex w-full items-center gap-1.5 rounded-lg p-1 text-left active:opacity-70"
       >
         <Clock className="h-3.5 w-3.5 text-neutral-500" />
         <h3 className={cn('flex-1 text-xs font-semibold uppercase tracking-wider', isDark ? 'text-neutral-400' : 'text-neutral-500')}>

@@ -25,7 +25,7 @@ export function BrowsePanel({ activeFilter, onSelectFilter, onClearFilter }: Bro
   const tags = tagsData?.tags ?? []
   const categories = catsData?.categories ?? []
 
-  const chipBase = 'cursor-pointer rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors'
+  const chipBase = 'cursor-pointer rounded-full px-2.5 py-1.5 text-xs font-medium transition-colors md:px-2 md:py-0.5 md:text-[11px]'
 
   return (
     <div className="space-y-2 px-2">
@@ -35,7 +35,7 @@ export function BrowsePanel({ activeFilter, onSelectFilter, onClearFilter }: Bro
           <span className="text-[11px] text-brand-400">
             {activeFilter.type === 'category' ? 'Category' : 'Tag'}: {activeFilter.value}
           </span>
-          <button onClick={onClearFilter} className="ml-auto cursor-pointer rounded p-0.5 text-brand-400 hover:bg-brand-500/20">
+          <button onClick={onClearFilter} className="ml-auto cursor-pointer rounded p-1.5 text-brand-400 hover:bg-brand-500/20 active:bg-brand-500/20 md:p-0.5">
             <X className="h-3 w-3" />
           </button>
         </div>
@@ -58,8 +58,8 @@ export function BrowsePanel({ activeFilter, onSelectFilter, onClearFilter }: Bro
                   activeFilter?.type === 'category' && activeFilter.value === cat
                     ? 'bg-brand-600 text-white'
                     : isDark
-                      ? 'bg-surface-3 text-neutral-400 hover:bg-surface-4 hover:text-neutral-200'
-                      : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200',
+                      ? 'bg-surface-3 text-neutral-400 hover:bg-surface-4 hover:text-neutral-200 active:bg-surface-4'
+                      : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200 active:bg-neutral-200',
                 )}
               >
                 {cat}
@@ -86,8 +86,8 @@ export function BrowsePanel({ activeFilter, onSelectFilter, onClearFilter }: Bro
                   activeFilter?.type === 'tag' && activeFilter.value === tag
                     ? 'bg-brand-600 text-white'
                     : isDark
-                      ? 'bg-surface-3 text-neutral-400 hover:bg-surface-4 hover:text-neutral-200'
-                      : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200',
+                      ? 'bg-surface-3 text-neutral-400 hover:bg-surface-4 hover:text-neutral-200 active:bg-surface-4'
+                      : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200 active:bg-neutral-200',
                 )}
               >
                 #{tag}

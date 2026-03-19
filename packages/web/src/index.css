@@ -95,6 +95,19 @@ html {
   animation: slide-in-right 200ms ease-out;
 }
 
+/* Safe area insets for notched phones */
+@supports (padding: env(safe-area-inset-top)) {
+  .safe-area-top { padding-top: env(safe-area-inset-top); }
+  .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
+}
+
+/* Global touch feedback for touch-only devices */
+@media (hover: none) {
+  button:active, [role="button"]:active, a:active {
+    opacity: 0.8;
+  }
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
