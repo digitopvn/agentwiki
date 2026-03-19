@@ -236,42 +236,18 @@ agentwiki upload <file-path> [--doc-id <id>]
 
 ## Database Schema
 
-13 tables designed for multi-tenancy:
-
-| Table | Purpose |
-|-------|---------|
-| `tenants` | Organizations/workspaces |
-| `users` | User accounts (OAuth) |
-| `tenant_memberships` | User ↔ tenant relationships with roles |
-| `sessions` | Refresh tokens |
-| `api_keys` | Agent/CLI API keys (PBKDF2 hashed) |
-| `audit_logs` | Immutable audit trail |
-| `documents` | Knowledge items (markdown + BlockNote JSON) |
-| `document_tags` | Many-to-many document tags |
-| `document_versions` | Version history (append-only) |
-| `document_links` | Wikilinks between documents |
-| `folders` | Hierarchical folder structure |
-| `share_links` | Token-based sharing |
-| `uploads` | R2 file metadata |
-| `ai_settings` | AI provider configs per tenant (encrypted keys) |
-| `ai_usage` | AI token usage tracking |
+15 tables for multi-tenancy: tenants, users, tenant_memberships, sessions, api_keys, audit_logs, documents, document_tags, document_versions, document_links, folders, share_links, uploads, ai_settings, ai_usage. See [Codebase Summary](./docs/codebase-summary.md).
 
 ## Authentication & Authorization
 
-- **OAuth**: Arctic library handles Google and GitHub sign-up/login
-- **JWT**: Access tokens (15 min TTL) + refresh tokens (7 days) stored in D1 sessions
-- **API Keys**: PBKDF2 hashed, prefixed with `aw_` for identification
-- **RBAC**: Admin, Editor, Viewer, Agent roles with permission matrix enforced by middleware
+- **OAuth**: Google/GitHub via Arctic library
+- **JWT**: Access tokens (15 min) + refresh tokens (7 days)
+- **API Keys**: PBKDF2 hashed, `aw_` prefixed
+- **RBAC**: Admin, Editor, Viewer, Agent roles
 
 ## Search Pipeline
 
-**Hybrid search** combines two strategies:
-
-1. **Keyword Search**: Full-text search on document title/content via D1 SQL LIKE
-2. **Semantic Search**: Vector similarity via Cloudflare Vectorize (bge-base-en embeddings)
-3. **Fusion**: Results merged using Reciprocal Rank Fusion (RRF) with k=60
-
-Documents are embedded asynchronously when created/updated via Cloudflare Queues → Workers AI.
+Hybrid search: keyword (D1 SQL LIKE) + semantic (Vectorize bge-base-en) fused via RRF (k=60). Documents embedded async via Queues → Workers AI.
 
 ## AI-Assisted Writing
 
@@ -291,28 +267,14 @@ AgentWiki includes a full AI writing assistant with 6 configurable providers. Se
 
 ## Deployment
 
-All services deploy to Cloudflare infrastructure:
-- **Frontend**: Cloudflare Pages (automatic deployments on git push)
-- **API**: Cloudflare Workers (wrangler deploy)
-- **Database**: Cloudflare D1
-- **Storage**: Cloudflare R2
-- **Queues**: Cloudflare Queues
-
-See [Deployment Guide](./docs/deployment-guide.md) for setup instructions.
+All services deploy to Cloudflare: Frontend (Pages), API (Workers), MCP (Workers), D1, R2, KV, Queues. See [Deployment Guide](./docs/deployment-guide.md).
 
 ## Contributing
 
-1. Read [Code Standards](./docs/code-standards.md) for conventions
-2. Create a branch: `git checkout -b feature/your-feature`
-3. Follow the [Primary Workflow](./docs/project-roadmap.md)
-4. Ensure `pnpm type-check && pnpm lint && pnpm test` pass
-5. Submit a pull request with clear description
-
-## File Size Notes
-
-- `packages/api/src/db/schema.ts` — 155 lines (Drizzle table definitions)
-- `packages/api/src/index.ts` — 77 lines (Hono app setup)
-- `packages/web/src/stores/app-store.ts` — Zustand store for UI state
+1. Read [Code Standards](./docs/code-standards.md)
+2. Branch: `git checkout -b feature/your-feature`
+3. Ensure `pnpm type-check && pnpm lint && pnpm test` pass
+4. Submit PR with clear description
 
 ## Documentation
 
