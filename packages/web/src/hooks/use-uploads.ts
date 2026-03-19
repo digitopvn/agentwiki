@@ -1,7 +1,7 @@
 /** TanStack Query hooks for file upload CRUD */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { apiClient } from '../lib/api-client'
+import { apiClient, API_BASE } from '../lib/api-client'
 
 export interface Upload {
   id: string
@@ -28,7 +28,7 @@ export function useUploadFile() {
     mutationFn: async (file: File) => {
       const formData = new FormData()
       formData.append('file', file)
-      const res = await fetch('/api/uploads', {
+      const res = await fetch(`${API_BASE}/api/uploads`, {
         method: 'POST',
         body: formData,
         credentials: 'include',

@@ -1,5 +1,8 @@
 /** API client with credentials support and error handling */
 
+/** API base URL — empty in dev (Vite proxy), absolute in production */
+export const API_BASE = import.meta.env.VITE_API_URL ?? ''
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -12,7 +15,7 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
+  const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     credentials: 'include',
     headers: {

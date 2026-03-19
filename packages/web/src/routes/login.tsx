@@ -1,14 +1,15 @@
 /** Login page with Google and GitHub OAuth buttons */
 
 import { BookOpen } from 'lucide-react'
+import { API_BASE } from '../lib/api-client'
 
 export function LoginPage() {
   const handleGoogle = () => {
-    window.location.href = '/api/auth/google'
+    window.location.href = `${API_BASE}/api/auth/google`
   }
 
   const handleGitHub = () => {
-    window.location.href = '/api/auth/github'
+    window.location.href = `${API_BASE}/api/auth/github`
   }
 
   return (
