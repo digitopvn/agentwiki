@@ -15,6 +15,8 @@ export interface Document {
   updatedBy: string | null
   createdAt: Date
   updatedAt: Date
+  authorName?: string
+  authorAvatar?: string | null
 }
 
 export interface Folder {

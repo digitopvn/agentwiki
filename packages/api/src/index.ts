@@ -5,6 +5,7 @@ import { authRoutes } from './routes/auth'
 import { apiKeysRouter } from './routes/api-keys'
 import { documentRoutes } from './routes/documents'
 import { foldersRouter } from './routes/folders'
+import { memberRoutes } from './routes/members'
 import { tagsRouter } from './routes/tags'
 import { uploadsRouter, filesRouter } from './routes/uploads'
 import { searchRouter } from './routes/search'
@@ -43,6 +44,7 @@ app.route('/api/files', filesRouter)
 app.route('/api/keys', apiKeysRouter)
 app.route('/api/documents', documentRoutes)
 app.route('/api/folders', foldersRouter)
+app.route('/api/members', memberRoutes)
 app.route('/api/tags', tagsRouter)
 app.route('/api/uploads', uploadsRouter)
 app.route('/api/search', searchRouter)

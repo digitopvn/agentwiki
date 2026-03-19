@@ -5,6 +5,7 @@ import { Lock, Globe, Users, Calendar, User } from 'lucide-react'
 import { useDocument, useUpdateDocument } from '../../hooks/use-documents'
 import { useAppStore } from '../../stores/app-store'
 import { cn } from '../../lib/utils'
+import { ShareLinkDisplay } from './share-link-display'
 
 const ACCESS_LEVEL_OPTIONS = [
   { value: 'private', label: 'Private', icon: Lock },
@@ -105,6 +106,9 @@ export function DocumentProperties({ documentId }: DocumentPropertiesProps) {
             </button>
           ))}
         </div>
+        {(accessLevel === 'public' || accessLevel === 'specific') && (
+          <ShareLinkDisplay documentId={documentId} />
+        )}
       </div>
 
       {/* Dates */}
@@ -122,7 +126,7 @@ export function DocumentProperties({ documentId }: DocumentPropertiesProps) {
         <div className="flex items-center gap-2">
           <User className="h-3 w-3 text-neutral-500" />
           <span className={labelCls}>Author</span>
-          <span className={cn(valueCls, 'ml-auto truncate max-w-[120px]')}>{doc.createdBy}</span>
+          <span className={cn(valueCls, 'ml-auto truncate max-w-[120px]')}>{doc.authorName ?? doc.createdBy}</span>
         </div>
       </div>
     </div>

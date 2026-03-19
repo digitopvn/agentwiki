@@ -5,11 +5,13 @@ import { createDocumentSchema, updateDocumentSchema } from '@agentwiki/shared'
 import {
   createDocument,
   getDocument,
+  getDocumentBySlug,
   listDocuments,
   updateDocument,
   deleteDocument,
   getVersionHistory,
   getDocumentLinks,
+  createVersionCheckpoint,
 } from '../services/document-service'
 import { authGuard } from '../middleware/auth-guard'
 import { requirePermission } from '../middleware/require-permission'
@@ -49,6 +51,14 @@ docs.get('/', requirePermission('doc:read'), async (c) => {
   return c.json(paginate(data, total, params))
 })
 
+// Get document by slug
+docs.get('/by-slug/:slug', requirePermission('doc:read'), async (c) => {
+  const { tenantId } = c.get('auth')
+  const doc = await getDocumentBySlug(c.env, tenantId, c.req.param('slug'))
+  if (!doc) return c.json({ error: 'Document not found' }, 404)
+  return c.json(doc)
+})
+
 // Get single document
 docs.get('/:id', requirePermission('doc:read'), async (c) => {
   const { tenantId } = c.get('auth')
@@ -81,6 +91,14 @@ docs.delete('/:id', requirePermission('doc:delete'), async (c) => {
 docs.get('/:id/versions', requirePermission('doc:read'), async (c) => {
   const versions = await getVersionHistory(c.env, c.req.param('id'))
   return c.json({ versions })
+})
+
+// Force create a version checkpoint
+docs.post('/:id/versions', requirePermission('doc:update'), async (c) => {
+  const { tenantId, userId } = c.get('auth')
+  const result = await createVersionCheckpoint(c.env, tenantId, c.req.param('id'), userId)
+  if (!result) return c.json({ error: 'Document not found' }, 404)
+  return c.json(result, 201)
 })
 
 // Document links (forward + backlinks)

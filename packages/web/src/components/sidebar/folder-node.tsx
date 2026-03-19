@@ -1,12 +1,14 @@
 /** Single folder item with expand/collapse and context menu */
 
 import { useState, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ChevronRight, Folder, FolderOpen, FileText, Plus, Pencil, Trash2 } from 'lucide-react'
+import { useDroppable, useDraggable } from '@dnd-kit/core'
 import { cn } from '../../lib/utils'
 import { useAppStore } from '../../stores/app-store'
 import { useUpdateFolder, useDeleteFolder, useCreateFolder } from '../../hooks/use-folders'
-import { useCreateDocument } from '../../hooks/use-documents'
-import { useDocuments } from '../../hooks/use-documents'
+import { useCreateDocument, useDocuments } from '../../hooks/use-documents'
+import { DocumentContextMenu } from './document-context-menu'
 
 interface FolderTreeNode {
   id: string
@@ -23,6 +25,11 @@ interface FolderNodeProps {
 export function FolderNode({ folder, depth = 0, searchQuery = '' }: FolderNodeProps) {
   const [expanded, setExpanded] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const [docMenu, setDocMenu] = useState<{
+    doc: { id: string; title: string; slug: string; folderId?: string | null }
+    x: number
+    y: number
+  } | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const { theme, openTab, setActiveTab } = useAppStore()
@@ -30,6 +37,11 @@ export function FolderNode({ folder, depth = 0, searchQuery = '' }: FolderNodePr
   const deleteFolder = useDeleteFolder()
   const createFolder = useCreateFolder()
   const createDocument = useCreateDocument()
+  const navigate = useNavigate()
+
+  const isDark = theme === 'dark'
+
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: folder.id })
 
   const { data: docData } = useDocuments({ folderId: folder.id })
   const docs = docData?.data ?? []
@@ -72,13 +84,15 @@ export function FolderNode({ folder, depth = 0, searchQuery = '' }: FolderNodePr
     const tabId = `tab-${doc.id}`
     openTab({ id: tabId, documentId: doc.id, title: doc.title })
     setActiveTab(tabId)
+    navigate(`/doc/${doc.slug}`)
     setExpanded(true)
   }
 
-  const handleOpenDoc = (doc: { id: string; title: string }) => {
+  const handleOpenDoc = (doc: { id: string; title: string; slug: string }) => {
     const tabId = `tab-${doc.id}`
     openTab({ id: tabId, documentId: doc.id, title: doc.title })
     setActiveTab(tabId)
+    navigate(`/doc/${doc.slug}`)
   }
 
   const paddingLeft = depth * 12 + 8
@@ -91,12 +105,14 @@ export function FolderNode({ folder, depth = 0, searchQuery = '' }: FolderNodePr
 
   return (
     <div>
-      {/* Folder row */}
+      {/* Folder row (droppable target) */}
       <div
+        ref={setDropRef}
         className={cn(
-          'group flex cursor-pointer items-center gap-1 rounded py-0.5 text-xs select-none',
-          theme === 'dark'
-            ? 'text-neutral-300 hover:bg-neutral-800'
+          'group flex cursor-pointer items-center gap-1.5 rounded-lg py-1 text-xs select-none',
+          isOver && 'ring-1 ring-brand-400 bg-brand-500/10',
+          isDark
+            ? 'text-neutral-300 hover:bg-surface-3'
             : 'text-neutral-700 hover:bg-neutral-100',
         )}
         style={{ paddingLeft }}
@@ -108,31 +124,34 @@ export function FolderNode({ folder, depth = 0, searchQuery = '' }: FolderNodePr
       >
         <ChevronRight
           className={cn(
-            'h-3 w-3 shrink-0 transition-transform text-neutral-500',
+            'h-3 w-3 shrink-0 text-neutral-500 transition-transform duration-150',
             expanded && 'rotate-90',
             !hasChildren && 'opacity-0',
           )}
         />
         {expanded ? (
-          <FolderOpen className="h-3.5 w-3.5 shrink-0 text-blue-400" />
+          <FolderOpen className="h-3.5 w-3.5 shrink-0 text-brand-400" />
         ) : (
-          <Folder className="h-3.5 w-3.5 shrink-0 text-blue-400" />
+          <Folder className="h-3.5 w-3.5 shrink-0 text-brand-400" />
         )}
         <span className="truncate">{folder.name}</span>
       </div>
 
-      {/* Context menu */}
+      {/* Folder context menu */}
       {contextMenu && (
         <div
           ref={menuRef}
-          className="fixed z-50 min-w-[160px] rounded-md border border-neutral-700 bg-neutral-800 py-1 shadow-xl"
+          className={cn(
+            'fixed z-50 min-w-[160px] overflow-hidden rounded-xl border py-1 shadow-xl',
+            isDark ? 'border-white/[0.08] bg-surface-2' : 'border-neutral-200 bg-white',
+          )}
           style={{ top: contextMenu.y, left: contextMenu.x }}
         >
-          <ContextMenuItem icon={<Plus className="h-3.5 w-3.5" />} label="New document" onClick={handleNewDoc} />
-          <ContextMenuItem icon={<Plus className="h-3.5 w-3.5" />} label="New subfolder" onClick={handleNewSubfolder} />
-          <div className="my-1 border-t border-neutral-700" />
-          <ContextMenuItem icon={<Pencil className="h-3.5 w-3.5" />} label="Rename" onClick={handleRename} />
-          <ContextMenuItem icon={<Trash2 className="h-3.5 w-3.5" />} label="Delete" onClick={handleDelete} danger />
+          <ContextMenuItem icon={<Plus className="h-3.5 w-3.5" />} label="New document" onClick={handleNewDoc} isDark={isDark} />
+          <ContextMenuItem icon={<Plus className="h-3.5 w-3.5" />} label="New subfolder" onClick={handleNewSubfolder} isDark={isDark} />
+          <div className={cn('my-1 border-t', isDark ? 'border-white/[0.06]' : 'border-neutral-200')} />
+          <ContextMenuItem icon={<Pencil className="h-3.5 w-3.5" />} label="Rename" onClick={handleRename} isDark={isDark} />
+          <ContextMenuItem icon={<Trash2 className="h-3.5 w-3.5" />} label="Delete" onClick={handleDelete} isDark={isDark} danger />
         </div>
       )}
 
@@ -143,23 +162,66 @@ export function FolderNode({ folder, depth = 0, searchQuery = '' }: FolderNodePr
             <FolderNode key={child.id} folder={child} depth={depth + 1} searchQuery={searchQuery} />
           ))}
           {visibleDocs.map((doc) => (
-            <div
+            <NestedDraggableDoc
               key={doc.id}
-              className={cn(
-                'flex cursor-pointer items-center gap-1.5 rounded py-0.5 text-xs',
-                theme === 'dark'
-                  ? 'text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100'
-                  : 'text-neutral-600 hover:bg-neutral-100',
-              )}
-              style={{ paddingLeft: paddingLeft + 20 }}
+              doc={doc}
+              paddingLeft={paddingLeft + 20}
+              isDark={isDark}
               onClick={() => handleOpenDoc(doc)}
-            >
-              <FileText className="h-3 w-3 shrink-0" />
-              <span className="truncate">{doc.title}</span>
-            </div>
+              onContextMenu={(e) => {
+                e.preventDefault()
+                setDocMenu({ doc: { ...doc, folderId: folder.id }, x: e.clientX, y: e.clientY })
+              }}
+            />
           ))}
         </div>
       )}
+
+      {/* Document context menu */}
+      {docMenu && (
+        <DocumentContextMenu
+          doc={docMenu.doc}
+          position={{ x: docMenu.x, y: docMenu.y }}
+          onClose={() => setDocMenu(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+function NestedDraggableDoc({
+  doc,
+  paddingLeft,
+  isDark,
+  onClick,
+  onContextMenu,
+}: {
+  doc: { id: string; title: string; slug: string }
+  paddingLeft: number
+  isDark: boolean
+  onClick: () => void
+  onContextMenu: (e: React.MouseEvent) => void
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: doc.id })
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      className={cn(
+        'flex cursor-pointer items-center gap-2 rounded-lg py-1 text-xs',
+        isDragging && 'opacity-40',
+        isDark
+          ? 'text-neutral-400 hover:bg-surface-3 hover:text-neutral-200'
+          : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800',
+      )}
+      style={{ paddingLeft }}
+      onClick={onClick}
+      onContextMenu={onContextMenu}
+    >
+      <FileText className="h-3 w-3 shrink-0 text-neutral-500" />
+      <span className="truncate">{doc.title}</span>
     </div>
   )
 }
@@ -168,19 +230,25 @@ function ContextMenuItem({
   icon,
   label,
   onClick,
+  isDark,
   danger = false,
 }: {
   icon: React.ReactNode
   label: string
   onClick: () => void
+  isDark: boolean
   danger?: boolean
 }) {
   return (
     <button
       onClick={onClick}
       className={cn(
-        'flex w-full items-center gap-2 px-3 py-1.5 text-xs hover:bg-neutral-700',
-        danger ? 'text-red-400' : 'text-neutral-200',
+        'flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-xs',
+        danger
+          ? 'text-red-400 hover:bg-red-500/10'
+          : isDark
+            ? 'text-neutral-300 hover:bg-surface-3'
+            : 'text-neutral-700 hover:bg-neutral-50',
       )}
     >
       {icon}

@@ -1,0 +1,140 @@
+/** R2 Storage management: file grid with upload, preview, delete */
+
+import { useRef, useState } from 'react'
+import { Upload, Trash2, FileIcon, Image, Download } from 'lucide-react'
+import { useUploads, useUploadFile, useDeleteUpload } from '../../hooks/use-uploads'
+import { useAppStore } from '../../stores/app-store'
+import { cn } from '../../lib/utils'
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+export function StorageTab({ isDark }: { isDark: boolean }) {
+  const { data } = useUploads()
+  const uploadFile = useUploadFile()
+  const deleteUpload = useDeleteUpload()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [preview, setPreview] = useState<string | null>(null)
+
+  const files = data?.files ?? []
+  const totalSize = files.reduce((sum, f) => sum + f.sizeBytes, 0)
+  const isImage = (ct: string) => ct.startsWith('image/')
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      await uploadFile.mutateAsync(file)
+    } catch (err) {
+      console.error('Upload failed:', err)
+    }
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const handleDelete = async (id: string, filename: string) => {
+    if (!window.confirm(`Delete "${filename}"?`)) return
+    await deleteUpload.mutateAsync(id)
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className={cn('text-sm font-semibold', isDark ? 'text-neutral-200' : 'text-neutral-800')}>Storage</h2>
+        <div className="flex items-center gap-3">
+          <span className={cn('text-xs', isDark ? 'text-neutral-500' : 'text-neutral-400')}>
+            {files.length} files · {formatBytes(totalSize)}
+          </span>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadFile.isPending}
+            className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-500 disabled:opacity-50"
+          >
+            <Upload className="h-3.5 w-3.5" />
+            {uploadFile.isPending ? 'Uploading...' : 'Upload file'}
+          </button>
+          <input ref={fileInputRef} type="file" onChange={handleUpload} className="hidden" />
+        </div>
+      </div>
+
+      {/* File grid */}
+      <div className="grid grid-cols-3 gap-3">
+        {files.map((file) => (
+          <div
+            key={file.id}
+            className={cn(
+              'group relative overflow-hidden rounded-lg border',
+              isDark ? 'border-white/[0.06] bg-surface-1' : 'border-neutral-200 bg-white',
+            )}
+          >
+            {/* Preview area */}
+            <div
+              className="cursor-pointer"
+              onClick={() => isImage(file.contentType) && setPreview(`/api/files/${file.fileKey}`)}
+            >
+              {isImage(file.contentType) ? (
+                <img
+                  src={`/api/files/${file.fileKey}`}
+                  alt={file.filename}
+                  className="h-28 w-full object-cover"
+                  loading="lazy"
+                />
+              ) : (
+                <div className={cn('flex h-28 items-center justify-center', isDark ? 'bg-surface-2' : 'bg-neutral-50')}>
+                  <FileIcon className="h-8 w-8 text-neutral-500" />
+                </div>
+              )}
+            </div>
+
+            {/* File info */}
+            <div className="p-2">
+              <p className={cn('truncate text-xs font-medium', isDark ? 'text-neutral-200' : 'text-neutral-800')}>{file.filename}</p>
+              <p className={cn('text-[10px]', isDark ? 'text-neutral-500' : 'text-neutral-400')}>{formatBytes(file.sizeBytes)}</p>
+            </div>
+
+            {/* Actions overlay */}
+            <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <a
+                href={`/api/files/${file.fileKey}`}
+                download={file.filename}
+                className="rounded-md bg-black/60 p-1 text-white hover:bg-black/80"
+                title="Download"
+              >
+                <Download className="h-3 w-3" />
+              </a>
+              <button
+                onClick={() => handleDelete(file.id, file.filename)}
+                className="cursor-pointer rounded-md bg-black/60 p-1 text-red-400 hover:bg-black/80"
+                title="Delete"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {files.length === 0 && (
+        <div className={cn('flex flex-col items-center gap-2 rounded-lg border border-dashed py-12', isDark ? 'border-white/[0.08]' : 'border-neutral-300')}>
+          <Image className={cn('h-8 w-8', isDark ? 'text-neutral-600' : 'text-neutral-400')} />
+          <p className={cn('text-sm', isDark ? 'text-neutral-500' : 'text-neutral-400')}>No files uploaded yet</p>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="cursor-pointer text-xs text-brand-400 hover:underline"
+          >
+            Upload your first file
+          </button>
+        </div>
+      )}
+
+      {/* Image preview modal */}
+      {preview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80" onClick={() => setPreview(null)}>
+          <img src={preview} alt="Preview" className="max-h-[80vh] max-w-[90vw] rounded-lg" />
+        </div>
+      )}
+    </div>
+  )
+}
