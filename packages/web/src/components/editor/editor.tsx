@@ -120,13 +120,13 @@ export function Editor({ documentId, tabId }: EditorProps) {
   return (
     <div className={cn('flex h-full flex-col', theme === 'dark' ? 'bg-neutral-950' : 'bg-white')}>
       {/* Document title */}
-      <div className="px-8 pt-8 pb-2">
+      <div className="px-4 pt-4 pb-2 md:px-8 md:pt-8">
         <input
           type="text"
           defaultValue={doc.title}
           placeholder="Untitled"
           className={cn(
-            'w-full bg-transparent text-3xl font-bold outline-none placeholder-neutral-500',
+            'w-full bg-transparent text-2xl font-bold outline-none placeholder-neutral-500 md:text-3xl',
             theme === 'dark' ? 'text-neutral-100' : 'text-neutral-900',
           )}
           onKeyDown={(e) => {
@@ -156,7 +156,7 @@ export function Editor({ documentId, tabId }: EditorProps) {
       </div>
 
       {/* BlockNote editor */}
-      <div className="flex-1 overflow-y-auto px-4">
+      <div className="flex-1 overflow-y-auto px-1 md:px-4">
         <BlockNoteView
           editor={editor}
           onChange={handleChange}

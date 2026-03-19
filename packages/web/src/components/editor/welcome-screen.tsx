@@ -6,7 +6,7 @@ import { useAppStore } from '../../stores/app-store'
 import { useCreateDocument } from '../../hooks/use-documents'
 
 export function WelcomeScreen() {
-  const { theme, openTab, setActiveTab } = useAppStore()
+  const { theme, openTab, setActiveTab, toggleCommandPalette } = useAppStore()
   const createDocument = useCreateDocument()
   const navigate = useNavigate()
 
@@ -45,23 +45,21 @@ export function WelcomeScreen() {
         </div>
       </div>
 
-      <div className="relative z-10 flex gap-3">
+      <div className="relative z-10 flex flex-col gap-3 px-6 sm:flex-row sm:px-0">
         <button
           onClick={handleNewDoc}
           disabled={createDocument.isPending}
-          className="flex cursor-pointer items-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-brand-600/20 hover:bg-brand-500 disabled:opacity-50"
+          className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 py-3 text-sm font-medium text-white shadow-lg shadow-brand-600/20 hover:bg-brand-500 active:bg-brand-500 disabled:opacity-50 sm:py-2.5"
         >
           <Plus className="h-4 w-4" />
           New document
         </button>
         <button
-          onClick={() => {
-            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }))
-          }}
-          className={`flex cursor-pointer items-center gap-2 rounded-xl border px-5 py-2.5 text-sm font-medium ${
+          onClick={toggleCommandPalette}
+          className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border px-5 py-3 text-sm font-medium sm:py-2.5 ${
             isDark
-              ? 'border-white/[0.08] text-neutral-300 hover:bg-surface-2'
-              : 'border-neutral-200 text-neutral-700 hover:bg-white'
+              ? 'border-white/[0.08] text-neutral-300 hover:bg-surface-2 active:bg-surface-2'
+              : 'border-neutral-200 text-neutral-700 hover:bg-white active:bg-white'
           }`}
         >
           <Search className="h-4 w-4" />
@@ -69,8 +67,8 @@ export function WelcomeScreen() {
         </button>
       </div>
 
-      {/* Quick tips */}
-      <div className="relative z-10 flex items-center gap-2">
+      {/* Quick tips — hidden on mobile (keyboard shortcuts not relevant) */}
+      <div className="relative z-10 hidden items-center gap-2 md:flex">
         <Sparkles className={`h-3 w-3 ${isDark ? 'text-neutral-600' : 'text-neutral-400'}`} />
         <span className={`text-xs ${isDark ? 'text-neutral-600' : 'text-neutral-400'}`}>
           Press{' '}

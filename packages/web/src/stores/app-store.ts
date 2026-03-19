@@ -26,6 +26,17 @@ interface AppState {
   setSidebarCollapsed: (collapsed: boolean) => void
   setMetadataPanelCollapsed: (collapsed: boolean) => void
 
+  // Mobile drawer state
+  mobileSidebarOpen: boolean
+  mobileMetadataOpen: boolean
+  setMobileSidebarOpen: (open: boolean) => void
+  setMobileMetadataOpen: (open: boolean) => void
+
+  // Command palette
+  commandPaletteOpen: boolean
+  setCommandPaletteOpen: (open: boolean) => void
+  toggleCommandPalette: () => void
+
   // Theme
   theme: 'dark' | 'light'
   toggleTheme: () => void
@@ -86,6 +97,17 @@ export const useAppStore = create<AppState>()(
       metadataPanelCollapsed: false,
       setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
       setMetadataPanelCollapsed: (collapsed) => set({ metadataPanelCollapsed: collapsed }),
+
+      // Mobile drawers
+      mobileSidebarOpen: false,
+      mobileMetadataOpen: false,
+      setMobileSidebarOpen: (open) => set({ mobileSidebarOpen: open, mobileMetadataOpen: false }),
+      setMobileMetadataOpen: (open) => set({ mobileMetadataOpen: open, mobileSidebarOpen: false }),
+
+      // Command palette
+      commandPaletteOpen: false,
+      setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
+      toggleCommandPalette: () => set((s) => ({ commandPaletteOpen: !s.commandPaletteOpen })),
 
       // Theme
       theme: 'dark',

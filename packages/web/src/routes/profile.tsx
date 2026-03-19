@@ -54,7 +54,7 @@ export function ProfilePage() {
   }
 
   const inputCls = cn(
-    'w-full rounded-lg border px-3 py-2 text-sm outline-none',
+    'w-full rounded-lg border px-3 py-2 text-base outline-none md:text-sm',
     isDark
       ? 'border-white/[0.06] bg-surface-2 text-neutral-100 focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/30'
       : 'border-neutral-200 bg-white text-neutral-900 focus:border-brand-500 focus:ring-1 focus:ring-brand-500/30',

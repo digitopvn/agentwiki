@@ -1,19 +1,22 @@
 /** Right metadata panel: document properties, tags, version history */
 
-import { PanelRight } from 'lucide-react'
+import { PanelRight, X } from 'lucide-react'
 import { useAppStore } from '../../stores/app-store'
+import { useIsMobile } from '../../hooks/use-is-mobile'
 import { cn } from '../../lib/utils'
 import { DocumentProperties } from '../metadata/document-properties'
 import { TagEditor } from '../metadata/tag-editor'
 import { VersionHistory } from '../metadata/version-history'
 
 export function MetadataPanel() {
-  const { activeTabId, openTabs, metadataPanelCollapsed, setMetadataPanelCollapsed, theme } = useAppStore()
+  const { activeTabId, openTabs, metadataPanelCollapsed, setMetadataPanelCollapsed, theme, setMobileMetadataOpen } = useAppStore()
+  const isMobile = useIsMobile()
 
   const activeTab = openTabs.find((t) => t.id === activeTabId) ?? null
   const isDark = theme === 'dark'
 
-  if (metadataPanelCollapsed) {
+  // On desktop, show collapsed state
+  if (!isMobile && metadataPanelCollapsed) {
     return (
       <div
         className={cn(
@@ -38,7 +41,8 @@ export function MetadataPanel() {
   return (
     <div
       className={cn(
-        'flex w-[300px] shrink-0 flex-col border-l overflow-y-auto',
+        'flex h-full shrink-0 flex-col border-l overflow-y-auto',
+        isMobile ? 'w-full' : 'w-[300px]',
         isDark ? 'border-white/[0.06] bg-surface-1' : 'border-neutral-200 bg-white',
       )}
     >
@@ -57,16 +61,29 @@ export function MetadataPanel() {
         >
           Properties
         </span>
-        <button
-          onClick={() => setMetadataPanelCollapsed(true)}
-          className={cn(
-            'cursor-pointer rounded-md p-1',
-            isDark ? 'text-neutral-500 hover:bg-surface-3 hover:text-neutral-300' : 'text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700',
-          )}
-          title="Collapse properties panel"
-        >
-          <PanelRight className="h-4 w-4" />
-        </button>
+        {isMobile ? (
+          <button
+            onClick={() => setMobileMetadataOpen(false)}
+            className={cn(
+              'rounded-lg p-2',
+              isDark ? 'text-neutral-500 active:bg-surface-3' : 'text-neutral-400 active:bg-neutral-100',
+            )}
+            aria-label="Close properties"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        ) : (
+          <button
+            onClick={() => setMetadataPanelCollapsed(true)}
+            className={cn(
+              'cursor-pointer rounded-md p-1',
+              isDark ? 'text-neutral-500 hover:bg-surface-3 hover:text-neutral-300' : 'text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700',
+            )}
+            title="Collapse properties panel"
+          >
+            <PanelRight className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {activeTab ? (

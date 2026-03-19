@@ -5,6 +5,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAppStore } from '../../stores/app-store'
 import { useDocumentBySlug, useCreateDocument } from '../../hooks/use-documents'
 import { useKeyboardShortcuts, type ShortcutDefinition } from '../../hooks/use-keyboard-shortcuts'
+import { useIsMobile } from '../../hooks/use-is-mobile'
 import { Sidebar } from './sidebar'
 import { MainPanel } from './main-panel'
 import { MetadataPanel } from './metadata-panel'
@@ -13,11 +14,12 @@ import { cn } from '../../lib/utils'
 import { apiClient } from '../../lib/api-client'
 
 export function Layout() {
-  const { theme, openTab, setActiveTab, openTabs, activeTabId, closeTab, sidebarCollapsed, setSidebarCollapsed, metadataPanelCollapsed, setMetadataPanelCollapsed } = useAppStore()
+  const { theme, openTab, setActiveTab, openTabs, activeTabId, closeTab, sidebarCollapsed, setSidebarCollapsed, metadataPanelCollapsed, setMetadataPanelCollapsed, mobileSidebarOpen, setMobileSidebarOpen, mobileMetadataOpen, setMobileMetadataOpen } = useAppStore()
   const navigate = useNavigate()
   const createDocument = useCreateDocument()
   const { slug } = useParams<{ slug: string }>()
   const { data: slugDoc } = useDocumentBySlug(slug)
+  const isMobile = useIsMobile()
 
   // Hydrate tab from URL slug
   useEffect(() => {
@@ -29,6 +31,21 @@ export function Layout() {
     }
     setActiveTab(tabId)
   }, [slugDoc])
+
+  // Close mobile drawers on resize to desktop
+  useEffect(() => {
+    if (!isMobile) {
+      setMobileSidebarOpen(false)
+      setMobileMetadataOpen(false)
+    }
+  }, [isMobile])
+
+  // Lock body scroll when mobile drawer is open
+  useEffect(() => {
+    const isDrawerOpen = mobileSidebarOpen || mobileMetadataOpen
+    document.body.style.overflow = isDrawerOpen ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [mobileSidebarOpen, mobileMetadataOpen])
 
   // Keyboard shortcuts
   const handleNewDoc = useCallback(async () => {
@@ -77,6 +94,48 @@ export function Layout() {
       root.classList.remove('dark')
     }
   }, [theme])
+
+  if (isMobile) {
+    return (
+      <div
+        className={cn(
+          'flex h-screen flex-col overflow-hidden font-sans antialiased',
+          theme === 'dark' ? 'bg-surface-0 text-neutral-100' : 'bg-neutral-50 text-neutral-900',
+        )}
+      >
+        {/* Main content takes full screen */}
+        <MainPanel />
+
+        {/* Sidebar overlay drawer */}
+        {mobileSidebarOpen && (
+          <div className="fixed inset-0 z-50 flex">
+            <div
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setMobileSidebarOpen(false)}
+            />
+            <div className="relative z-10 h-full w-[280px] max-w-[85vw] animate-slide-in-left">
+              <Sidebar />
+            </div>
+          </div>
+        )}
+
+        {/* Metadata overlay drawer */}
+        {mobileMetadataOpen && (
+          <div className="fixed inset-0 z-50 flex justify-end">
+            <div
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setMobileMetadataOpen(false)}
+            />
+            <div className="relative z-10 h-full w-[300px] max-w-[85vw] animate-slide-in-right">
+              <MetadataPanel />
+            </div>
+          </div>
+        )}
+
+        <CommandPalette />
+      </div>
+    )
+  }
 
   return (
     <div

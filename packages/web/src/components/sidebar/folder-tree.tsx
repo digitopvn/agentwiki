@@ -13,9 +13,10 @@ import { cn } from '../../lib/utils'
 
 interface FolderTreeProps {
   searchQuery?: string
+  onDocumentOpen?: () => void
 }
 
-export function FolderTree({ searchQuery = '' }: FolderTreeProps) {
+export function FolderTree({ searchQuery = '', onDocumentOpen }: FolderTreeProps) {
   const { data: folderData, isLoading: foldersLoading } = useFolderTree()
   const { data: docData, isLoading: docsLoading } = useDocuments({ folderId: undefined })
   const { theme, openTab, setActiveTab } = useAppStore()
@@ -58,6 +59,7 @@ export function FolderTree({ searchQuery = '' }: FolderTreeProps) {
     openTab({ id: tabId, documentId: doc.id, title: doc.title })
     setActiveTab(tabId)
     navigate(`/doc/${doc.slug}`)
+    onDocumentOpen?.()
   }
 
   const handleDragEnd = async (event: DragEndEvent) => {
@@ -154,16 +156,16 @@ function DraggableDocItem({
       {...listeners}
       {...attributes}
       className={cn(
-        'flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 text-xs',
+        'flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2.5 text-sm md:py-1 md:text-xs',
         isDragging && 'opacity-40',
         isDark
-          ? 'text-neutral-400 hover:bg-surface-3 hover:text-neutral-200'
-          : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800',
+          ? 'text-neutral-400 hover:bg-surface-3 hover:text-neutral-200 active:bg-surface-3'
+          : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800 active:bg-neutral-100',
       )}
       onClick={onClick}
       onContextMenu={onContextMenu}
     >
-      <FileText className="h-3.5 w-3.5 shrink-0 text-neutral-500" />
+      <FileText className="h-4 w-4 shrink-0 text-neutral-500 md:h-3.5 md:w-3.5" />
       <span className="truncate">{doc.title}</span>
     </div>
   )

@@ -12,11 +12,10 @@ import { useAppStore } from '../../stores/app-store'
 import { cn } from '../../lib/utils'
 
 export function CommandPalette() {
-  const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const debouncedQuery = useDebounce(query.trim(), 250)
 
-  const { theme, openTab, setActiveTab } = useAppStore()
+  const { theme, openTab, setActiveTab, commandPaletteOpen: open, setCommandPaletteOpen: setOpen } = useAppStore()
   const navigate = useNavigate()
 
   // Hybrid search for typed queries
@@ -29,13 +28,15 @@ export function CommandPalette() {
   const isDark = theme === 'dark'
 
   // Toggle on Ctrl+K / Cmd+K
+  const toggleCommandPalette = useAppStore((s) => s.toggleCommandPalette)
+
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
       e.preventDefault()
-      setOpen((v) => !v)
+      toggleCommandPalette()
     }
     if (e.key === 'Escape') setOpen(false)
-  }, [])
+  }, [toggleCommandPalette, setOpen])
 
   useEffect(() => {
     document.addEventListener('keydown', handleKeyDown)
@@ -85,7 +86,7 @@ export function CommandPalette() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]"
+      className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-[10vh] md:px-0 md:pt-[20vh]"
       onClick={() => setOpen(false)}
     >
       {/* Backdrop */}
@@ -113,7 +114,7 @@ export function CommandPalette() {
               onValueChange={setQuery}
               placeholder="Search documents or type a command..."
               className={cn(
-                'flex-1 bg-transparent text-sm outline-none',
+                'flex-1 bg-transparent text-base outline-none md:text-sm',
                 isDark ? 'text-neutral-100 placeholder-neutral-500' : 'text-neutral-900 placeholder-neutral-400',
               )}
               autoFocus
