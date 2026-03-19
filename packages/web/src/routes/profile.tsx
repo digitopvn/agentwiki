@@ -16,7 +16,9 @@ export function ProfilePage() {
   const qc = useQueryClient()
   const isDark = theme === 'dark'
 
-  const [name, setName] = useState(user?.name ?? '')
+  const userName = user?.name ?? ''
+  const userEmail = user?.email ?? ''
+  const [name, setName] = useState(userName)
 
   const updateProfile = useMutation({
     mutationFn: (body: { name: string }) =>
@@ -75,18 +77,18 @@ export function ProfilePage() {
       <div className="mx-auto max-w-2xl px-6 py-8 space-y-8">
         {/* Avatar + basic info */}
         <div className="flex items-center gap-4">
-          {user.avatarUrl ? (
+          {user?.avatarUrl ? (
             <img src={user.avatarUrl} alt="" className="h-16 w-16 rounded-full" />
           ) : (
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-600 text-xl font-bold text-white">
-              {user.name.charAt(0).toUpperCase()}
+              {userName.charAt(0).toUpperCase() || '?'}
             </div>
           )}
           <div>
-            <p className={cn('text-lg font-semibold', isDark ? 'text-neutral-100' : 'text-neutral-900')}>{user.name}</p>
-            <p className={cn('text-sm', isDark ? 'text-neutral-400' : 'text-neutral-500')}>{user.email}</p>
+            <p className={cn('text-lg font-semibold', isDark ? 'text-neutral-100' : 'text-neutral-900')}>{userName}</p>
+            <p className={cn('text-sm', isDark ? 'text-neutral-400' : 'text-neutral-500')}>{userEmail}</p>
             <span className={cn('mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium uppercase', isDark ? 'bg-surface-3 text-neutral-400' : 'bg-neutral-100 text-neutral-500')}>
-              {user.provider}
+              {user?.provider ?? 'oauth'}
             </span>
           </div>
         </div>
@@ -99,11 +101,11 @@ export function ProfilePage() {
           </div>
           <div>
             <label className={labelCls}>Email</label>
-            <input type="email" value={user.email} disabled className={cn(inputCls, 'opacity-60 cursor-not-allowed')} />
+            <input type="email" value={userEmail} disabled className={cn(inputCls, 'opacity-60 cursor-not-allowed')} />
           </div>
           <button
             onClick={handleSave}
-            disabled={updateProfile.isPending || name.trim() === user.name}
+            disabled={updateProfile.isPending || name.trim() === userName}
             className="flex cursor-pointer items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-500 disabled:opacity-50"
           >
             <Save className="h-3.5 w-3.5" />
