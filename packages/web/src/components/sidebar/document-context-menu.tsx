@@ -25,13 +25,13 @@ export function DocumentContextMenu({ doc, position, onClose }: DocumentContextM
   const isDark = theme === 'dark'
 
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
+    function handleClick(e: PointerEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         onClose()
       }
     }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
+    document.addEventListener('pointerdown', handleClick)
+    return () => document.removeEventListener('pointerdown', handleClick)
   }, [onClose])
 
   const handleOpen = () => {

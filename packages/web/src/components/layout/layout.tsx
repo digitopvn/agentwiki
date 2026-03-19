@@ -40,6 +40,13 @@ export function Layout() {
     }
   }, [isMobile])
 
+  // Lock body scroll when mobile drawer is open
+  useEffect(() => {
+    const isDrawerOpen = mobileSidebarOpen || mobileMetadataOpen
+    document.body.style.overflow = isDrawerOpen ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [mobileSidebarOpen, mobileMetadataOpen])
+
   // Keyboard shortcuts
   const handleNewDoc = useCallback(async () => {
     const doc = await createDocument.mutateAsync({ title: 'Untitled' })

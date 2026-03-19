@@ -6,7 +6,7 @@ import { useAppStore } from '../../stores/app-store'
 import { useCreateDocument } from '../../hooks/use-documents'
 
 export function WelcomeScreen() {
-  const { theme, openTab, setActiveTab } = useAppStore()
+  const { theme, openTab, setActiveTab, toggleCommandPalette } = useAppStore()
   const createDocument = useCreateDocument()
   const navigate = useNavigate()
 
@@ -55,9 +55,7 @@ export function WelcomeScreen() {
           New document
         </button>
         <button
-          onClick={() => {
-            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }))
-          }}
+          onClick={toggleCommandPalette}
           className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border px-5 py-3 text-sm font-medium sm:py-2.5 ${
             isDark
               ? 'border-white/[0.08] text-neutral-300 hover:bg-surface-2 active:bg-surface-2'

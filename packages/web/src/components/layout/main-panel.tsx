@@ -9,7 +9,7 @@ import { WelcomeScreen } from '../editor/welcome-screen'
 import { cn } from '../../lib/utils'
 
 export function MainPanel() {
-  const { openTabs, activeTabId, theme, setMobileSidebarOpen, setMobileMetadataOpen } = useAppStore()
+  const { openTabs, activeTabId, theme, setMobileSidebarOpen, setMobileMetadataOpen, toggleCommandPalette } = useAppStore()
   const isMobile = useIsMobile()
   const isDark = theme === 'dark'
 
@@ -47,9 +47,7 @@ export function MainPanel() {
 
           <div className="flex items-center gap-1">
             <button
-              onClick={() => {
-                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }))
-              }}
+              onClick={toggleCommandPalette}
               className={cn(
                 'flex items-center justify-center rounded-lg p-2',
                 isDark ? 'text-neutral-400 active:bg-surface-3' : 'text-neutral-500 active:bg-neutral-100',

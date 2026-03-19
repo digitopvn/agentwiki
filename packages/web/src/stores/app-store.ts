@@ -32,6 +32,11 @@ interface AppState {
   setMobileSidebarOpen: (open: boolean) => void
   setMobileMetadataOpen: (open: boolean) => void
 
+  // Command palette
+  commandPaletteOpen: boolean
+  setCommandPaletteOpen: (open: boolean) => void
+  toggleCommandPalette: () => void
+
   // Theme
   theme: 'dark' | 'light'
   toggleTheme: () => void
@@ -98,6 +103,11 @@ export const useAppStore = create<AppState>()(
       mobileMetadataOpen: false,
       setMobileSidebarOpen: (open) => set({ mobileSidebarOpen: open, mobileMetadataOpen: false }),
       setMobileMetadataOpen: (open) => set({ mobileMetadataOpen: open, mobileSidebarOpen: false }),
+
+      // Command palette
+      commandPaletteOpen: false,
+      setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
+      toggleCommandPalette: () => set((s) => ({ commandPaletteOpen: !s.commandPaletteOpen })),
 
       // Theme
       theme: 'dark',

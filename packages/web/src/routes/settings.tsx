@@ -51,8 +51,9 @@ export function SettingsPage() {
                   : isDark ? 'text-neutral-400 hover:text-neutral-200' : 'text-neutral-500 hover:text-neutral-700',
               )}
             >
-              <Icon className="h-3.5 w-3.5 shrink-0" />
+              <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               <span className="hidden sm:inline">{label}</span>
+              <span className="sr-only sm:hidden">{label}</span>
             </button>
           ))}
         </div>
