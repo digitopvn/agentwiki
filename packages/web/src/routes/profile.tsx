@@ -22,7 +22,7 @@ export function ProfilePage() {
 
   const updateProfile = useMutation({
     mutationFn: (body: { name: string }) =>
-      fetch('/api/auth/me', {
+      fetch(`${import.meta.env.VITE_API_URL ?? ''}/api/auth/me`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

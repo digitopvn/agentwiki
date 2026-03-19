@@ -13,6 +13,7 @@ export const PERMISSIONS: Record<Role, string[]> = {
 export const RATE_LIMITS = {
   api: { limit: 100, windowSec: 60 },
   search: { limit: 50, windowSec: 60 },
+  suggest: { limit: 100, windowSec: 60 },
   web: { limit: 1000, windowSec: 60 },
 } as const
 

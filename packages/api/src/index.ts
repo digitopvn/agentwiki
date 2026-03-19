@@ -9,6 +9,7 @@ import { memberRoutes } from './routes/members'
 import { tagsRouter } from './routes/tags'
 import { uploadsRouter, filesRouter } from './routes/uploads'
 import { searchRouter } from './routes/search'
+import { analyticsRouter } from './routes/analytics'
 import { shareRouter } from './routes/share'
 import { graphRouter } from './routes/graph'
 import { aiRouter } from './routes/ai'
@@ -24,7 +25,7 @@ app.use('*', logger())
 app.use(
   '*',
   cors({
-    origin: ['http://localhost:5173', 'https://agentwiki.cc'],
+    origin: ['http://localhost:5173', 'https://app.agentwiki.cc'],
     credentials: true,
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
@@ -49,6 +50,7 @@ app.route('/api/members', memberRoutes)
 app.route('/api/tags', tagsRouter)
 app.route('/api/uploads', uploadsRouter)
 app.route('/api/search', searchRouter)
+app.route('/api/analytics', analyticsRouter)
 app.route('/api/share', shareRouter)
 app.route('/api/graph', graphRouter)
 app.route('/api/ai', aiRouter)

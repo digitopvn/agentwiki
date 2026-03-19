@@ -2,6 +2,8 @@
 
 import { embedDocument } from '../services/embedding-service'
 import { generateSummaryWithProvider } from '../ai/ai-service'
+import { indexDocumentTrigrams } from '../services/trigram-service'
+import { pruneOldAnalytics } from '../services/analytics-service'
 import { drizzle } from 'drizzle-orm/d1'
 import { eq } from 'drizzle-orm'
 import { documents } from '../db/schema'
@@ -36,6 +38,12 @@ async function processMessage(msg: QueueMessage, env: Env) {
       break
     case 'embed':
       await embedDocumentJob(env, msg.documentId, msg.tenantId)
+      break
+    case 'index-trigrams':
+      await indexDocumentTrigrams(env, msg.documentId, msg.tenantId)
+      break
+    case 'cleanup-analytics':
+      await pruneOldAnalytics(env, msg.tenantId, 90)
       break
     default:
       console.warn(`Unknown queue message type: ${msg.type}`)
@@ -89,19 +97,21 @@ async function generateSummary(env: Env, documentId: string, tenantId: string) {
       .where(eq(documents.id, documentId))
   }
 
+  // Also trigger embedding and trigram indexing
   await embedDocumentJob(env, documentId, tenantId)
+  await indexDocumentTrigrams(env, documentId, tenantId)
 }
 
-/** Generate embeddings for a document */
+/** Generate embeddings for a document (includes category in vector metadata) */
 async function embedDocumentJob(env: Env, documentId: string, tenantId: string) {
   const db = drizzle(env.DB)
   const doc = await db
-    .select({ content: documents.content })
+    .select({ content: documents.content, category: documents.category })
     .from(documents)
     .where(eq(documents.id, documentId))
     .limit(1)
 
   if (!doc.length || !doc[0].content) return
 
-  await embedDocument(env, documentId, doc[0].content, tenantId)
+  await embedDocument(env, documentId, doc[0].content, tenantId, doc[0].category ?? undefined)
 }

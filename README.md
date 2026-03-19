@@ -6,7 +6,7 @@ Enterprise knowledge management platform serving humans and AI agents, hosted en
 
 AgentWiki is a full-stack knowledge management system designed for enterprises and AI agents. It provides a modern web interface for humans to create, organize, and share knowledge, plus REST APIs and CLI tools for AI agents to access and manage information programmatically.
 
-**Domain:** [agentwiki.cc](https://agentwiki.cc)
+**Domain:** [app.agentwiki.cc](https://app.agentwiki.cc)
 
 ## Key Features
 

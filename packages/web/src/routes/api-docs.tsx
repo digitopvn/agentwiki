@@ -125,7 +125,7 @@ export function ApiDocsPage() {
       <div className="mx-auto max-w-3xl px-6 py-8 space-y-8">
         <div className={cn('rounded-lg border p-4', isDark ? 'border-white/[0.06] bg-surface-1' : 'border-neutral-200 bg-white')}>
           <p className={cn('text-sm', isDark ? 'text-neutral-300' : 'text-neutral-700')}>
-            Base URL: <code className={cn('rounded px-1.5 py-0.5 font-mono text-xs', isDark ? 'bg-surface-3 text-brand-400' : 'bg-neutral-100 text-brand-600')}>https://agentwiki.cc</code>
+            Base URL: <code className={cn('rounded px-1.5 py-0.5 font-mono text-xs', isDark ? 'bg-surface-3 text-brand-400' : 'bg-neutral-100 text-brand-600')}>https://app.agentwiki.cc</code>
           </p>
           <p className={cn('mt-2 text-xs', isDark ? 'text-neutral-500' : 'text-neutral-400')}>
             Authentication: JWT cookie (web) or API key header (<code>Authorization: Bearer aw_xxx</code>)

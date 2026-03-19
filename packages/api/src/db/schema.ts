@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, primaryKey, index, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 /** Tenant (organization/workspace) */
 export const tenants = sqliteTable('tenants', {
@@ -177,3 +177,42 @@ export const uploads = sqliteTable('uploads', {
   uploadedBy: text('uploaded_by').notNull().references(() => users.id),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 })
+
+/** Trigram index for fuzzy search */
+export const searchTrigrams = sqliteTable('search_trigrams', {
+  trigram: text('trigram').notNull(),
+  documentId: text('document_id').notNull().references(() => documents.id),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  field: text('field').notNull(), // 'title' | 'summary' | 'content'
+  frequency: integer('frequency').notNull().default(1),
+}, (table) => [
+  primaryKey({ columns: [table.trigram, table.documentId, table.field] }),
+  index('idx_trigram_tenant').on(table.trigram, table.tenantId),
+])
+
+/** Search history for autocomplete suggestions */
+export const searchHistory = sqliteTable('search_history', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  query: text('query').notNull(),
+  resultCount: integer('result_count').notNull(),
+  searchCount: integer('search_count').notNull().default(1),
+  lastSearchedAt: integer('last_searched_at', { mode: 'timestamp_ms' }).notNull(),
+}, (table) => [
+  uniqueIndex('idx_history_tenant_query').on(table.tenantId, table.query),
+])
+
+/** Search analytics for tracking queries and clicks */
+export const searchAnalytics = sqliteTable('search_analytics', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  query: text('query').notNull(),
+  searchType: text('search_type').notNull(), // 'hybrid' | 'keyword' | 'semantic'
+  resultCount: integer('result_count').notNull(),
+  clickedDocId: text('clicked_doc_id'),
+  clickPosition: integer('click_position'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+}, (table) => [
+  index('idx_analytics_tenant_date').on(table.tenantId, table.createdAt),
+  index('idx_analytics_tenant_query').on(table.tenantId, table.query),
+])

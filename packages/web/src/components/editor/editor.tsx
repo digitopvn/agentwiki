@@ -48,7 +48,7 @@ export function Editor({ documentId, tabId }: EditorProps) {
     uploadFile: async (file: File) => {
       const formData = new FormData()
       formData.append('file', file)
-      const res = await fetch('/api/uploads', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL ?? ''}/api/uploads`, {
         method: 'POST',
         body: formData,
         credentials: 'include',
