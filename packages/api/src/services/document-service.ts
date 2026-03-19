@@ -2,6 +2,7 @@
 
 import { eq, and, isNull, desc, sql, like, inArray } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
+import { deleteDocumentTrigrams } from './trigram-service'
 import {
   documents,
   documentVersions,
@@ -396,13 +397,16 @@ export async function createVersionCheckpoint(env: Env, tenantId: string, docId:
   return { id: docId, version: nextVersion }
 }
 
-/** Soft-delete a document */
+/** Soft-delete a document and clean up trigram index */
 export async function deleteDocument(env: Env, tenantId: string, docId: string) {
   const db = drizzle(env.DB)
   const result = await db
     .update(documents)
     .set({ deletedAt: new Date() })
     .where(and(eq(documents.id, docId), eq(documents.tenantId, tenantId), isNull(documents.deletedAt)))
+
+  // Clean up trigram index for deleted document
+  await deleteDocumentTrigrams(env, docId).catch(() => {})
 
   return result
 }

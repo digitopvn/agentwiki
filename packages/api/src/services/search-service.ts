@@ -1,11 +1,14 @@
-/** Hybrid search — FTS5 keyword + Vectorize semantic + RRF fusion */
+/** Hybrid search — trigram fuzzy keyword + Vectorize semantic + RRF fusion + faceted filtering */
 
-import { eq, and, isNull, sql } from 'drizzle-orm'
+import { eq, and, isNull, sql, inArray } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
-import { documents } from '../db/schema'
+import { documents, documentTags } from '../db/schema'
 import { embedQuery } from './embedding-service'
+import { trigramSearch } from './trigram-service'
 import { reciprocalRankFusion, type RankedResult } from '../utils/rrf'
+import { extractSnippet } from '../utils/extract-snippet'
 import type { Env } from '../env'
+import type { SearchFilters, SearchFacets, FacetBucket } from '@agentwiki/shared'
 
 interface SearchOptions {
   tenantId: string
@@ -13,100 +16,212 @@ interface SearchOptions {
   type?: 'hybrid' | 'keyword' | 'semantic'
   limit?: number
   category?: string
+  filters?: SearchFilters
 }
 
-/** Execute hybrid search */
+/** Execute hybrid search with optional faceted filtering */
 export async function searchDocuments(env: Env, options: SearchOptions) {
-  const { tenantId, query, type = 'hybrid', limit = 10, category } = options
+  const { tenantId, query, type = 'hybrid', limit = 10, filters } = options
+  // Merge top-level category with filters for backward compat
+  const category = filters?.category ?? options.category
   const results: RankedResult[][] = []
 
-  // Keyword search via FTS5
+  // Fuzzy keyword search via trigram index
   if (type === 'hybrid' || type === 'keyword') {
-    const keywordResults = await keywordSearch(env, tenantId, query, limit * 2, category)
+    const keywordResults = await trigramSearch(env, tenantId, query, limit * 2, category)
     results.push(keywordResults)
   }
 
   // Semantic search via Vectorize
   if (type === 'hybrid' || type === 'semantic') {
-    const semanticResults = await semanticSearch(env, tenantId, query, limit * 2)
+    const semanticResults = await semanticSearch(env, tenantId, query, limit * 2, filters)
     results.push(semanticResults)
   }
 
   // Fuse results
-  const fused = results.length > 1 ? reciprocalRankFusion(...results) : results[0] ?? []
+  let fused = results.length > 1 ? reciprocalRankFusion(...results) : results[0] ?? []
+
+  // Post-filter by tags and date range (applies to all search types)
+  if (filters?.tags?.length || filters?.dateFrom || filters?.dateTo) {
+    fused = await postFilterResults(env, fused, tenantId, filters)
+  }
 
   return fused.slice(0, limit)
 }
 
-/** FTS5 keyword search using LIKE (D1 doesn't always have FTS5 enabled) */
-async function keywordSearch(
+/** Get facet counts for the current tenant (categories, tags, date ranges) */
+export async function getFacetCounts(
   env: Env,
   tenantId: string,
-  query: string,
-  limit: number,
-  category?: string,
-): Promise<RankedResult[]> {
+): Promise<SearchFacets> {
   const db = drizzle(env.DB)
-  const searchPattern = `%${query}%`
+  const now = Date.now()
+  const weekAgo = now - 7 * 24 * 60 * 60 * 1000
+  const monthAgo = now - 30 * 24 * 60 * 60 * 1000
+  const quarterAgo = now - 90 * 24 * 60 * 60 * 1000
 
-  const conditions = [
-    eq(documents.tenantId, tenantId),
-    isNull(documents.deletedAt),
-    sql`(${documents.title} LIKE ${searchPattern} OR ${documents.content} LIKE ${searchPattern})`,
-  ]
+  const [categoryRows, tagRows, dateRows] = await Promise.all([
+    // Category counts
+    db
+      .select({
+        name: documents.category,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(documents)
+      .where(
+        and(
+          eq(documents.tenantId, tenantId),
+          isNull(documents.deletedAt),
+          sql`${documents.category} IS NOT NULL`,
+        ),
+      )
+      .groupBy(documents.category)
+      .orderBy(sql`COUNT(*) DESC`)
+      .limit(10),
 
-  if (category) {
-    conditions.push(eq(documents.category, category))
+    // Tag counts
+    db
+      .select({
+        name: documentTags.tag,
+        count: sql<number>`COUNT(DISTINCT ${documentTags.documentId})`,
+      })
+      .from(documentTags)
+      .innerJoin(documents, eq(documentTags.documentId, documents.id))
+      .where(
+        and(
+          eq(documents.tenantId, tenantId),
+          isNull(documents.deletedAt),
+        ),
+      )
+      .groupBy(documentTags.tag)
+      .orderBy(sql`COUNT(*) DESC`)
+      .limit(15),
+
+    // Date range buckets
+    db
+      .select({
+        thisWeek: sql<number>`SUM(CASE WHEN ${documents.createdAt} >= ${weekAgo} THEN 1 ELSE 0 END)`,
+        thisMonth: sql<number>`SUM(CASE WHEN ${documents.createdAt} >= ${monthAgo} AND ${documents.createdAt} < ${weekAgo} THEN 1 ELSE 0 END)`,
+        thisQuarter: sql<number>`SUM(CASE WHEN ${documents.createdAt} >= ${quarterAgo} AND ${documents.createdAt} < ${monthAgo} THEN 1 ELSE 0 END)`,
+        older: sql<number>`SUM(CASE WHEN ${documents.createdAt} < ${quarterAgo} THEN 1 ELSE 0 END)`,
+      })
+      .from(documents)
+      .where(and(eq(documents.tenantId, tenantId), isNull(documents.deletedAt))),
+  ])
+
+  return {
+    categories: categoryRows.filter((r) => r.name) as FacetBucket[],
+    tags: tagRows as FacetBucket[],
+    dateRanges: dateRows[0] ?? { thisWeek: 0, thisMonth: 0, thisQuarter: 0, older: 0 },
   }
-
-  const rows = await db
-    .select({
-      id: documents.id,
-      title: documents.title,
-      slug: documents.slug,
-      content: documents.content,
-    })
-    .from(documents)
-    .where(and(...conditions))
-    .limit(limit)
-
-  return rows.map((row) => ({
-    id: row.id,
-    title: row.title,
-    slug: row.slug,
-    snippet: extractSnippet(row.content, query),
-  }))
 }
 
-/** Vectorize semantic search */
+/** Post-filter search results by tags and date range */
+async function postFilterResults(
+  env: Env,
+  results: RankedResult[],
+  tenantId: string,
+  filters: SearchFilters,
+): Promise<RankedResult[]> {
+  if (!results.length) return results
+
+  const db = drizzle(env.DB)
+  const docIds = results.map((r) => r.id)
+
+  // Build filter conditions
+  const conditions = [
+    inArray(documents.id, docIds),
+    eq(documents.tenantId, tenantId),
+    isNull(documents.deletedAt),
+  ]
+
+  if (filters.dateFrom) {
+    conditions.push(sql`${documents.createdAt} >= ${new Date(filters.dateFrom).getTime()}`)
+  }
+  if (filters.dateTo) {
+    conditions.push(sql`${documents.createdAt} <= ${new Date(filters.dateTo).getTime()}`)
+  }
+
+  let filteredIds: Set<string>
+
+  if (filters.tags?.length) {
+    // Find docs that have ALL specified tags
+    const taggedRows = await db
+      .select({ documentId: documentTags.documentId })
+      .from(documentTags)
+      .innerJoin(documents, eq(documentTags.documentId, documents.id))
+      .where(
+        and(
+          ...conditions,
+          inArray(documentTags.tag, filters.tags),
+        ),
+      )
+      .groupBy(documentTags.documentId)
+      .having(sql`COUNT(DISTINCT ${documentTags.tag}) >= ${filters.tags.length}`)
+
+    filteredIds = new Set(taggedRows.map((r) => r.documentId))
+  } else {
+    // Just date filter
+    const rows = await db
+      .select({ id: documents.id })
+      .from(documents)
+      .where(and(...conditions))
+
+    filteredIds = new Set(rows.map((r) => r.id))
+  }
+
+  return results.filter((r) => filteredIds.has(r.id))
+}
+
+/** Vectorize semantic search with optional filter post-processing */
 async function semanticSearch(
   env: Env,
   tenantId: string,
   query: string,
   limit: number,
+  filters?: SearchFilters,
 ): Promise<RankedResult[]> {
   try {
     const queryVector = await embedQuery(env, query)
 
+    // Build Vectorize filter — only supports flat metadata fields
+    const vectorFilter: Record<string, string> = { org_id: tenantId }
+    if (filters?.category) {
+      vectorFilter.category = filters.category
+    }
+
     const vectorResults = await env.VECTORIZE.query(queryVector, {
       topK: limit,
-      filter: { org_id: tenantId },
+      filter: vectorFilter,
       returnMetadata: 'all',
     })
 
     if (!vectorResults.matches?.length) return []
 
-    // Fetch document details for matched doc IDs
-    const docIds = [...new Set(vectorResults.matches.map((m) => (m.metadata as Record<string, string>)?.doc_id).filter(Boolean))]
+    const docIds = [
+      ...new Set(
+        vectorResults.matches
+          .map((m) => (m.metadata as Record<string, string>)?.doc_id)
+          .filter(Boolean),
+      ),
+    ]
 
     const db = drizzle(env.DB)
     const docs = await db
-      .select({ id: documents.id, title: documents.title, slug: documents.slug, content: documents.content })
+      .select({
+        id: documents.id,
+        title: documents.title,
+        slug: documents.slug,
+        content: documents.content,
+        category: documents.category,
+      })
       .from(documents)
-      .where(and(
-        sql`${documents.id} IN (${sql.join(docIds.map(id => sql`${id}`), sql`, `)})`,
-        isNull(documents.deletedAt),
-      ))
+      .where(
+        and(
+          sql`${documents.id} IN (${sql.join(docIds.map((id) => sql`${id}`), sql`, `)})`,
+          isNull(documents.deletedAt),
+        ),
+      )
 
     const docMap = new Map(docs.map((d) => [d.id, d]))
 
@@ -121,6 +236,7 @@ async function semanticSearch(
           slug: doc.slug,
           snippet: extractSnippet(doc.content, query),
           score: m.score,
+          category: doc.category ?? undefined,
         } satisfies RankedResult
       })
       .filter((r): r is NonNullable<typeof r> => r !== null)
@@ -128,22 +244,4 @@ async function semanticSearch(
     console.error('Semantic search error:', err)
     return []
   }
-}
-
-/** Extract a snippet around the query match */
-function extractSnippet(content: string, query: string, length = 150): string {
-  const lower = content.toLowerCase()
-  const queryLower = query.toLowerCase()
-  const idx = lower.indexOf(queryLower)
-
-  if (idx === -1) return content.slice(0, length) + (content.length > length ? '...' : '')
-
-  const start = Math.max(0, idx - 60)
-  const end = Math.min(content.length, idx + query.length + 60)
-  let snippet = content.slice(start, end).replace(/\n/g, ' ').trim()
-
-  if (start > 0) snippet = '...' + snippet
-  if (end < content.length) snippet += '...'
-
-  return snippet
 }

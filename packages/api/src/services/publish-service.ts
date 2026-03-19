@@ -89,7 +89,7 @@ function renderDocumentHtml(title: string, markdown: string): string {
 <body>
   <div class="header"><h1>${escapeHtml(title)}</h1></div>
   <div class="content">${html}</div>
-  <div class="footer">Published with <a href="https://agentwiki.cc">AgentWiki</a></div>
+  <div class="footer">Published with <a href="https://app.agentwiki.cc">AgentWiki</a></div>
 </body>
 </html>`
 }

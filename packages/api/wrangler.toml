@@ -2,14 +2,21 @@ name = "agentwiki-api"
 main = "src/index.ts"
 compatibility_date = "2026-03-01"
 compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+# Custom domain — Cloudflare automatically provisions DNS + SSL
+routes = [
+  { pattern = "api.agentwiki.cc", custom_domain = true }
+]
 
 [vars]
-APP_URL = "https://agentwiki.cc"
+APP_URL = "https://app.agentwiki.cc"
+API_URL = "https://api.agentwiki.cc"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "agentwiki-main"
-database_id = "placeholder-create-via-wrangler"
+database_id = "77fc1ed2-9a0c-4978-806f-09484ef067f2"
 migrations_dir = "src/db/migrations"
 
 [[r2_buckets]]
@@ -18,7 +25,7 @@ bucket_name = "agentwiki-files"
 
 [[kv_namespaces]]
 binding = "KV"
-id = "placeholder-create-via-wrangler"
+id = "9d78e2d1ff0c462594a0b40a64ad4b2d"
 
 [[vectorize]]
 binding = "VECTORIZE"

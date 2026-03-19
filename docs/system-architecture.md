@@ -8,7 +8,7 @@ Comprehensive architecture documentation covering layers, data flow, deployment 
 ┌─────────────────────────────────────────────────────────────┐
 │                        Frontend Layer                       │
 │        React 19 + BlockNote + TailwindCSS v4               │
-│      Cloudflare Pages (cdn.agentwiki.cc)                   │
+│      Cloudflare Pages (app.agentwiki.cc)                   │
 └────────────────────────┬────────────────────────────────────┘
                          │ HTTPS REST API
                          │
@@ -281,7 +281,7 @@ await db.transaction(async (tx) => {
 
 ### OAuth Login Flow
 ```
-1. User visits agentwiki.cc, clicks "Sign in with Google"
+1. User visits app.agentwiki.cc, clicks "Sign in with Google"
    ↓
 2. Frontend redirects to /api/auth/google
    ↓
@@ -414,7 +414,7 @@ On failure:
                │
 ┌──────────────▼──────────────────┐
 │  CORS Headers                   │
-│  Allow: agentwiki.cc origins    │
+│  Allow: app.agentwiki.cc origins│
 │  Credentials: true              │
 └──────────────┬──────────────────┘
                │
@@ -459,7 +459,7 @@ Assets uploaded to CF CDN
    ↓
 Deploy to edge globally
    ↓
-Available at: https://agentwiki.cc
+Available at: https://app.agentwiki.cc
 ```
 
 **Deployment Files**:

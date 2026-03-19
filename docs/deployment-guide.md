@@ -88,7 +88,7 @@ wrangler kv:namespace create agentwiki-kv
 1. Go to GitHub Settings → **Developer settings** → **OAuth Apps**
 2. Click **New OAuth App**
 3. Application name: `AgentWiki`
-4. Homepage URL: `https://agentwiki.cc`
+4. Homepage URL: `https://app.agentwiki.cc`
 5. Authorization callback URL: `https://api.agentwiki.cc/api/auth/github/callback`
 6. Save **Client ID** and **Client Secret**
 

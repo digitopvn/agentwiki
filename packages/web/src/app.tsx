@@ -10,6 +10,7 @@ import { ProfilePage } from './routes/profile'
 import { SettingsPage } from './routes/settings'
 import { ApiDocsPage } from './routes/api-docs'
 import { CliDocsPage } from './routes/cli-docs'
+import { SearchAnalyticsPage } from './routes/search-analytics'
 import { apiClient } from './lib/api-client'
 
 const queryClient = new QueryClient({
@@ -115,6 +116,7 @@ function AppRoutes() {
       <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
       <Route path="/docs/api" element={<RequireAuth><ApiDocsPage /></RequireAuth>} />
       <Route path="/docs/cli" element={<RequireAuth><CliDocsPage /></RequireAuth>} />
+      <Route path="/settings/search-analytics" element={<RequireAuth><SearchAnalyticsPage /></RequireAuth>} />
       <Route
         path="/"
         element={
