@@ -2,6 +2,12 @@ name = "agentwiki-api"
 main = "src/index.ts"
 compatibility_date = "2026-03-01"
 compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+# Custom domain — Cloudflare automatically provisions DNS + SSL
+routes = [
+  { pattern = "api.agentwiki.cc", custom_domain = true }
+]
 
 [vars]
 APP_URL = "https://app.agentwiki.cc"
