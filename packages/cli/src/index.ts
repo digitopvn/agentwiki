@@ -15,7 +15,7 @@ program
   .command('login')
   .description('Configure API key for authentication')
   .option('--api-key <key>', 'API key (starts with aw_)')
-  .option('--url <url>', 'API base URL', 'https://agentwiki.cc')
+  .option('--url <url>', 'API base URL', 'https://app.agentwiki.cc')
   .action(async (opts) => {
     if (opts.apiKey) {
       saveCredentials({ apiKey: opts.apiKey, apiUrl: opts.url })

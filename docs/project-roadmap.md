@@ -513,7 +513,7 @@ Items under consideration for future versions:
 
 For roadmap questions or feature requests:
 - GitHub Issues: [agentwiki/issues](https://github.com/your-org/agentwiki/issues)
-- Email: [product@agentwiki.cc](mailto:product@agentwiki.cc)
+- Email: [support@agentwiki.cc](mailto:support@agentwiki.cc)
 - Roadmap discussions: [Roadmap label](https://github.com/your-org/agentwiki/labels/roadmap)
 
 ## Document History

@@ -10,4 +10,5 @@ dist/
 coverage/
 *.tsbuildinfo
 .DS_Store
+._*
 .claude/

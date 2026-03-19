@@ -24,7 +24,7 @@ app.use('*', logger())
 app.use(
   '*',
   cors({
-    origin: ['http://localhost:5173', 'https://agentwiki.cc'],
+    origin: ['http://localhost:5173', 'https://app.agentwiki.cc'],
     credentials: true,
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],

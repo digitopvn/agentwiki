@@ -4,7 +4,7 @@ compatibility_date = "2026-03-01"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]
-APP_URL = "https://agentwiki.cc"
+APP_URL = "https://app.agentwiki.cc"
 
 [[d1_databases]]
 binding = "DB"
