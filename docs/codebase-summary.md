@@ -63,7 +63,8 @@ agentwiki/
 │   │   │   │   ├── document-service.ts — Document business logic
 │   │   │   │   ├── folder-service.ts — Folder tree operations
 │   │   │   │   ├── upload-service.ts — R2 presigned URLs
-│   │   │   │   ├── search-service.ts — FTS + Vectorize hybrid
+│   │   │   │   ├── search-service.ts — Hybrid search (docs + storage, source param)
+│   │   │   │   ├── storage-search-service.ts — Keyword & semantic search on uploads (SP3)
 │   │   │   │   ├── embedding-service.ts — Vectorize integration
 │   │   │   │   ├── share-service.ts — Share link tokens
 │   │   │   │   ├── publish-service.ts — Public page generation
@@ -95,7 +96,7 @@ agentwiki/
 │   │   │   │   └── api-key-auth.ts — PBKDF2 key validation + scope check
 │   │   │   ├── tools/
 │   │   │   │   ├── document-tools.ts — 7 document CRUD tools
-│   │   │   │   ├── search-and-graph-tools.ts — 4 search & graph tools
+│   │   │   │   ├── search-and-graph-tools.ts — 4 search & graph tools (with source param SP3)
 │   │   │   │   ├── folder-tools.ts — 4 folder tree tools
 │   │   │   │   ├── tag-tools.ts    — 2 tag management tools
 │   │   │   │   ├── upload-tools.ts — 2 file upload tools
@@ -129,6 +130,10 @@ agentwiki/
 │   │   │   │   │   ├── welcome-screen.tsx   — Empty state
 │   │   │   │   │   ├── ai-slash-commands.ts — 5 AI slash commands for editor
 │   │   │   │   │   └── ai-selection-toolbar.tsx — 6 AI toolbar actions for text
+│   │   │   │   ├── storage/
+│   │   │   │   │   ├── storage-drawer.tsx       — Right-sliding file management drawer (SP2)
+│   │   │   │   │   ├── storage-file-card.tsx   — File card with status & delete
+│   │   │   │   │   └── upload-progress-list.tsx — Active upload progress bars
 │   │   │   │   ├── metadata/
 │   │   │   │   │   ├── document-properties.tsx — Title, category, access level
 │   │   │   │   │   ├── tag-editor.tsx       — Tag management UI
@@ -141,10 +146,12 @@ agentwiki/
 │   │   │   │   ├── use-auth.ts      — Auth state (user, login, logout)
 │   │   │   │   ├── use-documents.ts — Document list & cache (React Query)
 │   │   │   │   ├── use-folders.ts   — Folder tree (React Query)
+│   │   │   │   ├── use-uploads.ts   — Upload list & deletion (React Query)
+│   │   │   │   ├── use-upload-with-progress.ts — XHR upload with progress tracking
 │   │   │   │   ├── use-ai.ts        — AI generation & streaming
 │   │   │   │   └── use-ai-settings.ts — AI settings & provider config
 │   │   │   ├── stores/
-│   │   │   │   └── app-store.ts     — Zustand (tabs, panel collapse, theme)
+│   │   │   │   └── app-store.ts     — Zustand (tabs, panel collapse, theme, storage drawer, upload queue)
 │   │   │   ├── lib/
 │   │   │   │   ├── api-client.ts    — Axios with auth header
 │   │   │   │   ├── ai-stream-reader.ts — Stream response parser
@@ -161,7 +168,7 @@ agentwiki/
 │   │   └── package.json             — Dependencies (React 19, Vite, BlockNote, etc)
 │   ├── cli/
 │   │   ├── src/
-│   │   │   ├── index.ts             — Commander CLI entry (login, whoami, doc, folder, search)
+│   │   │   ├── index.ts             — Commander CLI (login, whoami, doc, folder, search --source, upload list)
 │   │   │   └── api-client.ts        — HTTP client (credential storage)
 │   │   ├── tsconfig.json
 │   │   └── package.json             — Dependency (Commander.js)
@@ -457,14 +464,15 @@ agentwiki/
 - `GET` — List all tags in tenant
 
 ### Uploads (`/api/uploads`)
-- `POST` — Upload file to R2
+- `GET` — List uploaded files with extraction status & summaries (SP2)
+- `POST` — Upload file to R2 (100MB limit, auto-extracted)
 - `DELETE /:id` — Delete upload
 
 ### Files (`/api/files/:key`)
 - `GET` — Serve file from R2 (supports auth, public, and download token access)
 
 ### Search (`/api/search`)
-- `GET ?q=query&type=hybrid|keyword|semantic` — Search documents
+- `GET ?q=query&type=hybrid|keyword|semantic&source=docs|storage|all` — Search documents and/or uploads (SP3)
 
 ### Share (`/api/share`)
 - `GET /public/:token` — Access shared document (public)

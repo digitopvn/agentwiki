@@ -480,12 +480,12 @@ On failure:
 - Separates concerns (save vs. enrich)
 - Handles large documents without timeouts
 
-## File Extraction Pipeline
+## File Extraction & Storage Pipeline
 
-### Overview
+### SP1: File Extraction (Existing)
 AgentWiki includes a distributed file extraction system for converting uploaded documents (PDF, DOCX, PPT, etc.) into searchable, summarizable text. The pipeline separates the extraction work onto a VPS service to avoid compute limits on Cloudflare Workers.
 
-### Architecture Flow
+#### Architecture Flow
 ```
 User uploads file (max 100MB)
     ↓
@@ -517,6 +517,89 @@ Queue Consumer processes embeddings & summaries
     ├─ Push vectors to Vectorize
     └─ Update uploads.summary field
 ```
+
+### SP2: Storage UI/UX
+Web interface for viewing and managing uploaded files with progress tracking and extraction status.
+
+#### Storage Drawer Component
+- **Trigger**: Sidebar HardDrive icon or keyboard shortcut
+- **Layout**: Right-sliding drawer (400px on desktop), full-width on mobile
+- **Features**:
+  - File grid display (2-column on desktop)
+  - Search/filter by filename (real-time)
+  - Upload button → file input, multi-file support
+  - 100MB per-file size limit (enforced client-side with alert)
+  - Extraction status badges: pending, processing, completed, failed, unsupported
+  - Auto-polling: Refetch every 5s while any file is processing
+
+#### Upload Progress Tracking
+- **Component**: `UploadProgressList` — shows active uploads in drawer
+- **Mechanism**: XMLHttpRequest with progress events (`xhr.upload.addEventListener('progress')`)
+- **State Management**: Zustand `uploadQueue` store tracks:
+  - `id`: unique upload ID
+  - `file`: File object
+  - `progress`: 0-100 percentage
+  - `status`: queued | uploading | complete | error
+  - `error?`: error message if failed
+- **Actions in Store**:
+  - `addToUploadQueue(files)` — add new uploads
+  - `updateUploadProgress(id, progress)` — track XHR progress events
+  - `updateUploadStatus(id, status, error?)` — mark done/error
+  - `removeFromUploadQueue(id)` — auto-remove after 3s completion
+
+#### Storage File Card
+- Displays filename, size (KB/MB), extraction status
+- Extract status polling: 5s interval when processing
+- Delete action: Confirm dialog before removing upload
+
+### SP3: CLI & MCP Storage Search
+Extends search capabilities to include uploaded files' extracted text. Integrates storage search with document search via source parameter.
+
+#### Search Service Updates
+- **New Type**: `SearchSource = 'docs' | 'storage' | 'all'`
+- **Keyword Search**: `storageKeywordSearch()` — LIKE query on `fileExtractions.extractedText`
+  - Escapes wildcards to prevent injection
+  - Returns results with `resultType: 'upload'`
+- **Semantic Search**: `storageSemanticSearch()` — Vectorize query with filter `source_type: 'upload'`
+  - Fetches vector matches, resolves upload metadata
+  - Extracts snippets from extracted text
+- **Fusion**: RRF combines document + storage results when `source='all'`
+  - Separates upload results (no slug) from document results
+  - Applies tag/date filters only to documents, preserves uploads unfiltered
+
+#### REST API: Search Endpoint
+```
+GET /api/search?q=query&type=hybrid|keyword|semantic&source=docs|storage|all&limit=10&...
+```
+Query parameter `source` (default: 'docs') routes to document-only, storage-only, or fused search.
+
+#### CLI: Search Command
+```bash
+agentwiki search "query" --type hybrid|keyword|semantic --source docs|storage|all --limit 10
+```
+Passes `source` parameter to API. Output includes both document and file results when source != 'docs'.
+
+#### CLI: Upload List Command
+```bash
+agentwiki upload list [--json]
+```
+Lists all uploaded files with:
+- `id`: upload ID
+- `filename`: original filename
+- Size in KB/MB
+- Extraction status: pending | processing | completed | failed | unsupported
+- AI-generated summary (if available)
+
+#### MCP: Search Tool
+MCP `search` tool (in `search-and-graph-tools.ts`) includes:
+```typescript
+{
+  source: z.enum(['docs', 'storage', 'all'])
+    .default('docs')
+    .describe('Search source: docs (wiki documents), storage (uploaded files), all (both)')
+}
+```
+AI agents can call: `search({ query, source: 'all' })` to search both documents and uploaded files.
 
 ### Supported File Types
 - **PDF**: via Docling (primary), Gemini fallback
