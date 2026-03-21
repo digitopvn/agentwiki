@@ -23,8 +23,8 @@ export type AccessLevel = (typeof ACCESS_LEVELS)[number]
 
 /** Auth token TTLs */
 export const TOKEN_TTL = {
-  accessToken: 15 * 60 * 1000, // 15 minutes
-  refreshToken: 7 * 24 * 60 * 60 * 1000, // 7 days
+  accessToken: 60 * 60 * 1000, // 1 hour
+  refreshToken: 30 * 24 * 60 * 60 * 1000, // 30 days
   shareLink: 90 * 24 * 60 * 60 * 1000, // 90 days
 } as const
 
