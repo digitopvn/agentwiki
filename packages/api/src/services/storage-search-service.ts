@@ -23,7 +23,7 @@ export async function storageKeywordSearch(
   const results = await db
     .select({
       uploadId: fileExtractions.uploadId,
-      extractedText: fileExtractions.extractedText,
+      extractedText: sql<string>`SUBSTR(${fileExtractions.extractedText}, 1, 2000)`.as('extracted_text'),
       filename: uploads.filename,
     })
     .from(fileExtractions)
@@ -31,7 +31,7 @@ export async function storageKeywordSearch(
     .where(
       and(
         eq(fileExtractions.tenantId, tenantId),
-        sql`${fileExtractions.extractedText} LIKE ${likeQuery}`,
+        sql`${fileExtractions.extractedText} LIKE ${likeQuery} ESCAPE '\\'`,
       ),
     )
     .limit(limit)
@@ -83,9 +83,9 @@ export async function storageSemanticSearch(
 
     const uploadMap = new Map(uploadRows.map((u) => [u.id, u]))
 
-    // Fetch extracted text for snippets
+    // Fetch truncated extracted text for snippets (avoid loading full 5MB)
     const extractionRows = await db
-      .select({ uploadId: fileExtractions.uploadId, extractedText: fileExtractions.extractedText })
+      .select({ uploadId: fileExtractions.uploadId, extractedText: sql<string>`SUBSTR(${fileExtractions.extractedText}, 1, 2000)`.as('extracted_text') })
       .from(fileExtractions)
       .where(sql`${fileExtractions.uploadId} IN (${sql.join(uploadIds.map((id) => sql`${id}`), sql`, `)})`)
 
