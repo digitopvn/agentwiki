@@ -480,6 +480,74 @@ On failure:
 - Separates concerns (save vs. enrich)
 - Handles large documents without timeouts
 
+## File Extraction Pipeline
+
+### Overview
+AgentWiki includes a distributed file extraction system for converting uploaded documents (PDF, DOCX, PPT, etc.) into searchable, summarizable text. The pipeline separates the extraction work onto a VPS service to avoid compute limits on Cloudflare Workers.
+
+### Architecture Flow
+```
+User uploads file (max 100MB)
+    ↓
+POST /api/uploads (multipart form)
+    ├─ Store in R2
+    ├─ Create uploads row (extractionStatus='pending')
+    └─ Dispatch extraction job
+    ↓
+dispatchExtractionJob()
+    ├─ Check if content type extractable (PDF, DOCX, PPTX, etc.)
+    ├─ Generate short-lived download token (15 min TTL, stored in KV)
+    ├─ POST job to VPS extraction service with secure file URL
+    └─ Set extractionStatus='processing'
+    ↓
+VPS Extraction Service (FastAPI + BullMQ + Docling + Gemini)
+    ├─ Fetch file via download token (one-time use)
+    ├─ Extract text using Docling library
+    ├─ For unsupported formats, attempt Gemini vision extraction
+    └─ POST result to /api/internal/extraction-result
+    ↓
+handleExtractionResult()
+    ├─ Store extracted text in fileExtractions table
+    ├─ Update uploads.extractionStatus ('completed' | 'failed' | 'unsupported')
+    └─ Enqueue queue jobs if success:
+       ├─ embed-upload: Generate vectors via Workers AI (bge-base-en)
+       └─ summarize-upload: AI summary via provider (OpenAI/Anthropic/Gemini)
+    ↓
+Queue Consumer processes embeddings & summaries
+    ├─ Push vectors to Vectorize
+    └─ Update uploads.summary field
+```
+
+### Supported File Types
+- **PDF**: via Docling (primary), Gemini fallback
+- **DOCX/DOC**: via Docling
+- **PPTX/PPT**: via Docling
+- **TXT/MD**: Direct text extraction
+- **Unsupported**: Image-only PDFs, proprietary formats → marked 'unsupported'
+
+### Download Token Mechanism
+Extraction jobs use short-lived download tokens instead of presigned URLs to avoid exposing file URLs:
+
+1. **Generation** (in dispatchExtractionJob):
+   - Random 32-byte token generated
+   - Stored in KV with fileKey: `dl:{token} → fileKey` (15-min TTL)
+   - URL: `/api/files/{fileKey}?dl_token={token}`
+
+2. **Validation** (in filesRouter):
+   - Token from URL matched against KV value
+   - If match found, file served and token deleted (one-time use)
+   - If mismatch or expired, returns 403
+
+### Error Handling & Retry
+- **Failed extraction** (status='failed'): Error message stored in fileExtractions.errorMessage
+- **Unsupported format** (status='unsupported'): No retry attempted
+- **Stuck jobs** (status='processing' for >24hrs): Cron-based retry via extraction-retry-service
+- **Manual retry** (admin): `/api/internal/extraction-retry/:id` resets status and redispatches
+
+### Database Schema
+- **uploads**: `extractionStatus` (pending | processing | completed | failed | unsupported), `summary` (AI-generated)
+- **fileExtractions**: `extractedText` (large text body), `charCount`, `vectorId`, `extractionMethod`, `errorMessage`, timestamps
+
 ## Security Architecture
 
 ### Network Security

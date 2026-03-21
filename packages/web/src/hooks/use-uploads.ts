@@ -12,6 +12,8 @@ export interface Upload {
   contentType: string
   sizeBytes: number
   uploadedBy: string
+  extractionStatus: string | null // pending | processing | completed | failed | unsupported
+  summary: string | null
   createdAt: string
 }
 

@@ -175,8 +175,27 @@ export const uploads = sqliteTable('uploads', {
   contentType: text('content_type').notNull(),
   sizeBytes: integer('size_bytes').notNull(),
   uploadedBy: text('uploaded_by').notNull().references(() => users.id),
+  extractionStatus: text('extraction_status').default('pending'), // pending | processing | completed | failed | unsupported
+  summary: text('summary'), // AI-generated summary of extracted text
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 })
+
+/** Extracted text from uploaded files (separated due to large text size) */
+export const fileExtractions = sqliteTable('file_extractions', {
+  id: text('id').primaryKey(),
+  uploadId: text('upload_id').notNull().references(() => uploads.id, { onDelete: 'cascade' }),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  extractedText: text('extracted_text').notNull(),
+  charCount: integer('char_count').default(0),
+  vectorId: text('vector_id'), // prefix for Vectorize vector IDs
+  extractionMethod: text('extraction_method'), // docling | gemini | direct | unsupported
+  errorMessage: text('error_message'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+}, (table) => [
+  index('idx_file_extractions_upload').on(table.uploadId),
+  index('idx_file_extractions_tenant').on(table.tenantId),
+])
 
 /** Trigram index for fuzzy search */
 export const searchTrigrams = sqliteTable('search_trigrams', {

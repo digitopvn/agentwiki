@@ -156,9 +156,9 @@ pnpm -F @agentwiki/api db:migrate:remote
 - `GET /api/search?q=query&type=hybrid|keyword|semantic` — Search documents
 
 ### Uploads
-- `POST /api/uploads` — Upload file to R2
-- `GET /api/files/:key` — Serve file
-- `DELETE /api/uploads/:id` — Delete upload
+- `POST /api/uploads` — Upload file to R2 (max 100MB; PDF/DOCX/PPTX auto-extracted)
+- `GET /api/files/:key` — Serve file from R2
+- `DELETE /api/uploads/:id` — Delete upload and extracted text
 
 ### Sharing & Publishing
 - `POST /api/share/links` — Create share link
@@ -236,7 +236,7 @@ agentwiki upload <file-path> [--doc-id <id>]
 
 ## Database Schema
 
-15 tables for multi-tenancy: tenants, users, tenant_memberships, sessions, api_keys, audit_logs, documents, document_tags, document_versions, document_links, folders, share_links, uploads, ai_settings, ai_usage. See [Codebase Summary](./docs/codebase-summary.md).
+15 tables for multi-tenancy: tenants, users, tenant_memberships, sessions, api_keys, audit_logs, documents, document_tags, document_versions, document_links, folders, share_links, uploads, file_extractions, ai_settings, ai_usage, search_trigrams, search_history, search_analytics. See [Codebase Summary](./docs/codebase-summary.md).
 
 ## Authentication & Authorization
 

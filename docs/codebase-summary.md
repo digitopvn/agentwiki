@@ -4,7 +4,7 @@ Auto-generated from `repomix-output.xml`. Last updated: 2026-03-18.
 
 ## Overview
 
-AgentWiki is a **monorepo** containing five packages orchestrated by Turborepo and pnpm. Total: ~7,200 LOC of TypeScript, 13 database tables, 8 Cloudflare bindings.
+AgentWiki is a **monorepo** containing five packages orchestrated by Turborepo and pnpm. Total: ~7,200 LOC of TypeScript, 15 database tables, 8 Cloudflare bindings.
 
 ### Package Statistics
 
@@ -27,10 +27,11 @@ agentwiki/
 │   ├── api/
 │   │   ├── src/
 │   │   │   ├── db/
-│   │   │   │   ├── schema.ts       — Drizzle table definitions (13 tables)
+│   │   │   │   ├── schema.ts       — Drizzle table definitions (15 tables)
 │   │   │   │   └── migrations/     — Auto-generated SQL migrations
 │   │   │   ├── middleware/
 │   │   │   │   ├── auth-guard.ts   — JWT/API key validation
+│   │   │   │   ├── internal-auth.ts — Shared secret auth for internal endpoints
 │   │   │   │   ├── rate-limiter.ts — IP & key-based rate limiting
 │   │   │   │   └── require-permission.ts — RBAC enforcement
 │   │   │   ├── routes/
@@ -39,7 +40,8 @@ agentwiki/
 │   │   │   │   ├── documents.ts    — Document CRUD + versions
 │   │   │   │   ├── folders.ts      — Folder tree operations
 │   │   │   │   ├── tags.ts         — Tag enumeration
-│   │   │   │   ├── uploads.ts      — R2 file upload/serve
+│   │   │   │   ├── uploads.ts      — R2 file upload/serve + download tokens
+│   │   │   │   ├── internal.ts     — Internal API (extraction, admin)
 │   │   │   │   ├── search.ts       — Hybrid search endpoint
 │   │   │   │   ├── share.ts        — Sharing & publishing
 │   │   │   │   ├── graph.ts        — Document graph (Cytoscape)
@@ -64,7 +66,10 @@ agentwiki/
 │   │   │   │   ├── search-service.ts — FTS + Vectorize hybrid
 │   │   │   │   ├── embedding-service.ts — Vectorize integration
 │   │   │   │   ├── share-service.ts — Share link tokens
-│   │   │   │   └── publish-service.ts — Public page generation
+│   │   │   │   ├── publish-service.ts — Public page generation
+│   │   │   │   ├── extraction-service.ts — VPS result callback handler
+│   │   │   │   ├── extraction-job-dispatcher.ts — Job dispatch + token mgmt
+│   │   │   │   └── extraction-retry-service.ts — Stuck job retry logic
 │   │   │   ├── queue/
 │   │   │   │   └── handler.ts      — Queue consumer (embeddings, summaries)
 │   │   │   ├── utils/
@@ -364,15 +369,33 @@ agentwiki/
 ### uploads
 ```ts
 {
-  id: string          (PK)
-  tenantId: string    (FK → tenants)
-  documentId?: string (FK → documents)
-  fileKey: string     (R2 object key)
-  filename: string    (original filename)
+  id: string                (PK)
+  tenantId: string          (FK → tenants)
+  documentId?: string       (FK → documents)
+  fileKey: string           (R2 object key)
+  filename: string          (original filename)
   contentType: string
   sizeBytes: int
-  uploadedBy: string  (FK → users)
+  uploadedBy: string        (FK → users)
+  extractionStatus: string  ("pending" | "processing" | "completed" | "failed" | "unsupported")
+  summary?: string          (AI-generated summary of extracted text)
   createdAt: timestamp
+}
+```
+
+### file_extractions
+```ts
+{
+  id: string               (PK)
+  uploadId: string         (FK → uploads, cascade delete)
+  tenantId: string         (FK → tenants)
+  extractedText: string    (large text body from PDF/DOCX/etc extraction)
+  charCount: int           (length of extractedText)
+  vectorId?: string        (prefix for Vectorize vector IDs)
+  extractionMethod: string ("docling" | "gemini" | "direct" | "unsupported")
+  errorMessage?: string    (if extraction failed)
+  createdAt: timestamp
+  updatedAt: timestamp
 }
 ```
 
@@ -438,7 +461,7 @@ agentwiki/
 - `DELETE /:id` — Delete upload
 
 ### Files (`/api/files/:key`)
-- `GET` — Serve file from R2
+- `GET` — Serve file from R2 (supports auth, public, and download token access)
 
 ### Search (`/api/search`)
 - `GET ?q=query&type=hybrid|keyword|semantic` — Search documents
@@ -465,6 +488,11 @@ agentwiki/
 - `PUT /settings` — Update provider, model, temperature
 - `DELETE /settings` — Clear AI settings
 - `GET /usage` — Usage dashboard (tokens, cost by provider)
+
+### Internal API (`/api/internal`)
+- `POST /extraction-result` — Callback from VPS extraction service (shared secret auth)
+- `GET /extraction-status` — Admin: extraction pipeline status counts by status
+- `POST /extraction-retry/:id` — Admin: manually retry failed extraction
 
 ### Health
 - `GET /api/health` — Health check

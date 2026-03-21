@@ -42,3 +42,7 @@ max_batch_timeout = 30
 
 [ai]
 binding = "AI"
+
+# Cron trigger for extraction retry (every 5 minutes)
+[triggers]
+crons = ["*/5 * * * *"]
