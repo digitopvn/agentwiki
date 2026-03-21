@@ -1,6 +1,7 @@
 /** Cloudflare Queue consumer — processes async jobs */
 
 import { embedDocument } from '../services/embedding-service'
+import { generateSummaryWithProvider } from '../ai/ai-service'
 import { indexDocumentTrigrams } from '../services/trigram-service'
 import { pruneOldAnalytics } from '../services/analytics-service'
 import { drizzle } from 'drizzle-orm/d1'
@@ -49,7 +50,7 @@ async function processMessage(msg: QueueMessage, env: Env) {
   }
 }
 
-/** Generate AI summary for a document */
+/** Generate AI summary — uses tenant's configured provider, falls back to Workers AI */
 async function generateSummary(env: Env, documentId: string, tenantId: string) {
   const db = drizzle(env.DB)
   const doc = await db
@@ -60,9 +61,21 @@ async function generateSummary(env: Env, documentId: string, tenantId: string) {
 
   if (!doc.length || !doc[0].content) return
 
-  // Truncate content for AI (avoid token limits)
   const truncated = doc[0].content.slice(0, 3000)
 
+  // Try tenant's configured AI provider first
+  try {
+    const summary = await generateSummaryWithProvider(env, tenantId, doc[0].title, truncated)
+    if (summary) {
+      await db.update(documents).set({ summary }).where(eq(documents.id, documentId))
+      await embedDocumentJob(env, documentId, tenantId)
+      return
+    }
+  } catch (err) {
+    console.warn('AI provider summary failed, falling back to Workers AI:', err)
+  }
+
+  // Fallback: Workers AI (Llama 3.1 8B)
   const result = await (env.AI as Ai).run('@cf/meta/llama-3.1-8b-instruct' as never, {
     messages: [
       {

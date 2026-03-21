@@ -41,7 +41,19 @@ agentwiki/
 │   │   │   │   ├── uploads.ts      — R2 file upload/serve
 │   │   │   │   ├── search.ts       — Hybrid search endpoint
 │   │   │   │   ├── share.ts        — Sharing & publishing
-│   │   │   │   └── graph.ts        — Document graph (Cytoscape)
+│   │   │   │   ├── graph.ts        — Document graph (Cytoscape)
+│   │   │   │   └── ai.ts           — AI generation, transform, suggest endpoints
+│   │   │   ├── ai/
+│   │   │   │   ├── interface.ts    — AIProvider interface definition
+│   │   │   │   ├── registry.ts     — Provider registry (OpenAI, Anthropic, etc)
+│   │   │   │   ├── service.ts      — AI orchestration service
+│   │   │   │   ├── prompt-builder.ts — System prompt construction
+│   │   │   │   ├── openai-adapter.ts — OpenAI provider
+│   │   │   │   ├── anthropic-adapter.ts — Anthropic provider
+│   │   │   │   ├── google-gemini-adapter.ts — Google Gemini provider
+│   │   │   │   ├── openrouter-adapter.ts — OpenRouter provider
+│   │   │   │   ├── minimax-adapter.ts — MiniMax provider
+│   │   │   │   └── alibaba-adapter.ts — Alibaba provider
 │   │   │   ├── services/
 │   │   │   │   ├── auth-service.ts — OAuth profile fetch, JWT signing
 │   │   │   │   ├── api-key-service.ts — Key hashing (PBKDF2)
@@ -56,6 +68,7 @@ agentwiki/
 │   │   │   │   └── handler.ts      — Queue consumer (embeddings, summaries)
 │   │   │   ├── utils/
 │   │   │   │   ├── crypto.ts       — JWT, token hashing, key generation
+│   │   │   │   ├── encryption.ts   — Provider key encryption/decryption
 │   │   │   │   ├── audit.ts        — Audit log writing
 │   │   │   │   ├── slug.ts         — URL-safe slug generation
 │   │   │   │   ├── pagination.ts   — Cursor-based pagination
@@ -79,27 +92,35 @@ agentwiki/
 │   │   │   │   │   ├── folder-tree.tsx      — Recursive folder tree
 │   │   │   │   │   └── folder-node.tsx      — Single folder node
 │   │   │   │   ├── editor/
-│   │   │   │   │   ├── editor.tsx           — BlockNote wrapper
+│   │   │   │   │   ├── editor.tsx           — BlockNote wrapper + AI integration
 │   │   │   │   │   ├── tab-bar.tsx          — Tab strip
 │   │   │   │   │   ├── tab-item.tsx         — Single tab
-│   │   │   │   │   └── welcome-screen.tsx   — Empty state
+│   │   │   │   │   ├── welcome-screen.tsx   — Empty state
+│   │   │   │   │   ├── ai-slash-commands.ts — 5 AI slash commands for editor
+│   │   │   │   │   └── ai-selection-toolbar.tsx — 6 AI toolbar actions for text
 │   │   │   │   ├── metadata/
 │   │   │   │   │   ├── document-properties.tsx — Title, category, access level
 │   │   │   │   │   ├── tag-editor.tsx       — Tag management UI
 │   │   │   │   │   └── version-history.tsx  — Version timeline
+│   │   │   │   ├── settings/
+│   │   │   │   │   └── ai-settings-tab.tsx  — AI provider + usage dashboard
 │   │   │   │   └── command-palette/
 │   │   │   │       └── command-palette.tsx  — Cmd+K search (cmdk)
 │   │   │   ├── hooks/
 │   │   │   │   ├── use-auth.ts      — Auth state (user, login, logout)
 │   │   │   │   ├── use-documents.ts — Document list & cache (React Query)
-│   │   │   │   └── use-folders.ts   — Folder tree (React Query)
+│   │   │   │   ├── use-folders.ts   — Folder tree (React Query)
+│   │   │   │   ├── use-ai.ts        — AI generation & streaming
+│   │   │   │   └── use-ai-settings.ts — AI settings & provider config
 │   │   │   ├── stores/
 │   │   │   │   └── app-store.ts     — Zustand (tabs, panel collapse, theme)
 │   │   │   ├── lib/
 │   │   │   │   ├── api-client.ts    — Axios with auth header
+│   │   │   │   ├── ai-stream-reader.ts — Stream response parser
 │   │   │   │   └── utils.ts         — Helpers (cn, formatDate, etc)
 │   │   │   ├── routes/
-│   │   │   │   └── login.tsx        — Login page (OAuth buttons)
+│   │   │   │   ├── login.tsx        — Login page (OAuth buttons)
+│   │   │   │   └── settings.tsx      — Settings page (AI configuration tab)
 │   │   │   ├── app.tsx              — Router setup (React Router v7)
 │   │   │   ├── main.tsx             — React 19 render entry
 │   │   │   ├── index.css            — TailwindCSS styles
@@ -117,11 +138,13 @@ agentwiki/
 │       ├── src/
 │       │   ├── types/
 │       │   │   ├── auth.ts          — JwtPayload, Role, User types
-│       │   │   └── document.ts      — Document, DocumentTag, DocumentVersion types
+│       │   │   ├── document.ts      — Document, DocumentTag, DocumentVersion types
+│       │   │   └── ai.ts            — AI provider types & request/response
 │       │   ├── schemas/
 │       │   │   ├── auth.ts          — Zod schemas for auth requests
-│       │   │   └── document.ts      — Zod schemas for document validation
-│       │   ├── constants.ts         — TOKEN_TTL, RATE_LIMITS, etc
+│       │   │   ├── document.ts      — Zod schemas for document validation
+│       │   │   └── ai.ts            — Zod schemas for AI requests/responses
+│       │   ├── constants.ts         — TOKEN_TTL, RATE_LIMITS, AI_PROVIDERS, AI_RATE_LIMIT
 │       │   └── index.ts             — Re-exports all types/schemas
 │       ├── tsconfig.json
 │       └── package.json
@@ -327,6 +350,36 @@ agentwiki/
 }
 ```
 
+### ai_settings
+```ts
+{
+  id: string          (PK)
+  tenantId: string    (FK → tenants, unique)
+  provider: string    ("openai" | "anthropic" | "google" | "openrouter" | "minimax" | "alibaba")
+  apiKeyEncrypted: string (encrypted provider API key)
+  model: string       (e.g., "gpt-4", "claude-opus", "gemini-pro")
+  temperature: number (0.0 - 1.0)
+  maxTokens: int
+  enabledFeatures: json (["slash_commands", "selection_toolbar", "auto_summarize"])
+  createdAt: timestamp
+  updatedAt: timestamp
+}
+```
+
+### ai_usage
+```ts
+{
+  id: string          (PK)
+  tenantId: string    (FK → tenants)
+  provider: string    (which provider was used)
+  inputTokens: int    (tokens consumed)
+  outputTokens: int   (tokens generated)
+  costUSD: decimal    (estimated cost)
+  action: string      ("generate" | "transform" | "suggest")
+  createdAt: timestamp
+}
+```
+
 ## API Routes Summary
 
 ### Auth (`/api/auth`)
@@ -377,6 +430,15 @@ agentwiki/
 
 ### Graph (`/api/graph`)
 - `GET` — Document graph (nodes + edges)
+
+### AI (`/api/ai`)
+- `POST /generate` — Generate text (slash commands, selection toolbar)
+- `POST /transform` — Transform selected text (rewrite, expand, summarize)
+- `POST /suggest` — Smart suggestions (next paragraph, continuations)
+- `GET /settings` — Get tenant's AI configuration
+- `PUT /settings` — Update provider, model, temperature
+- `DELETE /settings` — Clear AI settings
+- `GET /usage` — Usage dashboard (tokens, cost by provider)
 
 ### Health
 - `GET /api/health` — Health check

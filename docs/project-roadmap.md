@@ -123,6 +123,12 @@ AgentWiki is an enterprise knowledge management platform serving humans and AI a
 - [x] Async embedding generation (Queues)
 - [x] Queue consumer for batch processing
 - [x] Document summary generation
+- [x] Multi-vendor AI providers (6: OpenAI, Anthropic, Google, OpenRouter, MiniMax, Alibaba)
+- [x] AI slash commands (5) in BlockNote editor
+- [x] AI selection toolbar (6 actions) for text
+- [x] AI settings page with provider configuration
+- [x] Usage tracking & cost dashboard
+- [x] Encrypted provider API keys storage
 
 **Key Files**:
 - `packages/api/src/services/search-service.ts` — Hybrid search
@@ -213,6 +219,7 @@ AgentWiki is an enterprise knowledge management platform serving humans and AI a
 | File uploads | ✅ | 100% | R2 storage |
 | Sharing | ✅ | 100% | Token-based links |
 | Publishing | ✅ | 100% | Public web pages |
+| AI-assisted writing | ✅ | 100% | 6 providers, 11 commands |
 | CLI tool | ✅ | 100% | All major commands |
 | API completeness | ✅ | 100% | RESTful, type-safe |
 

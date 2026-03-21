@@ -12,6 +12,7 @@ import { searchRouter } from './routes/search'
 import { analyticsRouter } from './routes/analytics'
 import { shareRouter } from './routes/share'
 import { graphRouter } from './routes/graph'
+import { aiRouter } from './routes/ai'
 import { rateLimiter } from './middleware/rate-limiter'
 import { handleQueueBatch } from './queue/handler'
 import { RATE_LIMITS } from '@agentwiki/shared'
@@ -52,6 +53,7 @@ app.route('/api/search', searchRouter)
 app.route('/api/analytics', analyticsRouter)
 app.route('/api/share', shareRouter)
 app.route('/api/graph', graphRouter)
+app.route('/api/ai', aiRouter)
 
 // Security headers
 app.use('*', async (c, next) => {
