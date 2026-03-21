@@ -88,6 +88,7 @@ export async function listUploads(env: Env, tenantId: string, documentId?: strin
   return db
     .select({
       id: uploads.id,
+      fileKey: uploads.fileKey,
       filename: uploads.filename,
       contentType: uploads.contentType,
       sizeBytes: uploads.sizeBytes,

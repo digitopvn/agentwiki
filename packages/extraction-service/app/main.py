@@ -4,6 +4,7 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
+import hmac
 from fastapi import FastAPI, Header, HTTPException
 from bullmq import Queue
 
@@ -40,7 +41,7 @@ app = FastAPI(title="AgentWiki Extraction Service", lifespan=lifespan)
 @app.post("/jobs", status_code=202)
 async def create_job(job: ExtractionJob, x_internal_secret: str = Header(...)):
     """Receive extraction job from CF Worker, push to BullMQ queue."""
-    if x_internal_secret != AGENTWIKI_INTERNAL_SECRET:
+    if not hmac.compare_digest(x_internal_secret, AGENTWIKI_INTERNAL_SECRET):
         raise HTTPException(status_code=401, detail="Unauthorized")
     if not queue:
         return {"error": "Queue not initialized"}, 500

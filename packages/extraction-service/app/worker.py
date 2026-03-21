@@ -5,6 +5,7 @@ import logging
 import httpx
 from bullmq import Worker
 
+from urllib.parse import urlparse
 from app.config import (
     REDIS_URL,
     AGENTWIKI_API_URL,
@@ -39,6 +40,18 @@ async def process_job(job, _token) -> str:
     extracted_text = ""
     method = "unsupported"
     error = None
+
+    # SSRF defense: only allow downloads from the configured AgentWiki API URL
+    allowed_host = urlparse(AGENTWIKI_API_URL).hostname
+    job_host = urlparse(extraction_job.file_url).hostname
+    if job_host != allowed_host:
+        error = f"SSRF blocked: file_url host '{job_host}' does not match allowed host '{allowed_host}'"
+        logger.error(error)
+        await post_result(ExtractionResult(
+            uploadId=extraction_job.upload_id, tenantId=extraction_job.tenant_id,
+            extractedText="", extractionMethod="unsupported", error=error,
+        ))
+        return f"Blocked: {extraction_job.filename} (SSRF)"
 
     try:
         ct = extraction_job.content_type
