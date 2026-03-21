@@ -1,4 +1,4 @@
-/** API client with credentials support and error handling */
+/** API client with credentials support, error handling, and auto-refresh */
 
 /** API base URL — empty in dev (Vite proxy), absolute in production */
 export const API_BASE = import.meta.env.VITE_API_URL ?? ''
@@ -14,15 +14,43 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
+/** Serialize a single refresh attempt so concurrent 401s don't fire multiple refreshes */
+let refreshPromise: Promise<boolean> | null = null
+
+async function tryRefresh(): Promise<boolean> {
+  if (refreshPromise) return refreshPromise
+  refreshPromise = fetch(`${API_BASE}/api/auth/refresh`, {
+    method: 'POST',
     credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
   })
+    .then((r) => r.ok)
+    .catch(() => false)
+    .finally(() => {
+      refreshPromise = null
+    })
+  return refreshPromise
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const doFetch = () =>
+    fetch(`${API_BASE}${path}`, {
+      ...init,
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(init?.headers ?? {}),
+      },
+    })
+
+  let res = await doFetch()
+
+  // Auto-refresh on 401 (skip for auth endpoints to avoid infinite loops)
+  if (res.status === 401 && !path.startsWith('/api/auth/')) {
+    const refreshed = await tryRefresh()
+    if (refreshed) {
+      res = await doFetch()
+    }
+  }
 
   if (!res.ok) {
     let data: unknown

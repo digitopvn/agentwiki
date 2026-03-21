@@ -17,6 +17,7 @@ import {
 import { sendWelcomeEmail } from '../services/email-service'
 import { verifyJwt } from '../utils/crypto'
 import { logAudit } from '../utils/audit'
+import { TOKEN_TTL } from '@agentwiki/shared'
 import { authGuard } from '../middleware/auth-guard'
 import { drizzle } from 'drizzle-orm/d1'
 import { eq } from 'drizzle-orm'
@@ -74,8 +75,8 @@ auth.get('/google/callback', async (c) => {
 
     const { accessToken, refreshToken } = await issueTokens(c.env, user.id, tenantId, role)
 
-    setCookie(c, 'access_token', accessToken, { ...getCookieOpts(c), maxAge: 900 })
-    setCookie(c, 'refresh_token', refreshToken, { ...getCookieOpts(c), maxAge: 604800 })
+    setCookie(c, 'access_token', accessToken, { ...getCookieOpts(c), maxAge: TOKEN_TTL.accessToken / 1000 })
+    setCookie(c, 'refresh_token', refreshToken, { ...getCookieOpts(c), maxAge: TOKEN_TTL.refreshToken / 1000 })
 
     logAudit(c as never, 'auth.login', 'user', user.id, { provider: 'google' })
 
@@ -127,8 +128,8 @@ auth.get('/github/callback', async (c) => {
 
     const { accessToken, refreshToken } = await issueTokens(c.env, user.id, tenantId, role)
 
-    setCookie(c, 'access_token', accessToken, { ...getCookieOpts(c), maxAge: 900 })
-    setCookie(c, 'refresh_token', refreshToken, { ...getCookieOpts(c), maxAge: 604800 })
+    setCookie(c, 'access_token', accessToken, { ...getCookieOpts(c), maxAge: TOKEN_TTL.accessToken / 1000 })
+    setCookie(c, 'refresh_token', refreshToken, { ...getCookieOpts(c), maxAge: TOKEN_TTL.refreshToken / 1000 })
 
     logAudit(c as never, 'auth.login', 'user', user.id, { provider: 'github' })
 
@@ -159,7 +160,7 @@ auth.post('/refresh', async (c) => {
   const newAccessToken = await refreshAccessToken(c.env, refreshToken)
   if (!newAccessToken) return c.json({ error: 'Invalid refresh token' }, 401)
 
-  setCookie(c, 'access_token', newAccessToken, { ...getCookieOpts(c), maxAge: 900 })
+  setCookie(c, 'access_token', newAccessToken, { ...getCookieOpts(c), maxAge: TOKEN_TTL.accessToken / 1000 })
   return c.json({ ok: true })
 })
 
