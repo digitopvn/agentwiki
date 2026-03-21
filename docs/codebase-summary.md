@@ -4,13 +4,14 @@ Auto-generated from `repomix-output.xml`. Last updated: 2026-03-18.
 
 ## Overview
 
-AgentWiki is a **monorepo** containing four packages orchestrated by Turborepo and pnpm. Total: ~5,500 LOC of TypeScript, 13 database tables, 8 Cloudflare bindings.
+AgentWiki is a **monorepo** containing five packages orchestrated by Turborepo and pnpm. Total: ~7,200 LOC of TypeScript, 13 database tables, 8 Cloudflare bindings.
 
 ### Package Statistics
 
 | Package | LOC | Files | Purpose |
 |---------|-----|-------|---------|
 | `@agentwiki/api` | 2,832 | 32 | Hono backend on Cloudflare Workers |
+| `@agentwiki/mcp` | 1,420 | 16 | Model Context Protocol server (AI agents) |
 | `@agentwiki/web` | 1,880 | 23 | React 19 frontend on Cloudflare Pages |
 | `@agentwiki/cli` | 318 | 2 | Commander.js CLI tool |
 | `@agentwiki/shared` | 227 | 6 | Types, schemas, constants |
@@ -80,6 +81,31 @@ agentwiki/
 │   │   ├── wrangler.toml           — Cloudflare config (D1, R2, KV, Vectorize, Queues)
 │   │   ├── drizzle.config.ts       — Drizzle migration setup
 │   │   └── package.json            — Dependencies (Hono, Drizzle, Arctic, etc)
+│   ├── mcp/
+│   │   ├── src/
+│   │   │   ├── server.ts           — McpServer factory with 25 tools + 6 resources
+│   │   │   ├── index.ts            — Cloudflare Worker entry point
+│   │   │   ├── env.ts              — Cloudflare bindings & auth context types
+│   │   │   ├── auth/
+│   │   │   │   └── api-key-auth.ts — PBKDF2 key validation + scope check
+│   │   │   ├── tools/
+│   │   │   │   ├── document-tools.ts — 7 document CRUD tools
+│   │   │   │   ├── search-and-graph-tools.ts — 4 search & graph tools
+│   │   │   │   ├── folder-tools.ts — 4 folder tree tools
+│   │   │   │   ├── tag-tools.ts    — 2 tag management tools
+│   │   │   │   ├── upload-tools.ts — 2 file upload tools
+│   │   │   │   ├── member-tools.ts — 2 team member tools
+│   │   │   │   ├── api-key-tools.ts — 2 API key tools
+│   │   │   │   └── share-tools.ts  — 2 sharing tools
+│   │   │   ├── resources/
+│   │   │   │   └── wiki-resources.ts — 6 context resources (documents, search, folders, members, keys, shares)
+│   │   │   ├── prompts/
+│   │   │   │   └── wiki-prompts.ts — 4 system prompts for AI agents
+│   │   │   └── utils/
+│   │   │       ├── audit-logger.ts — MCP action logging
+│   │   │       └── mcp-error-handler.ts — Error serialization for MCP
+│   │   ├── wrangler.toml           — Cloudflare config (shares D1, R2, KV, etc with API)
+│   │   └── package.json            — Dependencies (MCP SDK, shared types)
 │   ├── web/
 │   │   ├── src/
 │   │   │   ├── components/
@@ -461,7 +487,11 @@ agentwiki/
 ┌─ Root (turbo.json, pnpm-workspace.yaml)
 ├─ packages/api (Hono backend)
 │  ├─ Depends on: shared
-│  ├─ Exports: OpenAPI schema via @hono/zod-openapi
+│  ├─ Exports: Services, DB schema, OpenAPI
+│  └─ Runtime: Cloudflare Workers
+├─ packages/mcp (MCP agent server)
+│  ├─ Depends on: shared, imports services from api
+│  ├─ Exports: 25 tools, 6 resources, 4 prompts
 │  └─ Runtime: Cloudflare Workers
 ├─ packages/web (React frontend)
 │  ├─ Depends on: shared

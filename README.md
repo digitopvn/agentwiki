@@ -11,10 +11,12 @@ AgentWiki is a full-stack knowledge management system designed for enterprises a
 ## Key Features
 
 - **Dual User Interfaces**: Rich web UI for humans (React 19 + BlockNote), REST API + CLI for agents
+- **MCP Integration**: Model Context Protocol server enabling AI agents (Claude, ChatGPT, Cursor) to access knowledge directly
 - **Knowledge Organization**: Hierarchical folders, tagging, version history, wikilinks between documents
 - **Multi-tenant**: Isolated workspaces (tenants) with RBAC (Admin, Editor, Viewer, Agent roles)
 - **Hybrid Search**: Combines full-text keyword search (D1 FTS) with semantic search (Vectorize) via Reciprocal Rank Fusion
 - **Real-time Collaboration**: BlockNote editor with automatic markdown sync
+- **AI-Assisted Writing**: Multi-provider AI (OpenAI, Anthropic, Gemini, OpenRouter, MiniMax, Alibaba) with slash commands, selection toolbar, auto-summarize, and RAG suggestions
 - **AI Integration**: Workers AI for document summarization, Cloudflare Vectorize for embeddings
 - **Public Sharing**: Token-based share links with granular access control
 - **Content Publishing**: Publish documents as public pages
@@ -35,6 +37,7 @@ AgentWiki is a full-stack knowledge management system designed for enterprises a
 | **Async Jobs** | Cloudflare Queues |
 | **Auth** | Arctic (OAuth2) + custom JWT + API keys |
 | **CLI** | Commander.js |
+| **MCP Server** | @modelcontextprotocol/sdk (Cloudflare Workers) |
 
 ## Monorepo Structure
 
@@ -43,6 +46,7 @@ agentwiki/
 ├── packages/
 │   ├── api/          Hono backend on Cloudflare Workers (2.8k LOC)
 │   ├── web/          React 19 frontend on Cloudflare Pages (1.9k LOC)
+│   ├── mcp/          MCP server on Cloudflare Workers (1.4k LOC)
 │   ├── cli/          Commander CLI for agent access (318 LOC)
 │   └── shared/       Types, schemas, constants (227 LOC)
 ├── docs/             Documentation
@@ -65,6 +69,7 @@ agentwiki/
 │  ├── Auth (OAuth + JWT + API Keys)                  │
 │  ├── Documents, Folders, Tags                       │
 │  ├── Search (Hybrid: FTS + Semantic)                │
+│  ├── AI (6 providers, generate, transform, suggest) │
 │  ├── Sharing & Publishing                          │
 │  └── Uploads & File Serving                         │
 └───────────────────┬─────────────────────────────────┘
@@ -168,6 +173,37 @@ pnpm -F @agentwiki/api db:migrate:remote
 ### Graph
 - `GET /api/graph` — Get document graph (nodes + edges for visualization)
 
+### AI
+- `POST /api/ai/generate` — AI text generation via slash commands (SSE stream)
+- `POST /api/ai/transform` — AI text transformation on selection (SSE stream)
+- `POST /api/ai/suggest` — RAG-powered smart suggestions (JSON)
+- `GET /api/ai/settings` — List AI provider configurations (admin)
+- `PUT /api/ai/settings` — Configure AI provider (admin)
+- `DELETE /api/ai/settings/:providerId` — Remove provider config (admin)
+- `GET /api/ai/usage` — AI usage statistics (admin)
+
+## MCP Server Integration
+
+AgentWiki provides a **Model Context Protocol server** enabling Claude, ChatGPT, and other AI agents to access organizational knowledge with 25 tools:
+
+**Tools**: document_create/get/update/delete, search, folder management, uploads, member management, API keys, sharing
+
+**Configure in Claude Desktop**:
+```json
+{
+  "mcpServers": {
+    "agentwiki": {
+      "url": "https://api.agentwiki.cc/mcp",
+      "env": {"API_KEY": "aw_xxxxxxxxxxxxx"}
+    }
+  }
+}
+```
+
+Then ask Claude: `@agentwiki What documents exist about authentication?`
+
+See [MCP Server Documentation](./docs/mcp-server.md) for complete reference (tools, resources, prompts, deployment).
+
 ## CLI Usage
 
 ```bash
@@ -200,65 +236,45 @@ agentwiki upload <file-path> [--doc-id <id>]
 
 ## Database Schema
 
-13 tables designed for multi-tenancy:
-
-| Table | Purpose |
-|-------|---------|
-| `tenants` | Organizations/workspaces |
-| `users` | User accounts (OAuth) |
-| `tenant_memberships` | User ↔ tenant relationships with roles |
-| `sessions` | Refresh tokens |
-| `api_keys` | Agent/CLI API keys (PBKDF2 hashed) |
-| `audit_logs` | Immutable audit trail |
-| `documents` | Knowledge items (markdown + BlockNote JSON) |
-| `document_tags` | Many-to-many document tags |
-| `document_versions` | Version history (append-only) |
-| `document_links` | Wikilinks between documents |
-| `folders` | Hierarchical folder structure |
-| `share_links` | Token-based sharing |
-| `uploads` | R2 file metadata |
+15 tables for multi-tenancy: tenants, users, tenant_memberships, sessions, api_keys, audit_logs, documents, document_tags, document_versions, document_links, folders, share_links, uploads, ai_settings, ai_usage. See [Codebase Summary](./docs/codebase-summary.md).
 
 ## Authentication & Authorization
 
-- **OAuth**: Arctic library handles Google and GitHub sign-up/login
-- **JWT**: Access tokens (15 min TTL) + refresh tokens (7 days) stored in D1 sessions
-- **API Keys**: PBKDF2 hashed, prefixed with `aw_` for identification
-- **RBAC**: Admin, Editor, Viewer, Agent roles with permission matrix enforced by middleware
+- **OAuth**: Google/GitHub via Arctic library
+- **JWT**: Access tokens (15 min) + refresh tokens (7 days)
+- **API Keys**: PBKDF2 hashed, `aw_` prefixed
+- **RBAC**: Admin, Editor, Viewer, Agent roles
 
 ## Search Pipeline
 
-**Hybrid search** combines two strategies:
+Hybrid search: keyword (D1 SQL LIKE) + semantic (Vectorize bge-base-en) fused via RRF (k=60). Documents embedded async via Queues → Workers AI.
 
-1. **Keyword Search**: Full-text search on document title/content via D1 SQL LIKE
-2. **Semantic Search**: Vector similarity via Cloudflare Vectorize (bge-base-en embeddings)
-3. **Fusion**: Results merged using Reciprocal Rank Fusion (RRF) with k=60
+## AI-Assisted Writing
 
-Documents are embedded asynchronously when created/updated via Cloudflare Queues → Workers AI.
+AgentWiki includes a full AI writing assistant with 6 configurable providers. See [AI Features Documentation](./docs/ai-assisted-features.md) for details.
+
+**Slash Commands** (type `/` in editor):
+- `/ai-write` — Write content from a prompt
+- `/ai-continue` — Continue from cursor position
+- `/ai-summarize` — Summarize the document
+- `/ai-list` — Generate a list
+- `/ai-explain` — Explain content simply
+
+**Selection Toolbar** (select text → AI buttons appear):
+- Edit with AI, Write shorter, Write longer, Change tone, Translate, Fix grammar
+
+**Supported Providers**: OpenAI, Anthropic, Google Gemini, OpenRouter, MiniMax, Alibaba — configured per-tenant in Settings → AI tab. API keys encrypted at rest with AES-256-GCM.
 
 ## Deployment
 
-All services deploy to Cloudflare infrastructure:
-- **Frontend**: Cloudflare Pages (automatic deployments on git push)
-- **API**: Cloudflare Workers (wrangler deploy)
-- **Database**: Cloudflare D1
-- **Storage**: Cloudflare R2
-- **Queues**: Cloudflare Queues
-
-See [Deployment Guide](./docs/deployment-guide.md) for setup instructions.
+All services deploy to Cloudflare: Frontend (Pages), API (Workers), MCP (Workers), D1, R2, KV, Queues. See [Deployment Guide](./docs/deployment-guide.md).
 
 ## Contributing
 
-1. Read [Code Standards](./docs/code-standards.md) for conventions
-2. Create a branch: `git checkout -b feature/your-feature`
-3. Follow the [Primary Workflow](./docs/project-roadmap.md)
-4. Ensure `pnpm type-check && pnpm lint && pnpm test` pass
-5. Submit a pull request with clear description
-
-## File Size Notes
-
-- `packages/api/src/db/schema.ts` — 155 lines (Drizzle table definitions)
-- `packages/api/src/index.ts` — 77 lines (Hono app setup)
-- `packages/web/src/stores/app-store.ts` — Zustand store for UI state
+1. Read [Code Standards](./docs/code-standards.md)
+2. Branch: `git checkout -b feature/your-feature`
+3. Ensure `pnpm type-check && pnpm lint && pnpm test` pass
+4. Submit PR with clear description
 
 ## Documentation
 
@@ -267,7 +283,9 @@ See [Deployment Guide](./docs/deployment-guide.md) for setup instructions.
 - [Code Standards](./docs/code-standards.md)
 - [System Architecture](./docs/system-architecture.md)
 - [Deployment Guide](./docs/deployment-guide.md)
+- [MCP Server](./docs/mcp-server.md) — AI agent integration via Model Context Protocol
 - [Project Roadmap](./docs/project-roadmap.md)
+- [AI-Assisted Features](./docs/ai-assisted-features.md)
 
 ## License
 

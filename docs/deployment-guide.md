@@ -242,6 +242,31 @@ wrangler deploy --dry-run
 wrangler deploy
 ```
 
+### 4b. Deploy MCP Worker
+
+The MCP server shares the same Cloudflare bindings (D1, R2, KV, Vectorize, Queues, AI) as the REST API:
+
+```bash
+cd packages/mcp
+
+# Build MCP server
+pnpm build
+
+# Dry run
+wrangler deploy --dry-run
+
+# Deploy to production
+wrangler deploy
+
+# Health check
+curl https://api.agentwiki.cc/health
+# Response: {"status": "ok", "timestamp": "..."}
+```
+
+MCP endpoint: `POST https://api.agentwiki.cc/mcp`
+
+Configure in Claude Desktop, Cursor, or other MCP clients with API key. See [MCP Server Documentation](./mcp-server.md) for setup.
+
 ### 5. Deploy Frontend
 
 #### Option A: Cloudflare Pages (Recommended)

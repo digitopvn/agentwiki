@@ -72,8 +72,16 @@ AgentWiki enables enterprises and AI systems to build, manage, and share organiz
 - [x] Vector embeddings via Vectorize
 - [x] Async job processing via Queues
 
+#### AI Agent Integration
+- [x] Model Context Protocol (MCP) server
+- [x] 25 MCP tools (documents, search, folders, uploads, API keys, etc.)
+- [x] Pre-built prompts (search_and_summarize, create_from_template, explore_connections, review_document)
+- [x] MCP resources (documents, folders, tags, knowledge graph)
+- [x] API key scoping for agent access control
+
 #### Developer Experience
 - [x] REST API with OpenAPI schema
+- [x] Model Context Protocol server for AI agents
 - [x] Command-line interface (CLI)
 - [x] Type-safe SDKs (TypeScript)
 - [x] Comprehensive error handling

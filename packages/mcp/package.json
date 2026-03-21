@@ -1,0 +1,22 @@
+{
+  "name": "@agentwiki/mcp",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "wrangler deploy --dry-run --outdir=dist",
+    "deploy": "wrangler deploy",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.0",
+    "zod": "^3.24.0",
+    "drizzle-orm": "^0.38.0",
+    "@agentwiki/api": "workspace:*",
+    "@agentwiki/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260301.0",
+    "typescript": "^5.7.0",
+    "wrangler": "^4.75.0"
+  }
+}
