@@ -3,6 +3,14 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+export interface UploadQueueItem {
+  id: string
+  file: File
+  progress: number // 0-100
+  status: 'queued' | 'uploading' | 'complete' | 'error'
+  error?: string
+}
+
 export interface Tab {
   id: string
   documentId: string
@@ -36,6 +44,18 @@ interface AppState {
   commandPaletteOpen: boolean
   setCommandPaletteOpen: (open: boolean) => void
   toggleCommandPalette: () => void
+
+  // Storage drawer
+  storageDrawerOpen: boolean
+  setStorageDrawerOpen: (open: boolean) => void
+  toggleStorageDrawer: () => void
+
+  // Upload queue (for progress tracking)
+  uploadQueue: UploadQueueItem[]
+  addToUploadQueue: (files: File[]) => void
+  updateUploadProgress: (id: string, progress: number) => void
+  updateUploadStatus: (id: string, status: UploadQueueItem['status'], error?: string) => void
+  removeFromUploadQueue: (id: string) => void
 
   // Theme
   theme: 'dark' | 'light'
@@ -108,6 +128,34 @@ export const useAppStore = create<AppState>()(
       commandPaletteOpen: false,
       setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
       toggleCommandPalette: () => set((s) => ({ commandPaletteOpen: !s.commandPaletteOpen })),
+
+      // Storage drawer
+      storageDrawerOpen: false,
+      setStorageDrawerOpen: (open) => set({ storageDrawerOpen: open }),
+      toggleStorageDrawer: () => set((s) => ({ storageDrawerOpen: !s.storageDrawerOpen })),
+
+      // Upload queue
+      uploadQueue: [],
+      addToUploadQueue: (files) => set((s) => ({
+        uploadQueue: [
+          ...s.uploadQueue,
+          ...files.map((file) => ({
+            id: `upload-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            file,
+            progress: 0,
+            status: 'queued' as const,
+          })),
+        ],
+      })),
+      updateUploadProgress: (id, progress) => set((s) => ({
+        uploadQueue: s.uploadQueue.map((u) => u.id === id ? { ...u, progress } : u),
+      })),
+      updateUploadStatus: (id, status, error) => set((s) => ({
+        uploadQueue: s.uploadQueue.map((u) => u.id === id ? { ...u, status, error } : u),
+      })),
+      removeFromUploadQueue: (id) => set((s) => ({
+        uploadQueue: s.uploadQueue.filter((u) => u.id !== id),
+      })),
 
       // Theme
       theme: 'dark',

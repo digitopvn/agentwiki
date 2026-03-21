@@ -1,7 +1,7 @@
 /** Search routes — hybrid trigram + semantic, faceted filtering, autocomplete suggestions */
 
 import { Hono } from 'hono'
-import { searchDocuments, getFacetCounts } from '../services/search-service'
+import { searchDocuments, getFacetCounts, type SearchSource } from '../services/search-service'
 import { getSuggestions, recordSearchHistory } from '../services/suggest-service'
 import { recordSearch, recordClick } from '../services/analytics-service'
 import { authGuard } from '../middleware/auth-guard'
@@ -26,6 +26,7 @@ searchRouter.get(
 
     const type = (c.req.query('type') ?? 'hybrid') as 'hybrid' | 'keyword' | 'semantic'
     const limit = Math.min(50, parseInt(c.req.query('limit') ?? '10', 10))
+    const source = (c.req.query('source') ?? 'docs') as SearchSource
     const includeFacets = c.req.query('facets') === 'true'
 
     // Parse filter params
@@ -38,7 +39,7 @@ searchRouter.get(
 
     // Run search + facets in parallel when requested
     const [results, facets] = await Promise.all([
-      searchDocuments(c.env, { tenantId, query, type, limit, filters }),
+      searchDocuments(c.env, { tenantId, query, type, limit, filters, source }),
       includeFacets ? getFacetCounts(c.env, tenantId) : undefined,
     ])
 
