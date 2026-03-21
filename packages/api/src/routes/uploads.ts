@@ -60,7 +60,9 @@ export { uploadsRouter }
 export const filesRouter = new Hono<{ Bindings: Env; Variables: { auth: AuthContext } }>()
 
 filesRouter.get('/*', optionalAuth, async (c) => {
-  const fileKey = c.req.path.replace('/api/files/', '')
+  // Sanitize fileKey: strip path traversal attempts
+  const rawKey = c.req.path.replace('/api/files/', '')
+  const fileKey = rawKey.replace(/\.\./g, '').replace(/\/\//g, '/')
   const auth = c.get('auth') as AuthContext | undefined
   const tenantId = auth?.tenantId
 
@@ -76,6 +78,8 @@ filesRouter.get('/*', optionalAuth, async (c) => {
       return new Response(object.body, {
         headers: {
           'Content-Type': object.httpMetadata?.contentType ?? 'application/octet-stream',
+          'Content-Disposition': 'attachment',
+          'X-Content-Type-Options': 'nosniff',
           'Cache-Control': 'no-store',
         },
       })
@@ -88,9 +92,15 @@ filesRouter.get('/*', optionalAuth, async (c) => {
     const file = await getFile(c.env, fileKey, tenantId)
     if (!file) return c.json({ error: 'File not found' }, 404)
 
+    // Serve images inline, everything else as attachment to prevent stored XSS
+    const isImage = file.contentType.startsWith('image/')
+    const disposition = isImage ? 'inline' : 'attachment'
+
     return new Response(file.body, {
       headers: {
         'Content-Type': file.contentType,
+        'Content-Disposition': disposition,
+        'X-Content-Type-Options': 'nosniff',
         'Cache-Control': 'public, max-age=31536000, immutable',
       },
     })

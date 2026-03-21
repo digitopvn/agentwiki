@@ -11,10 +11,9 @@ export function useUploadWithProgress() {
   const queryClient = useQueryClient()
 
   return useCallback(async (file: File) => {
-    // Add to queue via store action (not direct setState)
-    addToUploadQueue([file])
-    const queue = useAppStore.getState().uploadQueue
-    const queueId = queue[queue.length - 1].id
+    // Pre-generate ID to avoid race condition with concurrent uploads
+    const queueId = `upload-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    addToUploadQueue([{ id: queueId, file }])
     updateUploadStatus(queueId, 'uploading')
 
     return new Promise<void>((resolve) => {

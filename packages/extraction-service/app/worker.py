@@ -71,7 +71,7 @@ async def process_job(job, _token) -> str:
     except Exception as e:
         logger.error("Extraction failed for %s: %s", extraction_job.upload_id, e)
         error = str(e)
-        method = method if method != "unsupported" else "direct"
+        # Keep the method that was attempted (or "unsupported" if no extractor matched)
 
     # Post result back to AgentWiki API
     result = ExtractionResult(

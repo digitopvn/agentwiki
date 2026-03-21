@@ -45,14 +45,14 @@ export function StorageDrawer() {
   const handleUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files
     if (!fileList?.length) return
-    const filesToUpload = Array.from(fileList)
-    for (const file of filesToUpload) {
+    const validFiles = Array.from(fileList).filter((file) => {
       if (file.size > MAX_FILE_SIZE) {
         alert(`"${file.name}" is too large (max 100MB)`)
-        continue
+        return false
       }
-      await uploadWithProgress(file)
-    }
+      return true
+    })
+    await Promise.allSettled(validFiles.map((file) => uploadWithProgress(file)))
     if (fileInputRef.current) fileInputRef.current.value = ''
   }, [uploadWithProgress])
 

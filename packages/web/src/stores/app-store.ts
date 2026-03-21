@@ -52,7 +52,7 @@ interface AppState {
 
   // Upload queue (for progress tracking)
   uploadQueue: UploadQueueItem[]
-  addToUploadQueue: (files: File[]) => void
+  addToUploadQueue: (items: Array<{ id: string; file: File }>) => void
   updateUploadProgress: (id: string, progress: number) => void
   updateUploadStatus: (id: string, status: UploadQueueItem['status'], error?: string) => void
   removeFromUploadQueue: (id: string) => void
@@ -136,11 +136,11 @@ export const useAppStore = create<AppState>()(
 
       // Upload queue
       uploadQueue: [],
-      addToUploadQueue: (files) => set((s) => ({
+      addToUploadQueue: (items) => set((s) => ({
         uploadQueue: [
           ...s.uploadQueue,
-          ...files.map((file) => ({
-            id: `upload-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          ...items.map(({ id, file }) => ({
+            id,
             file,
             progress: 0,
             status: 'queued' as const,

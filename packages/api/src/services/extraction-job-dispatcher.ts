@@ -28,8 +28,8 @@ export async function dispatchExtractionJob(env: Env, upload: {
   await env.KV.put(`dl:${downloadToken}`, upload.fileKey, { expirationTtl: 900 })
 
   // Build file download URL using internal token
-  const apiUrl = env.API_URL || env.APP_URL
-  const fileUrl = `${apiUrl}/api/files/${upload.fileKey}?dl_token=${downloadToken}`
+  if (!env.API_URL) throw new Error('API_URL env var is required for extraction job dispatch')
+  const fileUrl = `${env.API_URL}/api/files/${upload.fileKey}?dl_token=${downloadToken}`
 
   // POST job to VPS extraction service
   try {

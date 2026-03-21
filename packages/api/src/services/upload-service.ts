@@ -2,7 +2,7 @@
 
 import { eq, and } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
-import { uploads } from '../db/schema'
+import { uploads, fileExtractions } from '../db/schema'
 import { generateId } from '../utils/crypto'
 import { dispatchExtractionJob } from './extraction-job-dispatcher'
 import type { Env } from '../env'
@@ -115,8 +115,19 @@ export async function deleteFile(env: Env, uploadId: string, tenantId: string) {
   await env.R2.delete(record[0].fileKey)
 
   // Delete Vectorize vectors for this upload (best-effort)
+  // Query fileExtractions for charCount to estimate chunk count
   const vectorPrefix = `upload-${uploadId}`
-  const vectorIds = Array.from({ length: 50 }, (_, i) => `${vectorPrefix}-${i}`)
+  let maxChunks = 50
+  const extractionRecord = await db
+    .select({ charCount: fileExtractions.charCount })
+    .from(fileExtractions)
+    .where(eq(fileExtractions.uploadId, uploadId))
+    .limit(1)
+  if (extractionRecord.length && extractionRecord[0].charCount) {
+    // Each chunk is ~400-800 chars; use conservative estimate + buffer
+    maxChunks = Math.ceil(extractionRecord[0].charCount / 400) + 10
+  }
+  const vectorIds = Array.from({ length: maxChunks }, (_, i) => `${vectorPrefix}-${i}`)
   try { await env.VECTORIZE.deleteByIds(vectorIds) } catch { /* may not exist */ }
 
   // Delete from D1 (file_extractions cascade via FK)

@@ -47,13 +47,14 @@ export function GlobalDropZone() {
     // Open storage drawer to show progress
     setStorageDrawerOpen(true)
 
-    for (const file of Array.from(files)) {
+    const validFiles = Array.from(files).filter((file) => {
       if (file.size > MAX_FILE_SIZE) {
         alert(`"${file.name}" is too large (max 100MB)`)
-        continue
+        return false
       }
-      await uploadWithProgress(file)
-    }
+      return true
+    })
+    await Promise.allSettled(validFiles.map((file) => uploadWithProgress(file)))
   }, [setStorageDrawerOpen, uploadWithProgress])
 
   useEffect(() => {
