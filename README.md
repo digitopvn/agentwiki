@@ -153,9 +153,10 @@ pnpm -F @agentwiki/api db:migrate:remote
 - `DELETE /api/folders/:id` — Delete folder
 
 ### Search
-- `GET /api/search?q=query&type=hybrid|keyword|semantic` — Search documents
+- `GET /api/search?q=query&type=hybrid|keyword|semantic&source=docs|storage|all` — Search documents and/or uploaded files
 
 ### Uploads
+- `GET /api/uploads` — List uploaded files with extraction status and summaries
 - `POST /api/uploads` — Upload file to R2 (max 100MB; PDF/DOCX/PPTX auto-extracted)
 - `GET /api/files/:key` — Serve file from R2
 - `DELETE /api/uploads/:id` — Delete upload and extracted text
@@ -221,7 +222,7 @@ agentwiki doc update <id> --content "Updated content"
 agentwiki doc delete <id>
 
 # Search
-agentwiki search "query term" [--type hybrid|keyword|semantic]
+agentwiki search "query term" [--type hybrid|keyword|semantic] [--source docs|storage|all]
 
 # Folders
 agentwiki folder list
@@ -231,6 +232,7 @@ agentwiki folder create --name "Folder" --parent <parent-id>
 agentwiki tag list
 
 # Uploads
+agentwiki upload list
 agentwiki upload <file-path> [--doc-id <id>]
 ```
 
