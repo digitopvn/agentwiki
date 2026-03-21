@@ -11,11 +11,11 @@ export function useUploadWithProgress() {
   const queryClient = useQueryClient()
 
   return useCallback(async (file: File) => {
-    // Add to queue
-    const queueId = `upload-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    useAppStore.setState((s) => ({
-      uploadQueue: [...s.uploadQueue, { id: queueId, file, progress: 0, status: 'uploading' as const }],
-    }))
+    // Add to queue via store action (not direct setState)
+    addToUploadQueue([file])
+    const queue = useAppStore.getState().uploadQueue
+    const queueId = queue[queue.length - 1].id
+    updateUploadStatus(queueId, 'uploading')
 
     return new Promise<void>((resolve) => {
       const xhr = new XMLHttpRequest()
@@ -51,5 +51,5 @@ export function useUploadWithProgress() {
       xhr.withCredentials = true
       xhr.send(formData)
     })
-  }, [updateUploadProgress, updateUploadStatus, removeFromUploadQueue, queryClient])
+  }, [addToUploadQueue, updateUploadProgress, updateUploadStatus, removeFromUploadQueue, queryClient])
 }

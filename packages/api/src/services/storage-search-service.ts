@@ -16,7 +16,9 @@ export async function storageKeywordSearch(
   limit: number,
 ): Promise<RankedResult[]> {
   const db = drizzle(env.DB)
-  const likeQuery = `%${query}%`
+  // Escape LIKE meta-characters to prevent wildcard injection
+  const escapedQuery = query.replace(/[%_\\]/g, '\\$&')
+  const likeQuery = `%${escapedQuery}%`
 
   const results = await db
     .select({

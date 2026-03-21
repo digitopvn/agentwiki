@@ -26,7 +26,8 @@ searchRouter.get(
 
     const type = (c.req.query('type') ?? 'hybrid') as 'hybrid' | 'keyword' | 'semantic'
     const limit = Math.min(50, parseInt(c.req.query('limit') ?? '10', 10))
-    const source = (c.req.query('source') ?? 'docs') as SearchSource
+    const rawSource = c.req.query('source') ?? 'docs'
+    const source: SearchSource = ['docs', 'storage', 'all'].includes(rawSource) ? rawSource as SearchSource : 'docs'
     const includeFacets = c.req.query('facets') === 'true'
 
     // Parse filter params

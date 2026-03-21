@@ -1,6 +1,6 @@
 /** Global drag & drop overlay — shows when external files are dragged into the app window */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Upload } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAppStore } from '../../stores/app-store'
@@ -14,8 +14,8 @@ export function GlobalDropZone() {
   const uploadWithProgress = useUploadWithProgress()
   const isDark = theme === 'dark'
 
-  // Track drag counter to handle nested elements
-  const dragCounterRef = { current: 0 }
+  // Track drag counter to handle nested elements (useRef to survive re-renders)
+  const dragCounterRef = useRef(0)
 
   const handleDragEnter = useCallback((e: DragEvent) => {
     e.preventDefault()

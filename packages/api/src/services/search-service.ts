@@ -57,9 +57,17 @@ export async function searchDocuments(env: Env, options: SearchOptions) {
   // Fuse results
   let fused = results.length > 1 ? reciprocalRankFusion(...results) : results[0] ?? []
 
-  // Post-filter by tags and date range (applies to doc search types only)
-  if ((source === 'docs' || source === 'all') && (filters?.tags?.length || filters?.dateFrom || filters?.dateTo)) {
-    fused = await postFilterResults(env, fused, tenantId, filters)
+  // Post-filter by tags and date range (only applies to doc results, not upload results)
+  if (filters?.tags?.length || filters?.dateFrom || filters?.dateTo) {
+    if (source === 'docs') {
+      fused = await postFilterResults(env, fused, tenantId, filters)
+    } else if (source === 'all') {
+      // Separate upload results (have no slug), filter only doc results, then recombine
+      const uploadResults = fused.filter((r) => !r.slug)
+      const docResults = fused.filter((r) => r.slug)
+      const filteredDocs = await postFilterResults(env, docResults, tenantId, filters)
+      fused = [...filteredDocs, ...uploadResults].sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+    }
   }
 
   return fused.slice(0, limit)
