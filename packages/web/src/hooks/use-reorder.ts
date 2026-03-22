@@ -57,6 +57,7 @@ export function useReorderItem() {
           if (variables.afterId) {
             const afterIdx = items.findIndex((f) => f.id === variables.afterId)
             if (afterIdx === -1) return old // afterId not in cache
+            items.splice(afterIdx + 1, 0, moved)
           } else {
             items.splice(0, 0, moved)
           }
