@@ -1,12 +1,12 @@
 /** MCP tools for knowledge graph traversal (5 new tools + enhanced graph_get) */
 
 import { z } from 'zod'
-import { eq, and, isNull, inArray } from 'drizzle-orm'
+import { eq, and, or } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { getFullGraph, getNeighbors, findPath, getGraphStats } from '../../../api/src/services/graph-service'
-import { querySimilarDocs } from '../../../api/src/services/similarity-service'
-import { documents, documentLinks } from '../../../api/src/db/schema'
+import { getFullGraph, getNeighbors, findPath, getGraphStats } from '@agentwiki/api/services/graph-service'
+import { querySimilarDocs } from '@agentwiki/api/services/similarity-service'
+import { documents, documentLinks } from '@agentwiki/api/db/schema'
 import { checkPermission } from '../auth/api-key-auth'
 import { toolError, safeToolCall } from '../utils/mcp-error-handler'
 import { EDGE_TYPES } from '@agentwiki/shared'
@@ -100,12 +100,19 @@ export function registerGraphTraversalTools(
       const similar = await querySimilarDocs(env as never, args.docId, auth.tenantId, args.limit + 10, 0.5)
       if (!similar.length) return { suggestions: [], message: 'No similar documents found' }
 
-      // Filter out already-linked docs
+      // Filter out already-linked docs (both directions)
       const db = drizzle(env.DB)
-      const existingLinks = await db.select({ targetId: documentLinks.targetDocId })
+      const existingLinks = await db.select({
+        sourceId: documentLinks.sourceDocId,
+        targetId: documentLinks.targetDocId,
+      })
         .from(documentLinks)
-        .where(eq(documentLinks.sourceDocId, args.docId))
-      const linkedIds = new Set(existingLinks.map((l) => l.targetId))
+        .where(or(
+          eq(documentLinks.sourceDocId, args.docId),
+          eq(documentLinks.targetDocId, args.docId),
+        ))
+      const linkedIds = new Set(existingLinks.flatMap((l) => [l.sourceId, l.targetId]))
+      linkedIds.delete(args.docId) // remove self
 
       const suggestions = similar
         .filter((s) => !linkedIds.has(s.id))
@@ -142,11 +149,11 @@ export function registerGraphTraversalTools(
           eq(documentLinks.targetDocId, args.docId1),
         ))
 
-      // 2. Find shortest path
-      const pathResult = await findPath(env as never, auth.tenantId, args.docId1, args.docId2, { maxHops: 5 })
-
-      // 3. Check similarity
-      const similar = await querySimilarDocs(env as never, args.docId1, auth.tenantId, 20, 0.3)
+      // 2. Find shortest path + check similarity concurrently
+      const [pathResult, similar] = await Promise.all([
+        findPath(env as never, auth.tenantId, args.docId1, args.docId2, { maxHops: 5 }),
+        querySimilarDocs(env as never, args.docId1, auth.tenantId, 20, 0.3),
+      ])
       const similarity = similar.find((s) => s.id === args.docId2)
 
       return {

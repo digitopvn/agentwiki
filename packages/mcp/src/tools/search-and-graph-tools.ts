@@ -2,7 +2,7 @@
 
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { searchDocuments } from '../../../api/src/services/search-service'
+import { searchDocuments } from '@agentwiki/api/services/search-service'
 import { checkPermission } from '../auth/api-key-auth'
 import { toolError, safeToolCall } from '../utils/mcp-error-handler'
 import type { Env, McpAuthContext } from '../env'

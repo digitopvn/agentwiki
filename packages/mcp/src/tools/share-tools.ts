@@ -2,7 +2,7 @@
 
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { createShareLink } from '../../../api/src/services/share-service'
+import { createShareLink } from '@agentwiki/api/services/share-service'
 import { checkPermission } from '../auth/api-key-auth'
 import { logMcpAudit } from '../utils/audit-logger'
 import { toolResult, toolError, safeToolCall } from '../utils/mcp-error-handler'
