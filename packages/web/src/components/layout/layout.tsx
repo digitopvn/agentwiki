@@ -24,16 +24,10 @@ export function Layout() {
   const { data: slugDoc } = useDocumentBySlug(slug)
   const isMobile = useIsMobile()
 
-  // Edge-swipe gestures for mobile drawer open/close
+  // Edge-swipe gestures for mobile drawer open/close (edge-only to avoid editor conflicts)
   useSwipeGesture({
-    onSwipeRight: () => {
-      if (mobileMetadataOpen) setMobileMetadataOpen(false)
-      else if (!mobileSidebarOpen) setMobileSidebarOpen(true)
-    },
-    onSwipeLeft: () => {
-      if (mobileSidebarOpen) setMobileSidebarOpen(false)
-      else if (!mobileMetadataOpen) setMobileMetadataOpen(true)
-    },
+    onSwipeRight: () => setMobileSidebarOpen(true),
+    onSwipeLeft: () => setMobileMetadataOpen(true),
     enabled: isMobile,
   })
 

@@ -50,15 +50,13 @@ export function useSwipeGesture({
     if (Math.abs(dy) > Math.abs(dx) * 0.577) return
     if (Math.abs(dx) < swipeThreshold) return
 
-    if (dx > 0 && start.isEdge === 'left') {
+    if (start.isEdge === 'left' && dx > 0) {
       onSwipeRight() // Swipe right from left edge → open sidebar
-    } else if (dx < 0 && start.isEdge === 'right') {
+    } else if (start.isEdge === 'right' && dx < 0) {
       onSwipeLeft() // Swipe left from right edge → open metadata
-    } else if (dx < 0 && !start.isEdge) {
-      onSwipeLeft() // Swipe left anywhere → close sidebar / open metadata
-    } else if (dx > 0 && !start.isEdge) {
-      onSwipeRight() // Swipe right anywhere → close metadata / open sidebar
     }
+    // Non-edge swipes intentionally ignored — edge-only prevents conflicts with
+    // horizontal scroll, text selection, and editor gestures
   }, [swipeThreshold, onSwipeLeft, onSwipeRight])
 
   useEffect(() => {
