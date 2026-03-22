@@ -257,10 +257,20 @@ export async function listDocuments(
 
   const data = await query
 
+  // Count query must include tag filter when active
+  const countConditions = [...conditions]
+  if (filters?.tag) {
+    const taggedIdsForCount = db
+      .select({ documentId: documentTags.documentId })
+      .from(documentTags)
+      .where(eq(documentTags.tag, filters.tag))
+    countConditions.push(inArray(documents.id, taggedIdsForCount))
+  }
+
   const countResult = await db
     .select({ count: sql<number>`count(*)` })
     .from(documents)
-    .where(and(...conditions))
+    .where(and(...countConditions))
 
   return { data, total: countResult[0]?.count ?? 0 }
 }

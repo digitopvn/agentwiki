@@ -87,7 +87,9 @@ export const documents = sqliteTable('documents', {
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
   deletedAt: integer('deleted_at', { mode: 'timestamp_ms' }),
-})
+}, (table) => [
+  index('idx_documents_tenant_folder_position').on(table.tenantId, table.folderId, table.position),
+])
 
 /** Document tags (many-to-many) */
 export const documentTags = sqliteTable('document_tags', {
@@ -129,7 +131,9 @@ export const folders = sqliteTable('folders', {
   createdBy: text('created_by').notNull().references(() => users.id),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
-})
+}, (table) => [
+  index('idx_folders_tenant_position').on(table.tenantId, table.positionIndex),
+])
 
 /** Share links for documents */
 export const shareLinks = sqliteTable('share_links', {

@@ -161,14 +161,40 @@ export function FolderTree({
 
     // Reorder within same type (only in manual sort mode)
     if (isManualSort && activeParsed.type === overParsed.type) {
-      const items = activeParsed.type === 'folder' ? folderDndIds : docDndIds
+      // Determine which item list this drag belongs to (root or inside a folder)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const activeData = active.data.current as Record<string, any> | undefined
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const overData = over.data.current as Record<string, any> | undefined
+
+      let items: string[]
+      let parentId: string | null = null
+
+      if (activeParsed.type === 'folder') {
+        items = folderDndIds
+      } else {
+        // Check if this doc is in the root doc list
+        const isRootDoc = docDndIds.includes(String(active.id))
+        if (isRootDoc) {
+          items = docDndIds
+        } else {
+          // Doc inside a folder — get sibling list from sortable context data
+          const sortableItems = overData?.sortable?.items ?? activeData?.sortable?.items
+          if (Array.isArray(sortableItems) && sortableItems.length > 0) {
+            items = sortableItems.map(String)
+            parentId = activeData?.doc?.folderId ?? null
+          } else {
+            return // Cannot determine sibling list
+          }
+        }
+      }
+
       const oldIndex = items.indexOf(String(active.id))
       const newIndex = items.indexOf(String(over.id))
       if (oldIndex === -1 || newIndex === -1) return
 
       // Compute afterId and beforeId based on new position
       const realIds = items.map((id) => parseItemId(id).id)
-      // Remove the active item from the list to compute neighbors at new position
       const withoutActive = realIds.filter((_, i) => i !== oldIndex)
       const insertAt = newIndex > oldIndex ? newIndex - 1 : newIndex
       const afterId = insertAt > 0 ? withoutActive[insertAt - 1] : undefined
@@ -178,7 +204,7 @@ export function FolderTree({
         await reorderItem.mutateAsync({
           type: activeParsed.type,
           id: activeParsed.id,
-          parentId: null,
+          parentId,
           afterId,
           beforeId,
         })

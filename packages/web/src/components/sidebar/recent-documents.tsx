@@ -1,11 +1,11 @@
 /** Collapsible section showing recently modified documents */
 
-import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronRight, Clock, FileText } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAppStore } from '../../stores/app-store'
 import { useDocuments } from '../../hooks/use-documents'
+import { usePreferences, useSetPreference } from '../../hooks/use-preferences'
 
 /** Format a date as relative time (e.g., "2m ago", "1h ago", "3d ago") */
 function relativeTime(date: Date | string): string {
@@ -28,13 +28,9 @@ interface RecentDocumentsProps {
 }
 
 export function RecentDocuments({ onDocumentOpen }: RecentDocumentsProps) {
-  const [expanded, setExpanded] = useState(() => {
-    try {
-      return localStorage.getItem('sidebar_recent_expanded') !== 'false'
-    } catch {
-      return true
-    }
-  })
+  const { data: prefs } = usePreferences()
+  const setPref = useSetPreference()
+  const expanded = prefs?.sidebar_collapsed !== 'recent_hidden'
 
   const { data } = useDocuments({ limit: 10 })
   const { theme, openTab, setActiveTab } = useAppStore()
@@ -46,13 +42,10 @@ export function RecentDocuments({ onDocumentOpen }: RecentDocumentsProps) {
   if (docs.length === 0) return null
 
   const toggleExpanded = () => {
-    const next = !expanded
-    setExpanded(next)
-    try {
-      localStorage.setItem('sidebar_recent_expanded', String(next))
-    } catch {
-      // localStorage unavailable
-    }
+    setPref.mutate({
+      key: 'sidebar_collapsed',
+      value: expanded ? 'recent_hidden' : '',
+    })
   }
 
   const handleOpenDoc = (doc: { id: string; title: string; slug: string }) => {

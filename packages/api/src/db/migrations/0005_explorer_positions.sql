@@ -11,4 +11,6 @@ CREATE TABLE `user_preferences` (
 --> statement-breakpoint
 CREATE UNIQUE INDEX `idx_user_pref_unique` ON `user_preferences` (`user_id`,`tenant_id`,`key`);--> statement-breakpoint
 ALTER TABLE `documents` ADD `position` text DEFAULT 'a0' NOT NULL;--> statement-breakpoint
-ALTER TABLE `folders` ADD `position_index` text DEFAULT 'a0' NOT NULL;
+ALTER TABLE `folders` ADD `position_index` text DEFAULT 'a0' NOT NULL;--> statement-breakpoint
+CREATE INDEX `idx_documents_tenant_folder_position` ON `documents` (`tenant_id`, `folder_id`, `position`);--> statement-breakpoint
+CREATE INDEX `idx_folders_tenant_position` ON `folders` (`tenant_id`, `position_index`);
