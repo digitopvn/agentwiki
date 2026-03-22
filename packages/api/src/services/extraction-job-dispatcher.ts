@@ -29,6 +29,7 @@ export async function dispatchExtractionJob(env: Env, upload: {
 
   // Build file download URL using internal token
   if (!env.API_URL) throw new Error('API_URL env var is required for extraction job dispatch')
+  if (!env.EXTRACTION_SERVICE_URL) throw new Error('EXTRACTION_SERVICE_URL env var is required for extraction job dispatch')
   const fileUrl = `${env.API_URL}/api/files/${upload.fileKey}?dl_token=${downloadToken}`
 
   // POST job to VPS extraction service

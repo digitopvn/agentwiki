@@ -42,7 +42,7 @@ uploadsRouter.post('/', authGuard, requirePermission('doc:create'), async (c) =>
 uploadsRouter.get('/', authGuard, requirePermission('doc:read'), async (c) => {
   const { tenantId } = c.get('auth')
   const documentId = c.req.query('documentId')
-  const limit = Math.min(Number(c.req.query('limit')) || 50, 200)
+  const limit = Math.max(1, Math.min(Number(c.req.query('limit')) || 50, 200))
   const offset = Math.max(Number(c.req.query('offset')) || 0, 0)
   const files = await listUploads(c.env, tenantId, documentId, limit, offset)
   return c.json({ files })

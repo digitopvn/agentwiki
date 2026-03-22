@@ -1,6 +1,6 @@
 /** R2 file upload/download service */
 
-import { eq, and } from 'drizzle-orm'
+import { eq, and, desc } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { uploads, fileExtractions } from '../db/schema'
 import { generateId } from '../utils/crypto'
@@ -104,7 +104,7 @@ export async function listUploads(
     })
     .from(uploads)
     .where(and(...conditions))
-    .orderBy(uploads.createdAt)
+    .orderBy(desc(uploads.createdAt))
     .limit(limit)
     .offset(offset)
 }
