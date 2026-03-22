@@ -141,7 +141,6 @@ export const folders = sqliteTable('folders', {
   parentId: text('parent_id'),
   name: text('name').notNull(),
   slug: text('slug').notNull(),
-  position: integer('position').notNull().default(0),
   positionIndex: text('position_index').notNull().default('a0'), // fractional indexing for manual sort order
   createdBy: text('created_by').notNull().references(() => users.id),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),

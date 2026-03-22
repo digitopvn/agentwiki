@@ -185,7 +185,20 @@ export function FolderTree({
       let parentId: string | null = null
 
       if (activeParsed.type === 'folder') {
-        items = folderDndIds
+        // Check if this is a root-level folder or a nested subfolder
+        const isRootFolder = folderDndIds.includes(String(active.id))
+        if (isRootFolder) {
+          items = folderDndIds
+        } else {
+          // Nested subfolder — get sibling list from sortable context data
+          const sortableItems = overData?.sortable?.items ?? activeData?.sortable?.items
+          if (Array.isArray(sortableItems) && sortableItems.length > 0) {
+            items = sortableItems.map(String)
+            parentId = activeData?.folder?.parentId ?? null
+          } else {
+            return // Cannot determine sibling list
+          }
+        }
       } else {
         // Check if this doc is in the root doc list
         const isRootDoc = docDndIds.includes(String(active.id))
