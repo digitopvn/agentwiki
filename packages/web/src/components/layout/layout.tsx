@@ -40,7 +40,7 @@ export function Layout() {
       openTab({ id: tabId, documentId: slugDoc.id, title: slugDoc.title })
     }
     setActiveTab(tabId)
-  }, [slugDoc])
+  }, [slugDoc, openTab, setActiveTab, openTabs])
 
   // Close mobile drawers on resize to desktop
   useEffect(() => {

@@ -34,6 +34,7 @@ export function useMarkdownImport(): {
 
   const importMarkdownFiles = useCallback(async (files: File[], folderId?: string): Promise<number> => {
     let imported = 0
+    let lastDoc: { id: string; title: string; slug: string } | null = null
 
     for (const file of files) {
       if (file.size > MAX_MD_FILE_SIZE) {
@@ -48,19 +49,25 @@ export function useMarkdownImport(): {
         const doc = await createDocument.mutateAsync({
           title,
           content,
-          folderId: folderId ?? undefined,
+          folderId,
         })
 
         imported++
+        lastDoc = doc
 
-        // Open the last imported doc in a tab
+        // Open each imported doc in a tab
         const tabId = `tab-${doc.id}`
         openTab({ id: tabId, documentId: doc.id, title: doc.title })
-        setActiveTab(tabId)
-        navigate(`/doc/${doc.slug}`)
       } catch (err) {
         console.error(`Failed to import "${file.name}":`, err)
       }
+    }
+
+    // Navigate only to the last imported doc (avoids redundant history entries)
+    if (lastDoc) {
+      const tabId = `tab-${lastDoc.id}`
+      setActiveTab(tabId)
+      navigate(`/doc/${lastDoc.slug}`)
     }
 
     return imported

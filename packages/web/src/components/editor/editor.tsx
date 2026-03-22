@@ -36,16 +36,15 @@ export function Editor({ documentId, tabId }: EditorProps) {
   const { markTabDirty, updateTabTitle, theme } = useAppStore()
   const { isGenerating, error: aiError, generate, transform } = useAI()
 
+  // Safari lacks requestIdleCallback — polyfill with setTimeout
+  const rIC = window.requestIdleCallback ?? ((cb: IdleRequestCallback) => window.setTimeout(() => cb({ didTimeout: false, timeRemaining: () => 50 } as IdleDeadline), 0))
+  const cIC = window.cancelIdleCallback ?? clearTimeout
+
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const markdownIdleRef = useRef<number | null>(null)
   const isDirtyRef = useRef(false)
   const mountedRef = useRef(true)
   const initializedRef = useRef(false)
-  const latestDocRef = useRef(doc)
-
-  useEffect(() => {
-    latestDocRef.current = doc
-  }, [doc])
 
   const editor = useCreateBlockNote({
     uploadFile: async (file: File) => {
@@ -102,8 +101,8 @@ export function Editor({ documentId, tabId }: EditorProps) {
         // Stage 2: defer expensive markdown conversion until browser is idle
         // Capture snapshot NOW (not at idle time) to avoid stale data
         const snapshotBlocks = editor.document
-        if (markdownIdleRef.current) cancelIdleCallback(markdownIdleRef.current)
-        markdownIdleRef.current = requestIdleCallback(async () => {
+        if (markdownIdleRef.current) cIC(markdownIdleRef.current)
+        markdownIdleRef.current = rIC(async () => {
           if (!mountedRef.current) return // guard against unmounted async work
           try {
             const content = await editor.blocksToMarkdownLossy(snapshotBlocks)
@@ -132,7 +131,7 @@ export function Editor({ documentId, tabId }: EditorProps) {
     return () => {
       mountedRef.current = false
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-      if (markdownIdleRef.current) cancelIdleCallback(markdownIdleRef.current)
+      if (markdownIdleRef.current) cIC(markdownIdleRef.current)
     }
   }, [])
 
