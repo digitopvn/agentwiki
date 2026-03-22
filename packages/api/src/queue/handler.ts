@@ -4,6 +4,8 @@ import { embedDocument } from '../services/embedding-service'
 import { generateSummaryWithProvider } from '../ai/ai-service'
 import { indexDocumentTrigrams } from '../services/trigram-service'
 import { pruneOldAnalytics } from '../services/analytics-service'
+import { computeSimilarities } from '../services/similarity-service'
+import { inferEdgeTypesForDoc } from '../services/graph-ai-service'
 import { drizzle } from 'drizzle-orm/d1'
 import { eq } from 'drizzle-orm'
 import { documents, uploads, fileExtractions } from '../db/schema'
@@ -52,6 +54,12 @@ async function processMessage(msg: QueueMessage, env: Env) {
       break
     case 'summarize-upload':
       if (msg.uploadId) await summarizeUploadJob(env, msg.uploadId, msg.tenantId)
+      break
+    case 'compute-similarities':
+      if (msg.documentId) await computeSimilarities(env, msg.documentId, msg.tenantId)
+      break
+    case 'infer-edge-types':
+      if (msg.documentId) await inferEdgeTypesForDoc(env, msg.documentId, msg.tenantId)
       break
     default:
       console.warn(`Unknown queue message type: ${msg.type}`)
@@ -122,6 +130,9 @@ async function embedDocumentJob(env: Env, documentId: string, tenantId: string) 
   if (!doc.length || !doc[0].content) return
 
   await embedDocument(env, documentId, doc[0].content, tenantId, doc[0].category ?? undefined)
+
+  // Trigger similarity computation after embedding completes
+  await env.QUEUE.send({ type: 'compute-similarities', documentId, tenantId })
 }
 
 /** Generate embeddings for uploaded file's extracted text */

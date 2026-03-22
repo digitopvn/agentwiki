@@ -84,6 +84,8 @@ export async function createDocument(
   // Extract and store wikilinks
   if (input.content) {
     await syncWikilinks(db, id, input.content, tenantId)
+    // Enqueue AI edge type inference for new links
+    try { await env.QUEUE.send({ type: 'infer-edge-types', documentId: id, tenantId }) } catch { /* dev */ }
   }
 
   // Enqueue AI summary generation
@@ -351,6 +353,8 @@ export async function updateDocument(
   // Sync wikilinks
   if (input.content !== undefined) {
     await syncWikilinks(db, docId, input.content, tenantId)
+    // Enqueue AI edge type inference for updated links
+    try { await env.QUEUE.send({ type: 'infer-edge-types', documentId: docId, tenantId }) } catch { /* dev */ }
   }
 
   // Enqueue summary regeneration
@@ -422,7 +426,7 @@ export async function getVersionHistory(env: Env, docId: string, limit = 20) {
     .limit(limit)
 }
 
-/** Get forward + backlinks for a document */
+/** Get forward + backlinks for a document (with typed edges) */
 export async function getDocumentLinks(env: Env, docId: string) {
   const db = drizzle(env.DB)
 
@@ -430,6 +434,8 @@ export async function getDocumentLinks(env: Env, docId: string) {
     .select({
       targetId: documentLinks.targetDocId,
       context: documentLinks.context,
+      type: documentLinks.type,
+      weight: documentLinks.weight,
       title: documents.title,
       slug: documents.slug,
     })
@@ -441,6 +447,8 @@ export async function getDocumentLinks(env: Env, docId: string) {
     .select({
       sourceId: documentLinks.sourceDocId,
       context: documentLinks.context,
+      type: documentLinks.type,
+      weight: documentLinks.weight,
       title: documents.title,
       slug: documents.slug,
     })
@@ -451,7 +459,7 @@ export async function getDocumentLinks(env: Env, docId: string) {
   return { forward, backlinks }
 }
 
-/** Sync wikilinks — delete old, insert new */
+/** Sync wikilinks — delete old, insert new (with typed edges) */
 async function syncWikilinks(
   db: ReturnType<typeof drizzle>,
   docId: string,
@@ -478,12 +486,15 @@ async function syncWikilinks(
       )
       .limit(1)
 
-    if (target.length) {
+    if (target.length && target[0].id !== docId) {
       await db.insert(documentLinks).values({
         id: generateId(),
         sourceDocId: docId,
         targetDocId: target[0].id,
         context: link.context,
+        type: link.type ?? 'relates-to',
+        weight: 1.0,
+        inferred: 0,
         createdAt: new Date(),
       })
     }

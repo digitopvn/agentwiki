@@ -2,7 +2,7 @@
 
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { createFolder, getFolderTree, updateFolder, deleteFolder } from '../../../api/src/services/folder-service'
+import { createFolder, getFolderTree, updateFolder, deleteFolder } from '@agentwiki/api/services/folder-service'
 import { checkPermission } from '../auth/api-key-auth'
 import { logMcpAudit } from '../utils/audit-logger'
 import { toolResult, toolError, safeToolCall } from '../utils/mcp-error-handler'

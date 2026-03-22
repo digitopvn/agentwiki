@@ -2,7 +2,7 @@
 
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { listMembers, updateMemberRole, removeMember } from '../../../api/src/services/member-service'
+import { listMembers, updateMemberRole, removeMember } from '@agentwiki/api/services/member-service'
 import { checkPermission } from '../auth/api-key-auth'
 import { logMcpAudit } from '../utils/audit-logger'
 import { toolResult, toolError, safeToolCall } from '../utils/mcp-error-handler'

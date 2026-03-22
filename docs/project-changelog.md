@@ -10,6 +10,16 @@ All notable changes to AgentWiki are documented here, organized by version.
 ### Added
 
 #### Features
+- **Dual-Layer Knowledge Graph** (Issue #34)
+  - 6 typed edge types: relates-to, depends-on, extends, references, contradicts, implements
+  - Enhanced wikilink syntax: `[[target|type:depends-on]]` (backward compatible)
+  - BFS graph traversal: neighbors, subgraph, shortest path (<200ms for 5K docs)
+  - Implicit similarity edges via Vectorize (top-5 cached per document)
+  - AI auto-classification of edge types via Workers AI (Llama 3.1 8B)
+  - Interactive graph visualization with Cytoscape.js force-directed layout
+  - AI insight panel: stats, similar docs, path finder, link suggestions
+  - 7 MCP tools for AI agent graph reasoning (traverse, find_path, suggest_links, explain_connection, etc.)
+
 - **Auto-save Performance** (Issue #32)
   - Changed debounce timing from 1s to 2s for reduced flickering
   - Separated contentJson (saved immediately) from markdown conversion (deferred via requestIdleCallback)
@@ -38,6 +48,9 @@ All notable changes to AgentWiki are documented here, organized by version.
 - Share links with expiration support
 - Public document publishing as web pages
 - MCP server (25 tools, 6 resources, 4 prompts)
+- Knowledge graph API: 7 REST endpoints (full graph, neighbors, subgraph, path, stats, similar, suggest-links)
+- Graph similarity computation via async Queue jobs
+- AI edge type inference via Workers AI
 
 #### Frontend Components
 - BlockNote rich text editor integration
@@ -51,6 +64,9 @@ All notable changes to AgentWiki are documented here, organized by version.
 - Upload progress tracking
 - AI settings page (provider configuration, usage dashboard)
 - Responsive design (desktop & mobile)
+- Knowledge graph visualization page (`/graph`) with Cytoscape.js
+- Graph filter toolbar (edge type, category, implicit edges toggle)
+- Graph AI insight panel (stats, similar docs, path finder)
 
 #### Database & Data
 - Multi-tenant isolation (15 tables)
@@ -61,6 +77,8 @@ All notable changes to AgentWiki are documented here, organized by version.
 - Vectorize semantic embeddings
 - D1 soft deletes
 - Document version snapshots
+- `document_similarities` table for cached Vectorize results
+- Typed `document_links` with weight, inferred flag, and edge type columns
 
 #### DevOps & Deployment
 - GitHub Actions CI/CD pipeline
@@ -75,6 +93,7 @@ All notable changes to AgentWiki are documented here, organized by version.
 - Editor auto-save behavior now separates fast JSON saves from slower markdown conversion
 - Mobile UI transitions now use CSS transforms instead of keyframe animations (improved performance)
 - Global drop zone now supports markdown file detection and document creation
+- MCP cross-package imports refactored from relative paths to `@agentwiki/api` package exports
 
 ### Fixed
 
@@ -84,7 +103,7 @@ All notable changes to AgentWiki are documented here, organized by version.
 ### Technical Debt
 
 - [ ] E2E test suite (Playwright/Cypress)
-- [ ] Interactive graph UI component (Cytoscape.js)
+- [x] Interactive graph UI component (Cytoscape.js) — completed in Issue #34
 - [ ] Full security audit
 - [ ] Monitoring/alerting dashboard
 
@@ -135,7 +154,7 @@ Items under consideration for future versions:
 
 | Version | Date | Status | Highlights |
 |---------|------|--------|-----------|
-| 0.1.0 | Mar 2026 | In Progress | MVP launch (core CRUD, search, AI, mobile) |
+| 0.1.0 | Mar 2026 | In Progress | MVP launch (core CRUD, search, AI, mobile, knowledge graph) |
 | 0.2.0 | Jun 2026 | Planned | Real-time collaboration |
 | 0.3.0 | Sep 2026 | Planned | Enterprise features |
 | 1.0.0 | Dec 2026 | Planned | Stable, production-ready |
@@ -144,5 +163,6 @@ Items under consideration for future versions:
 
 | Date | Editor | Change |
 |------|--------|--------|
+| 2026-03-22 | Team | Added Dual-Layer Knowledge Graph feature (Issue #34) |
 | 2026-03-22 | Team | Added changeset for auto-save, mobile sidebar, and markdown import features (Issues #32, #37, #21) |
 | 2026-03-18 | Team | Initial changelog created |

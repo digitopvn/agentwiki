@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, primaryKey, index, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, real, primaryKey, index, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 /** Tenant (organization/workspace) */
 export const tenants = sqliteTable('tenants', {
@@ -107,14 +107,29 @@ export const documentVersions = sqliteTable('document_versions', {
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 })
 
-/** Wikilinks between documents */
+/** Wikilinks between documents (typed edges for knowledge graph) */
 export const documentLinks = sqliteTable('document_links', {
   id: text('id').primaryKey(),
   sourceDocId: text('source_doc_id').notNull().references(() => documents.id),
   targetDocId: text('target_doc_id').notNull().references(() => documents.id),
   context: text('context'), // surrounding text for preview
+  type: text('type').notNull().default('relates-to'), // EdgeType: relates-to | depends-on | extends | references | contradicts | implements
+  weight: real('weight').default(1.0), // relationship strength 0-1
+  inferred: integer('inferred').default(0), // 0=explicit, 1=ai-inferred, 2=user-confirmed
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 })
+
+/** Cached document similarities from Vectorize (implicit graph edges) */
+export const documentSimilarities = sqliteTable('document_similarities', {
+  id: text('id').primaryKey(),
+  sourceDocId: text('source_doc_id').notNull().references(() => documents.id),
+  targetDocId: text('target_doc_id').notNull().references(() => documents.id),
+  score: real('score').notNull(), // cosine similarity 0-1
+  computedAt: integer('computed_at', { mode: 'timestamp_ms' }).notNull(),
+}, (table) => [
+  index('idx_similarities_source').on(table.sourceDocId),
+  uniqueIndex('idx_similarities_pair').on(table.sourceDocId, table.targetDocId),
+])
 
 /** Folders for document organization */
 export const folders = sqliteTable('folders', {
