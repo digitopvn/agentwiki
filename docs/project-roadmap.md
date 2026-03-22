@@ -250,6 +250,7 @@ AgentWiki is an enterprise knowledge management platform serving humans and AI a
 | MCP server | ✅ | 100% | 25 tools, 6 resources, 4 prompts |
 | CLI tool | ✅ | 100% | All major commands |
 | API completeness | ✅ | 100% | RESTful, type-safe |
+| Import Files (Obsidian, Notion, LarkSuite) | 🔄 | 95% | Adapter pattern, Queue-based processing, SSE progress |
 
 ### Quality & Operations
 | Aspect | Status | Progress | Notes |

@@ -14,6 +14,7 @@ import { shareRouter } from './routes/share'
 import { graphRouter } from './routes/graph'
 import { aiRouter } from './routes/ai'
 import { internalRouter } from './routes/internal'
+import { importRouter } from './routes/import'
 import { rateLimiter } from './middleware/rate-limiter'
 import { handleQueueBatch } from './queue/handler'
 import { retryStuckExtractions } from './services/extraction-retry-service'
@@ -56,6 +57,7 @@ app.route('/api/analytics', analyticsRouter)
 app.route('/api/share', shareRouter)
 app.route('/api/graph', graphRouter)
 app.route('/api/ai', aiRouter)
+app.route('/api/import', importRouter)
 app.route('/api/internal', internalRouter)
 
 // Security headers

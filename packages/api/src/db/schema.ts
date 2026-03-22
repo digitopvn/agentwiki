@@ -237,3 +237,26 @@ export const searchAnalytics = sqliteTable('search_analytics', {
   index('idx_analytics_tenant_date').on(table.tenantId, table.createdAt),
   index('idx_analytics_tenant_query').on(table.tenantId, table.query),
 ])
+
+/** Import jobs for tracking bulk document imports */
+export const importJobs = sqliteTable('import_jobs', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  userId: text('user_id').notNull().references(() => users.id),
+  source: text('source').notNull(), // obsidian | notion | lark
+  status: text('status').notNull().default('pending'), // pending | processing | completed | failed
+  targetFolderId: text('target_folder_id'),
+  totalDocs: integer('total_docs').notNull().default(0),
+  processedDocs: integer('processed_docs').notNull().default(0),
+  totalAttachments: integer('total_attachments').notNull().default(0),
+  processedAttachments: integer('processed_attachments').notNull().default(0),
+  errorCount: integer('error_count').notNull().default(0),
+  errors: text('errors', { mode: 'json' }).$type<{ path: string; message: string }[]>(),
+  fileKey: text('file_key'), // R2 temp ZIP key
+  larkConfig: text('lark_config', { mode: 'json' }).$type<{ token: string; spaceId?: string }>(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  completedAt: integer('completed_at', { mode: 'timestamp_ms' }),
+}, (table) => [
+  index('idx_import_jobs_tenant').on(table.tenantId),
+  index('idx_import_jobs_status').on(table.status),
+])
