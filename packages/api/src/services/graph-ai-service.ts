@@ -1,6 +1,6 @@
 /** AI-powered graph enrichment — edge type inference, link suggestions */
 
-import { eq, and } from 'drizzle-orm'
+import { eq, and, inArray } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { documents, documentLinks } from '../db/schema'
 import { EDGE_TYPES, type EdgeType } from '@agentwiki/shared'
@@ -73,19 +73,23 @@ export async function inferEdgeTypesForDoc(env: Env, docId: string, tenantId: st
     .from(documents).where(eq(documents.id, docId)).limit(1)
   if (!source.length) return
 
+  // Batch-fetch all target titles (fix N+1 query)
+  const batch = links.slice(0, 10)
+  const targetIds = batch.map((l) => l.targetId)
+  const targets = await db.select({ id: documents.id, title: documents.title })
+    .from(documents).where(inArray(documents.id, targetIds))
+  const titleMap = new Map(targets.map((t) => [t.id, t.title]))
+
   // Process max 10 links per batch to stay within Workers AI quota
-  for (const link of links.slice(0, 10)) {
-    const target = await db.select({ title: documents.title })
-      .from(documents).where(eq(documents.id, link.targetId)).limit(1)
-    if (!target.length) continue
+  for (const link of batch) {
+    const targetTitle = titleMap.get(link.targetId)
+    if (!targetTitle) continue
 
-    const type = await inferEdgeType(env, link.context ?? '', source[0].title, target[0].title)
+    const type = await inferEdgeType(env, link.context ?? '', source[0].title, targetTitle)
 
-    // Only update if AI suggests a non-default type
-    if (type !== 'relates-to') {
-      await db.update(documentLinks)
-        .set({ type, inferred: 1 })
-        .where(eq(documentLinks.id, link.id))
-    }
+    // Always mark as inferred so it won't be re-processed (fix infinite re-queue)
+    await db.update(documentLinks)
+      .set({ type, inferred: 1 })
+      .where(eq(documentLinks.id, link.id))
   }
 }

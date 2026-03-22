@@ -14,7 +14,10 @@ export function GraphInsightPanel({ selectedNodes, onNavigate }: GraphInsightPan
 
   const fromId = selectedNodes.length === 2 ? selectedNodes[0] : null
   const toId = selectedNodes.length === 2 ? selectedNodes[1] : null
-  const { data: pathData } = useGraphPath(fromId, toId)
+  const { data: pathData, isLoading: isPathLoading } = useGraphPath(fromId, toId)
+
+  /** Type guard: distinguish PathResult from error response */
+  const isValidPath = pathData && 'path' in pathData && Array.isArray(pathData.path)
 
   return (
     <div className="flex w-72 flex-col gap-4 overflow-y-auto border-l border-white/[0.06] bg-surface-1 p-4">
@@ -74,12 +77,14 @@ export function GraphInsightPanel({ selectedNodes, onNavigate }: GraphInsightPan
       {fromId && toId && (
         <section>
           <h4 className="mb-2 text-[11px] font-medium text-neutral-500">Path Between Nodes</h4>
-          {pathData ? (
+          {isPathLoading ? (
+            <p className="text-[11px] text-neutral-600">Finding path...</p>
+          ) : isValidPath ? (
             <div className="flex flex-col gap-1">
               <span className="text-[11px] text-neutral-400">{pathData.hops} hop{pathData.hops !== 1 ? 's' : ''}</span>
               {pathData.path.map((node, i) => (
                 <div key={node.id} className="flex items-center gap-1.5">
-                  {i > 0 && <span className="text-[10px] text-neutral-600">→</span>}
+                  {i > 0 && <span className="text-[10px] text-neutral-600">&rarr;</span>}
                   <button
                     onClick={() => onNavigate?.(node.id)}
                     className="truncate text-[11px] text-brand-400 hover:underline"

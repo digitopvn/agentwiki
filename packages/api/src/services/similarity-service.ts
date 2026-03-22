@@ -1,6 +1,6 @@
 /** Similarity computation + caching — implicit graph edges from Vectorize */
 
-import { eq, and, desc, inArray } from 'drizzle-orm'
+import { eq, and, desc, inArray, isNull, not } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { documentSimilarities, documents } from '../db/schema'
 import { generateId } from '../utils/crypto'
@@ -55,20 +55,20 @@ export async function computeSimilarities(
     .filter((m) => extractDocId(m.id) !== documentId && m.score >= SIMILARITY_THRESHOLD)
     .slice(0, 5)
 
-  // Clear old cached similarities
-  await db.delete(documentSimilarities)
-    .where(eq(documentSimilarities.sourceDocId, documentId))
+  if (!similar.length) {
+    // No similar docs found — don't wipe existing cache
+    return
+  }
 
-  if (!similar.length) return
-
-  // Batch-verify all target docs exist in same tenant (avoid N+1)
+  // Batch-verify all target docs exist in same tenant and are not soft-deleted
   const targetIds = similar.map((m) => extractDocId(m.id))
   const existing = await db.select({ id: documents.id })
     .from(documents)
-    .where(and(inArray(documents.id, targetIds), eq(documents.tenantId, tenantId)))
+    .where(and(inArray(documents.id, targetIds), eq(documents.tenantId, tenantId), isNull(documents.deletedAt)))
   const validIds = new Set(existing.map((e) => e.id))
 
-  // Insert new similarities for valid targets
+  // Insert new similarities for valid targets first, THEN delete stale ones
+  // (avoids data loss if Vectorize query fails mid-way)
   const now = new Date()
   for (const match of similar) {
     const targetDocId = extractDocId(match.id)
@@ -80,7 +80,20 @@ export async function computeSimilarities(
       targetDocId,
       score: match.score,
       computedAt: now,
+    }).onConflictDoUpdate({
+      target: [documentSimilarities.sourceDocId, documentSimilarities.targetDocId],
+      set: { score: match.score, computedAt: now },
     })
+  }
+
+  // Now remove stale entries that are no longer in the top-K
+  const freshTargetIds = similar.map((m) => extractDocId(m.id)).filter((id) => validIds.has(id))
+  if (freshTargetIds.length > 0) {
+    await db.delete(documentSimilarities)
+      .where(and(
+        eq(documentSimilarities.sourceDocId, documentId),
+        not(inArray(documentSimilarities.targetDocId, freshTargetIds)),
+      ))
   }
 }
 
@@ -143,7 +156,7 @@ export async function querySimilarDocs(
     category: documents.category,
   })
     .from(documents)
-    .where(and(eq(documents.tenantId, tenantId), inArray(documents.id, uniqueIds)))
+    .where(and(eq(documents.tenantId, tenantId), inArray(documents.id, uniqueIds), isNull(documents.deletedAt)))
 
   const docMap = new Map(allDocs.map((d) => [d.id, d]))
 

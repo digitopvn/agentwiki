@@ -3,8 +3,8 @@
 import { EDGE_TYPES, type EdgeType } from '@agentwiki/shared'
 
 export interface ExtractedLink {
-  target: string // page title or slug
-  displayText: string | null // optional display text from [[display|target]]
+  target: string // page title or slug (left side of pipe per wiki convention)
+  displayText: string | null // optional display text from [[target|display]]
   context: string // surrounding text for preview
   type: EdgeType | null // optional edge type from [[target|type:depends-on]]
 }
@@ -29,9 +29,10 @@ export function extractWikilinks(content: string): ExtractedLink[] {
       inner = inner.slice(0, inner.lastIndexOf('|type:'))
     }
 
+    // Standard wiki convention: [[target|display]] — left is target, right is display
     const pipeIndex = inner.indexOf('|')
-    const target = pipeIndex >= 0 ? inner.slice(pipeIndex + 1).trim() : inner.trim()
-    const displayText = pipeIndex >= 0 ? inner.slice(0, pipeIndex).trim() : null
+    const target = pipeIndex >= 0 ? inner.slice(0, pipeIndex).trim() : inner.trim()
+    const displayText = pipeIndex >= 0 ? inner.slice(pipeIndex + 1).trim() : null
 
     // Extract ~80 chars of surrounding context
     const start = Math.max(0, match.index - 40)
