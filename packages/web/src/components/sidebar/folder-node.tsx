@@ -1,6 +1,6 @@
-/** Single folder item with expand/collapse and context menu */
+/** Single folder item with expand/collapse, context menu, and external markdown drop */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronRight, Folder, FolderOpen, FileText, Plus, Pencil, Trash2 } from 'lucide-react'
 import { useDroppable, useDraggable } from '@dnd-kit/core'
@@ -10,6 +10,7 @@ import { useUpdateFolder, useDeleteFolder, useCreateFolder } from '../../hooks/u
 import { useCreateDocument, useDocuments } from '../../hooks/use-documents'
 import { DocumentContextMenu } from './document-context-menu'
 import { CreateFolderModal } from './create-folder-modal'
+import { useMarkdownImport, partitionMarkdownFiles } from '../../hooks/use-markdown-import'
 
 interface FolderTreeNode {
   id: string
@@ -43,7 +44,39 @@ export function FolderNode({ folder, depth = 0, searchQuery = '' }: FolderNodePr
 
   const isDark = theme === 'dark'
 
+  const { importMarkdownFiles } = useMarkdownImport()
+  const [isExternalDragOver, setIsExternalDragOver] = useState(false)
+
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: folder.id })
+
+  // Handle external file drops (markdown files) onto folder
+  const handleExternalDragOver = useCallback((e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return
+    e.preventDefault()
+    e.stopPropagation()
+    e.dataTransfer.dropEffect = 'copy'
+    setIsExternalDragOver(true)
+  }, [])
+
+  const handleExternalDragLeave = useCallback((e: React.DragEvent) => {
+    // Skip reset if cursor moved to a child element within the folder
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return
+    e.preventDefault()
+    setIsExternalDragOver(false)
+  }, [])
+
+  const handleExternalDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsExternalDragOver(false)
+
+    const files = Array.from(e.dataTransfer.files)
+    const { markdown } = partitionMarkdownFiles(files)
+    if (markdown.length === 0) return
+
+    setExpanded(true)
+    await importMarkdownFiles(markdown, folder.id)
+  }, [folder.id, importMarkdownFiles])
 
   const { data: docData } = useDocuments({ folderId: folder.id })
   const docs = docData?.data ?? []
@@ -114,7 +147,7 @@ export function FolderNode({ folder, depth = 0, searchQuery = '' }: FolderNodePr
         ref={setDropRef}
         className={cn(
           'group flex cursor-pointer items-center gap-1.5 rounded-lg py-1 text-xs select-none',
-          isOver && 'ring-1 ring-brand-400 bg-brand-500/10',
+          (isOver || isExternalDragOver) && 'ring-1 ring-brand-400 bg-brand-500/10',
           isDark
             ? 'text-neutral-300 hover:bg-surface-3'
             : 'text-neutral-700 hover:bg-neutral-100',
@@ -125,6 +158,9 @@ export function FolderNode({ folder, depth = 0, searchQuery = '' }: FolderNodePr
           e.preventDefault()
           setContextMenu({ x: e.clientX, y: e.clientY })
         }}
+        onDragOver={handleExternalDragOver}
+        onDragLeave={handleExternalDragLeave}
+        onDrop={handleExternalDrop}
       >
         <ChevronRight
           className={cn(
