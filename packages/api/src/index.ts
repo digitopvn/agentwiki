@@ -13,8 +13,10 @@ import { analyticsRouter } from './routes/analytics'
 import { shareRouter } from './routes/share'
 import { graphRouter } from './routes/graph'
 import { aiRouter } from './routes/ai'
+import { internalRouter } from './routes/internal'
 import { rateLimiter } from './middleware/rate-limiter'
 import { handleQueueBatch } from './queue/handler'
+import { retryStuckExtractions } from './services/extraction-retry-service'
 import { RATE_LIMITS } from '@agentwiki/shared'
 import type { Env } from './env'
 
@@ -54,6 +56,7 @@ app.route('/api/analytics', analyticsRouter)
 app.route('/api/share', shareRouter)
 app.route('/api/graph', graphRouter)
 app.route('/api/ai', aiRouter)
+app.route('/api/internal', internalRouter)
 
 // Security headers
 app.use('*', async (c, next) => {
@@ -78,5 +81,8 @@ export default {
   fetch: app.fetch,
   async queue(batch: MessageBatch<unknown>, env: Env) {
     await handleQueueBatch(batch as MessageBatch<never>, env)
+  },
+  async scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContext) {
+    await retryStuckExtractions(env)
   },
 }

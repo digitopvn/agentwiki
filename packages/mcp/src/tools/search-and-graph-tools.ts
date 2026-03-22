@@ -17,10 +17,11 @@ export function registerSearchAndGraphTools(
   _ctx: ExecutionContext,
 ) {
   server.registerTool('search', {
-    description: 'Search documents using keyword, semantic, or hybrid search. Returns ranked results with snippets.',
+    description: 'Search documents and/or uploaded files using keyword, semantic, or hybrid search. Returns ranked results with snippets.',
     inputSchema: {
       query: z.string().min(1).max(500).describe('Search query'),
       type: z.enum(['hybrid', 'keyword', 'semantic']).default('hybrid').describe('Search strategy'),
+      source: z.enum(['docs', 'storage', 'all']).default('docs').describe('Search source: docs (wiki documents), storage (uploaded files), all (both)'),
       limit: z.number().int().min(1).max(50).default(10).describe('Max results'),
       category: z.string().optional().describe('Filter by category'),
     },
@@ -32,6 +33,7 @@ export function registerSearchAndGraphTools(
         tenantId: auth.tenantId,
         query: args.query,
         type: args.type,
+        source: args.source,
         limit: args.limit,
         category: args.category,
       }),

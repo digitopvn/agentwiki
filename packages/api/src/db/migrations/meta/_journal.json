@@ -22,6 +22,13 @@
       "when": 1773907076883,
       "tag": "0002_volatile_terrax",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1774076233118,
+      "tag": "0003_broken_yellowjacket",
+      "breakpoints": true
     }
   ]
 }

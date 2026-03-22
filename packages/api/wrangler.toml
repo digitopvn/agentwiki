@@ -12,6 +12,9 @@ routes = [
 [vars]
 APP_URL = "https://app.agentwiki.cc"
 API_URL = "https://api.agentwiki.cc"
+# EXTRACTION_SERVICE_URL: VPS extraction service URL (non-secret)
+EXTRACTION_SERVICE_URL = "https://extract.agentwiki.cc"
+# EXTRACTION_INTERNAL_SECRET: set via `wrangler secret put EXTRACTION_INTERNAL_SECRET`
 
 [[d1_databases]]
 binding = "DB"
@@ -42,3 +45,7 @@ max_batch_timeout = 30
 
 [ai]
 binding = "AI"
+
+# Cron trigger for extraction retry (every 5 minutes)
+[triggers]
+crons = ["*/5 * * * *"]

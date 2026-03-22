@@ -4,7 +4,7 @@ Auto-generated from `repomix-output.xml`. Last updated: 2026-03-18.
 
 ## Overview
 
-AgentWiki is a **monorepo** containing five packages orchestrated by Turborepo and pnpm. Total: ~7,200 LOC of TypeScript, 13 database tables, 8 Cloudflare bindings.
+AgentWiki is a **monorepo** containing five packages orchestrated by Turborepo and pnpm. Total: ~7,200 LOC of TypeScript, 15 database tables, 8 Cloudflare bindings.
 
 ### Package Statistics
 
@@ -27,10 +27,11 @@ agentwiki/
 │   ├── api/
 │   │   ├── src/
 │   │   │   ├── db/
-│   │   │   │   ├── schema.ts       — Drizzle table definitions (13 tables)
+│   │   │   │   ├── schema.ts       — Drizzle table definitions (15 tables)
 │   │   │   │   └── migrations/     — Auto-generated SQL migrations
 │   │   │   ├── middleware/
 │   │   │   │   ├── auth-guard.ts   — JWT/API key validation
+│   │   │   │   ├── internal-auth.ts — Shared secret auth for internal endpoints
 │   │   │   │   ├── rate-limiter.ts — IP & key-based rate limiting
 │   │   │   │   └── require-permission.ts — RBAC enforcement
 │   │   │   ├── routes/
@@ -39,7 +40,8 @@ agentwiki/
 │   │   │   │   ├── documents.ts    — Document CRUD + versions
 │   │   │   │   ├── folders.ts      — Folder tree operations
 │   │   │   │   ├── tags.ts         — Tag enumeration
-│   │   │   │   ├── uploads.ts      — R2 file upload/serve
+│   │   │   │   ├── uploads.ts      — R2 file upload/serve + download tokens
+│   │   │   │   ├── internal.ts     — Internal API (extraction, admin)
 │   │   │   │   ├── search.ts       — Hybrid search endpoint
 │   │   │   │   ├── share.ts        — Sharing & publishing
 │   │   │   │   ├── graph.ts        — Document graph (Cytoscape)
@@ -61,10 +63,14 @@ agentwiki/
 │   │   │   │   ├── document-service.ts — Document business logic
 │   │   │   │   ├── folder-service.ts — Folder tree operations
 │   │   │   │   ├── upload-service.ts — R2 presigned URLs
-│   │   │   │   ├── search-service.ts — FTS + Vectorize hybrid
+│   │   │   │   ├── search-service.ts — Hybrid search (docs + storage, source param)
+│   │   │   │   ├── storage-search-service.ts — Keyword & semantic search on uploads (SP3)
 │   │   │   │   ├── embedding-service.ts — Vectorize integration
 │   │   │   │   ├── share-service.ts — Share link tokens
-│   │   │   │   └── publish-service.ts — Public page generation
+│   │   │   │   ├── publish-service.ts — Public page generation
+│   │   │   │   ├── extraction-service.ts — VPS result callback handler
+│   │   │   │   ├── extraction-job-dispatcher.ts — Job dispatch + token mgmt
+│   │   │   │   └── extraction-retry-service.ts — Stuck job retry logic
 │   │   │   ├── queue/
 │   │   │   │   └── handler.ts      — Queue consumer (embeddings, summaries)
 │   │   │   ├── utils/
@@ -90,7 +96,7 @@ agentwiki/
 │   │   │   │   └── api-key-auth.ts — PBKDF2 key validation + scope check
 │   │   │   ├── tools/
 │   │   │   │   ├── document-tools.ts — 7 document CRUD tools
-│   │   │   │   ├── search-and-graph-tools.ts — 4 search & graph tools
+│   │   │   │   ├── search-and-graph-tools.ts — 4 search & graph tools (with source param SP3)
 │   │   │   │   ├── folder-tools.ts — 4 folder tree tools
 │   │   │   │   ├── tag-tools.ts    — 2 tag management tools
 │   │   │   │   ├── upload-tools.ts — 2 file upload tools
@@ -124,6 +130,10 @@ agentwiki/
 │   │   │   │   │   ├── welcome-screen.tsx   — Empty state
 │   │   │   │   │   ├── ai-slash-commands.ts — 5 AI slash commands for editor
 │   │   │   │   │   └── ai-selection-toolbar.tsx — 6 AI toolbar actions for text
+│   │   │   │   ├── storage/
+│   │   │   │   │   ├── storage-drawer.tsx       — Right-sliding file management drawer (SP2)
+│   │   │   │   │   ├── storage-file-card.tsx   — File card with status & delete
+│   │   │   │   │   └── upload-progress-list.tsx — Active upload progress bars
 │   │   │   │   ├── metadata/
 │   │   │   │   │   ├── document-properties.tsx — Title, category, access level
 │   │   │   │   │   ├── tag-editor.tsx       — Tag management UI
@@ -136,10 +146,12 @@ agentwiki/
 │   │   │   │   ├── use-auth.ts      — Auth state (user, login, logout)
 │   │   │   │   ├── use-documents.ts — Document list & cache (React Query)
 │   │   │   │   ├── use-folders.ts   — Folder tree (React Query)
+│   │   │   │   ├── use-uploads.ts   — Upload list & deletion (React Query)
+│   │   │   │   ├── use-upload-with-progress.ts — XHR upload with progress tracking
 │   │   │   │   ├── use-ai.ts        — AI generation & streaming
 │   │   │   │   └── use-ai-settings.ts — AI settings & provider config
 │   │   │   ├── stores/
-│   │   │   │   └── app-store.ts     — Zustand (tabs, panel collapse, theme)
+│   │   │   │   └── app-store.ts     — Zustand (tabs, panel collapse, theme, storage drawer, upload queue)
 │   │   │   ├── lib/
 │   │   │   │   ├── api-client.ts    — Axios with auth header
 │   │   │   │   ├── ai-stream-reader.ts — Stream response parser
@@ -156,7 +168,7 @@ agentwiki/
 │   │   └── package.json             — Dependencies (React 19, Vite, BlockNote, etc)
 │   ├── cli/
 │   │   ├── src/
-│   │   │   ├── index.ts             — Commander CLI entry (login, whoami, doc, folder, search)
+│   │   │   ├── index.ts             — Commander CLI (login, whoami, doc, folder, search --source, upload list)
 │   │   │   └── api-client.ts        — HTTP client (credential storage)
 │   │   ├── tsconfig.json
 │   │   └── package.json             — Dependency (Commander.js)
@@ -364,15 +376,33 @@ agentwiki/
 ### uploads
 ```ts
 {
-  id: string          (PK)
-  tenantId: string    (FK → tenants)
-  documentId?: string (FK → documents)
-  fileKey: string     (R2 object key)
-  filename: string    (original filename)
+  id: string                (PK)
+  tenantId: string          (FK → tenants)
+  documentId?: string       (FK → documents)
+  fileKey: string           (R2 object key)
+  filename: string          (original filename)
   contentType: string
   sizeBytes: int
-  uploadedBy: string  (FK → users)
+  uploadedBy: string        (FK → users)
+  extractionStatus: string  ("pending" | "processing" | "completed" | "failed" | "unsupported")
+  summary?: string          (AI-generated summary of extracted text)
   createdAt: timestamp
+}
+```
+
+### file_extractions
+```ts
+{
+  id: string               (PK)
+  uploadId: string         (FK → uploads, cascade delete)
+  tenantId: string         (FK → tenants)
+  extractedText: string    (large text body from PDF/DOCX/etc extraction)
+  charCount: int           (length of extractedText)
+  vectorId?: string        (prefix for Vectorize vector IDs)
+  extractionMethod: string ("docling" | "gemini" | "direct" | "unsupported")
+  errorMessage?: string    (if extraction failed)
+  createdAt: timestamp
+  updatedAt: timestamp
 }
 ```
 
@@ -434,14 +464,15 @@ agentwiki/
 - `GET` — List all tags in tenant
 
 ### Uploads (`/api/uploads`)
-- `POST` — Upload file to R2
+- `GET` — List uploaded files with extraction status & summaries (SP2)
+- `POST` — Upload file to R2 (100MB limit, auto-extracted)
 - `DELETE /:id` — Delete upload
 
 ### Files (`/api/files/:key`)
-- `GET` — Serve file from R2
+- `GET` — Serve file from R2 (supports auth, public, and download token access)
 
 ### Search (`/api/search`)
-- `GET ?q=query&type=hybrid|keyword|semantic` — Search documents
+- `GET ?q=query&type=hybrid|keyword|semantic&source=docs|storage|all` — Search documents and/or uploads (SP3)
 
 ### Share (`/api/share`)
 - `GET /public/:token` — Access shared document (public)
@@ -465,6 +496,11 @@ agentwiki/
 - `PUT /settings` — Update provider, model, temperature
 - `DELETE /settings` — Clear AI settings
 - `GET /usage` — Usage dashboard (tokens, cost by provider)
+
+### Internal API (`/api/internal`)
+- `POST /extraction-result` — Callback from VPS extraction service (shared secret auth)
+- `GET /extraction-status` — Admin: extraction pipeline status counts by status
+- `POST /extraction-retry/:id` — Admin: manually retry failed extraction
 
 ### Health
 - `GET /api/health` — Health check

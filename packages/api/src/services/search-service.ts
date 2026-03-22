@@ -5,10 +5,13 @@ import { drizzle } from 'drizzle-orm/d1'
 import { documents, documentTags } from '../db/schema'
 import { embedQuery } from './embedding-service'
 import { trigramSearch } from './trigram-service'
+import { storageKeywordSearch, storageSemanticSearch } from './storage-search-service'
 import { reciprocalRankFusion, type RankedResult } from '../utils/rrf'
 import { extractSnippet } from '../utils/extract-snippet'
 import type { Env } from '../env'
 import type { SearchFilters, SearchFacets, FacetBucket } from '@agentwiki/shared'
+
+export type SearchSource = 'docs' | 'storage' | 'all'
 
 interface SearchOptions {
   tenantId: string
@@ -17,33 +20,54 @@ interface SearchOptions {
   limit?: number
   category?: string
   filters?: SearchFilters
+  source?: SearchSource
 }
 
-/** Execute hybrid search with optional faceted filtering */
+/** Execute hybrid search with optional faceted filtering and source selection */
 export async function searchDocuments(env: Env, options: SearchOptions) {
-  const { tenantId, query, type = 'hybrid', limit = 10, filters } = options
+  const { tenantId, query, type = 'hybrid', limit = 10, filters, source = 'docs' } = options
   // Merge top-level category with filters for backward compat
   const category = filters?.category ?? options.category
   const results: RankedResult[][] = []
 
-  // Fuzzy keyword search via trigram index
-  if (type === 'hybrid' || type === 'keyword') {
-    const keywordResults = await trigramSearch(env, tenantId, query, limit * 2, category)
-    results.push(keywordResults)
+  // Document search (docs or all)
+  if (source === 'docs' || source === 'all') {
+    if (type === 'hybrid' || type === 'keyword') {
+      const keywordResults = await trigramSearch(env, tenantId, query, limit * 2, category)
+      results.push(keywordResults)
+    }
+    if (type === 'hybrid' || type === 'semantic') {
+      const semanticResults = await semanticSearch(env, tenantId, query, limit * 2, filters)
+      results.push(semanticResults)
+    }
   }
 
-  // Semantic search via Vectorize
-  if (type === 'hybrid' || type === 'semantic') {
-    const semanticResults = await semanticSearch(env, tenantId, query, limit * 2, filters)
-    results.push(semanticResults)
+  // Storage search (storage or all)
+  if (source === 'storage' || source === 'all') {
+    if (type === 'hybrid' || type === 'keyword') {
+      const storageKw = await storageKeywordSearch(env, tenantId, query, limit * 2)
+      results.push(storageKw)
+    }
+    if (type === 'hybrid' || type === 'semantic') {
+      const storageSem = await storageSemanticSearch(env, tenantId, query, limit * 2)
+      results.push(storageSem)
+    }
   }
 
   // Fuse results
   let fused = results.length > 1 ? reciprocalRankFusion(...results) : results[0] ?? []
 
-  // Post-filter by tags and date range (applies to all search types)
+  // Post-filter by tags and date range (only applies to doc results, not upload results)
   if (filters?.tags?.length || filters?.dateFrom || filters?.dateTo) {
-    fused = await postFilterResults(env, fused, tenantId, filters)
+    if (source === 'docs') {
+      fused = await postFilterResults(env, fused, tenantId, filters)
+    } else if (source === 'all') {
+      // Separate upload results (have no slug), filter only doc results, then recombine
+      const uploadResults = fused.filter((r) => !r.slug)
+      const docResults = fused.filter((r) => r.slug)
+      const filteredDocs = await postFilterResults(env, docResults, tenantId, filters)
+      fused = [...filteredDocs, ...uploadResults].sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+    }
   }
 
   return fused.slice(0, limit)

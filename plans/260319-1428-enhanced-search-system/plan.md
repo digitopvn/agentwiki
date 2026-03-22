@@ -10,6 +10,7 @@ created: 2026-03-19
 brainstorm: plans/reports/brainstorm-260319-1428-enhanced-search-system.md
 blockedBy: []
 blocks: []
+relatedPlans: [260321-1139-sp3-cli-mcp-storage-search]
 ---
 
 # Enhanced Search System — Implementation Plan

@@ -10,6 +10,8 @@ import { Sidebar } from './sidebar'
 import { MainPanel } from './main-panel'
 import { MetadataPanel } from './metadata-panel'
 import { CommandPalette } from '../command-palette/command-palette'
+import { StorageDrawer } from '../storage/storage-drawer'
+import { GlobalDropZone } from '../storage/global-drop-zone'
 import { cn } from '../../lib/utils'
 import { apiClient } from '../../lib/api-client'
 
@@ -133,6 +135,8 @@ export function Layout() {
         )}
 
         <CommandPalette />
+        <StorageDrawer />
+        <GlobalDropZone />
       </div>
     )
   }
@@ -148,6 +152,8 @@ export function Layout() {
       <MainPanel />
       <MetadataPanel />
       <CommandPalette />
+      <StorageDrawer />
+      <GlobalDropZone />
     </div>
   )
 }

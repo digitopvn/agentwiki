@@ -5,13 +5,12 @@ import { apiClient, API_BASE } from '../lib/api-client'
 
 export interface Upload {
   id: string
-  tenantId: string
-  documentId: string | null
   fileKey: string
   filename: string
   contentType: string
   sizeBytes: number
-  uploadedBy: string
+  extractionStatus: string | null // pending | processing | completed | failed | unsupported
+  summary: string | null
   createdAt: string
 }
 

@@ -1,0 +1,25 @@
+services:
+  extraction-api:
+    build: .
+    ports:
+      - "8100:8100"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - AGENTWIKI_API_URL=${AGENTWIKI_API_URL:-https://api.agentwiki.cc}
+      - AGENTWIKI_INTERNAL_SECRET=${AGENTWIKI_INTERNAL_SECRET}
+      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-2}
+      - JOB_TIMEOUT_MS=${JOB_TIMEOUT_MS:-300000}
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+
+volumes:
+  redis-data:
