@@ -26,7 +26,7 @@ export async function retryStuckExtractions(env: Env) {
         eq(uploads.extractionStatus, 'pending'),
         eq(uploads.extractionStatus, 'processing'),
       ),
-      lt(uploads.createdAt, maxRetryCutoff),
+      sql`COALESCE(${uploads.lastDispatchedAt}, ${uploads.createdAt}) < ${maxRetryCutoff.getTime()}`,
     ),
   )
 
