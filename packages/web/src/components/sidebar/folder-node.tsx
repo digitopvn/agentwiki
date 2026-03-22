@@ -104,7 +104,8 @@ export function FolderNode({
     await importMarkdownFiles(markdown, folder.id)
   }, [folder.id, importMarkdownFiles])
 
-  const { data: docData } = useDocuments({ folderId: folder.id, sort: 'position', order: 'asc', enabled: expanded })
+  // limit: 100 = API max; virtual scroll needed for >100 docs per folder
+  const { data: docData } = useDocuments({ folderId: folder.id, sort: 'position', order: 'asc', limit: 100, enabled: expanded })
   const docs = docData?.data ?? []
 
   // Close context menu on outside click

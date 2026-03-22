@@ -38,6 +38,7 @@ export function useReorderItem() {
             const [moved] = items.splice(idx, 1)
             if (variables.afterId) {
               const afterIdx = items.findIndex((d) => d.id === variables.afterId)
+              if (afterIdx === -1) return old // afterId not in this cache slice
               items.splice(afterIdx + 1, 0, moved)
             } else {
               items.splice(0, 0, moved)
@@ -55,7 +56,7 @@ export function useReorderItem() {
           const [moved] = items.splice(idx, 1)
           if (variables.afterId) {
             const afterIdx = items.findIndex((f) => f.id === variables.afterId)
-            items.splice(afterIdx + 1, 0, moved)
+            if (afterIdx === -1) return old // afterId not in cache
           } else {
             items.splice(0, 0, moved)
           }

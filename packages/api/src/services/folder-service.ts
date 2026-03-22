@@ -90,7 +90,7 @@ export async function updateFolder(
   env: Env,
   tenantId: string,
   folderId: string,
-  updates: { name?: string; parentId?: string | null; position?: number; positionIndex?: string },
+  updates: { name?: string; parentId?: string | null; positionIndex?: string },
 ) {
   const db = drizzle(env.DB)
   const set: Record<string, unknown> = { updatedAt: new Date() }
@@ -100,7 +100,6 @@ export async function updateFolder(
     set.slug = slugify(updates.name)
   }
   if (updates.parentId !== undefined) set.parentId = updates.parentId
-  if (updates.position !== undefined) set.position = updates.position
   if (updates.positionIndex !== undefined) set.positionIndex = updates.positionIndex
 
   await db

@@ -45,7 +45,8 @@ export function FolderTree({
   onDocumentOpen,
 }: FolderTreeProps) {
   const { data: folderData, isLoading: foldersLoading } = useFolderTree()
-  const { data: docData, isLoading: docsLoading } = useDocuments({ folderId: 'null', sort: 'position', order: 'asc', limit: 200 })
+  // limit: 100 = API max; virtual scroll needed for >100 root docs
+  const { data: docData, isLoading: docsLoading } = useDocuments({ folderId: 'null', sort: 'position', order: 'asc', limit: 100 })
   const { theme, openTab, setActiveTab } = useAppStore()
   const updateDocument = useUpdateDocument()
   const reorderItem = useReorderItem()
@@ -149,6 +150,17 @@ export function FolderTree({
     if (!over || active.id === over.id) return
 
     const activeParsed = parseItemId(active.id)
+
+    // Document dropped on root zone → move to root level
+    if (String(over.id) === 'root-drop' && activeParsed.type === 'document') {
+      try {
+        await updateDocument.mutateAsync({ id: activeParsed.id, folderId: null })
+      } catch (err) {
+        console.error('Failed to move document to root:', err)
+      }
+      return
+    }
+
     const overParsed = parseItemId(over.id)
 
     // Document dragged onto a folder → move into folder
