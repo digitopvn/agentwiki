@@ -59,6 +59,8 @@ export function FolderNode({ folder, depth = 0, searchQuery = '' }: FolderNodePr
   }, [])
 
   const handleExternalDragLeave = useCallback((e: React.DragEvent) => {
+    // Skip reset if cursor moved to a child element within the folder
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return
     e.preventDefault()
     setIsExternalDragOver(false)
   }, [])

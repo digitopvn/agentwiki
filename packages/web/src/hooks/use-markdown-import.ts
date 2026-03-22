@@ -1,6 +1,6 @@
 /** Hook for importing markdown files as new documents */
 
-import { useCallback } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCreateDocument } from './use-documents'
 import { useAppStore } from '../stores/app-store'
@@ -31,8 +31,10 @@ export function useMarkdownImport(): {
   const createDocument = useCreateDocument()
   const { openTab, setActiveTab } = useAppStore()
   const navigate = useNavigate()
+  const [isImporting, setIsImporting] = useState(false)
 
   const importMarkdownFiles = useCallback(async (files: File[], folderId?: string): Promise<number> => {
+    setIsImporting(true)
     let imported = 0
     let lastDoc: { id: string; title: string; slug: string } | null = null
 
@@ -70,8 +72,9 @@ export function useMarkdownImport(): {
       navigate(`/doc/${lastDoc.slug}`)
     }
 
+    setIsImporting(false)
     return imported
   }, [createDocument, openTab, setActiveTab, navigate])
 
-  return { importMarkdownFiles, isImporting: createDocument.isPending }
+  return { importMarkdownFiles, isImporting }
 }

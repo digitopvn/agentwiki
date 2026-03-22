@@ -17,11 +17,11 @@ export function useSwipeGesture({
   swipeThreshold = 50,
   enabled = true,
 }: SwipeGestureOptions): void {
-  const touchStartRef = useRef<{ x: number; y: number; isEdge: 'left' | 'right' | null } | null>(null)
+  const touchStartRef = useRef<{ x: number; y: number; isEdge: 'left' | 'right' | null; isBackdrop: boolean } | null>(null)
 
   const handleTouchStart = useCallback((e: TouchEvent) => {
-    // Ignore touches originating inside drawer panels to avoid conflicts with scrolling
     const target = e.target as HTMLElement
+    // Ignore touches inside drawer panels (conflicts with scrolling content)
     if (target.closest('.drawer-left.drawer-open, .drawer-right.drawer-open')) {
       touchStartRef.current = null
       return
@@ -30,11 +30,13 @@ export function useSwipeGesture({
     const touch = e.touches[0]
     const screenWidth = window.innerWidth
     let isEdge: 'left' | 'right' | null = null
+    // Touches on backdrop allow close via swipe (isBackdrop flag)
+    const isBackdrop = target.closest('.drawer-backdrop.drawer-open') !== null
 
     if (touch.clientX <= edgeThreshold) isEdge = 'left'
     else if (touch.clientX >= screenWidth - edgeThreshold) isEdge = 'right'
 
-    touchStartRef.current = { x: touch.clientX, y: touch.clientY, isEdge }
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY, isEdge, isBackdrop }
   }, [edgeThreshold])
 
   const handleTouchEnd = useCallback((e: TouchEvent) => {
@@ -54,9 +56,11 @@ export function useSwipeGesture({
       onSwipeRight() // Swipe right from left edge → open sidebar
     } else if (start.isEdge === 'right' && dx < 0) {
       onSwipeLeft() // Swipe left from right edge → open metadata
+    } else if (start.isBackdrop) {
+      // Swipe on backdrop to close — safe since backdrop has no scrollable content
+      if (dx < 0) onSwipeLeft()
+      else if (dx > 0) onSwipeRight()
     }
-    // Non-edge swipes intentionally ignored — edge-only prevents conflicts with
-    // horizontal scroll, text selection, and editor gestures
   }, [swipeThreshold, onSwipeLeft, onSwipeRight])
 
   useEffect(() => {

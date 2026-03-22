@@ -25,6 +25,16 @@ import { getAISlashMenuItems } from './ai-slash-commands'
 import { AISelectionToolbar } from './ai-selection-toolbar'
 import { cn } from '../../lib/utils'
 
+// Safari lacks requestIdleCallback — polyfill with setTimeout (module-level, evaluated once)
+const rIC: typeof requestIdleCallback =
+  typeof window !== 'undefined' && window.requestIdleCallback
+    ? window.requestIdleCallback.bind(window)
+    : (cb) => window.setTimeout(() => cb({ didTimeout: false, timeRemaining: () => 50 } as IdleDeadline), 0)
+const cIC: typeof cancelIdleCallback =
+  typeof window !== 'undefined' && window.cancelIdleCallback
+    ? window.cancelIdleCallback.bind(window)
+    : clearTimeout
+
 interface EditorProps {
   documentId: string
   tabId: string
@@ -35,10 +45,6 @@ export function Editor({ documentId, tabId }: EditorProps) {
   const updateDocument = useUpdateDocument()
   const { markTabDirty, updateTabTitle, theme } = useAppStore()
   const { isGenerating, error: aiError, generate, transform } = useAI()
-
-  // Safari lacks requestIdleCallback — polyfill with setTimeout
-  const rIC = window.requestIdleCallback ?? ((cb: IdleRequestCallback) => window.setTimeout(() => cb({ didTimeout: false, timeRemaining: () => 50 } as IdleDeadline), 0))
-  const cIC = window.cancelIdleCallback ?? clearTimeout
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const markdownIdleRef = useRef<number | null>(null)
