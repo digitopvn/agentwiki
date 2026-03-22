@@ -30,9 +30,9 @@ interface RecentDocumentsProps {
 export function RecentDocuments({ onDocumentOpen }: RecentDocumentsProps) {
   const { data: prefs } = usePreferences()
   const setPref = useSetPreference()
-  const expanded = prefs?.sidebar_collapsed !== 'recent_hidden'
+  const expanded = prefs?.sidebar_recent_collapsed !== 'true'
 
-  const { data } = useDocuments({ limit: 10 })
+  const { data } = useDocuments({ limit: 10, sort: 'updatedAt', order: 'desc' })
   const { theme, openTab, setActiveTab } = useAppStore()
   const navigate = useNavigate()
 
@@ -43,8 +43,8 @@ export function RecentDocuments({ onDocumentOpen }: RecentDocumentsProps) {
 
   const toggleExpanded = () => {
     setPref.mutate({
-      key: 'sidebar_collapsed',
-      value: expanded ? 'recent_hidden' : '',
+      key: 'sidebar_recent_collapsed',
+      value: expanded ? 'true' : 'false',
     })
   }
 

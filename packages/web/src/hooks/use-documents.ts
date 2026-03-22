@@ -13,6 +13,7 @@ interface ListDocumentsParams {
   limit?: number
   sort?: string
   order?: string
+  enabled?: boolean
 }
 
 interface PaginatedDocuments {
@@ -42,19 +43,21 @@ interface UpdateDocumentBody {
 }
 
 export function useDocuments(params: ListDocumentsParams = {}) {
+  const { enabled, ...queryParams } = params
   const search = new URLSearchParams()
-  if (params.folderId) search.set('folderId', params.folderId)
-  if (params.search) search.set('search', params.search)
-  if (params.tag) search.set('tag', params.tag)
-  if (params.category) search.set('category', params.category)
-  if (params.page) search.set('page', String(params.page))
-  if (params.limit) search.set('limit', String(params.limit))
-  if (params.sort) search.set('sort', params.sort)
-  if (params.order) search.set('order', params.order)
+  if (queryParams.folderId) search.set('folderId', queryParams.folderId)
+  if (queryParams.search) search.set('search', queryParams.search)
+  if (queryParams.tag) search.set('tag', queryParams.tag)
+  if (queryParams.category) search.set('category', queryParams.category)
+  if (queryParams.page) search.set('page', String(queryParams.page))
+  if (queryParams.limit) search.set('limit', String(queryParams.limit))
+  if (queryParams.sort) search.set('sort', queryParams.sort)
+  if (queryParams.order) search.set('order', queryParams.order)
 
   return useQuery<PaginatedDocuments>({
-    queryKey: ['documents', params],
+    queryKey: ['documents', queryParams],
     queryFn: () => apiClient.get<PaginatedDocuments>(`/api/documents?${search}`),
+    enabled: enabled ?? true,
   })
 }
 

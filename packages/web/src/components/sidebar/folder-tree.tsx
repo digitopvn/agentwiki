@@ -136,8 +136,12 @@ export function FolderTree({
       const folder = folders.find((f) => f.id === parsed.id)
       setActiveItem({ type: 'folder', id: parsed.id, title: folder?.name ?? 'Folder' })
     } else {
+      // Check root docs first, then look in DnD data for folder-level docs
       const doc = allRootDocs.find((d) => d.id === parsed.id)
-      setActiveItem({ type: 'document', id: parsed.id, title: doc?.title ?? 'Document' })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dndData = event.active.data.current as Record<string, any> | undefined
+      const title = doc?.title ?? dndData?.doc?.title ?? 'Document'
+      setActiveItem({ type: 'document', id: parsed.id, title })
     }
   }
 

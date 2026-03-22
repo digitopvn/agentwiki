@@ -103,7 +103,7 @@ export function FolderNode({
     await importMarkdownFiles(markdown, folder.id)
   }, [folder.id, importMarkdownFiles])
 
-  const { data: docData } = useDocuments({ folderId: folder.id, sort: 'position', order: 'asc' })
+  const { data: docData } = useDocuments({ folderId: folder.id, sort: 'position', order: 'asc', enabled: expanded })
   const docs = docData?.data ?? []
 
   // Close context menu on outside click

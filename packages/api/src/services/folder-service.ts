@@ -37,7 +37,6 @@ export async function createFolder(
     parentId: parentId ?? null,
     name,
     slug: slugify(name),
-    position: 0,
     positionIndex: newPosition,
     createdBy: userId,
     createdAt: now,

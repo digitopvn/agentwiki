@@ -7,7 +7,7 @@ import { generateId } from '../utils/crypto'
 import type { Env } from '../env'
 
 /** Allowed preference keys (prevents arbitrary key storage) */
-const ALLOWED_KEYS = new Set(['sidebar_sort', 'sidebar_collapsed', 'theme'])
+const ALLOWED_KEYS = new Set(['sidebar_sort', 'sidebar_collapsed', 'sidebar_recent_collapsed', 'theme'])
 
 /** Get all preferences for a user in a tenant */
 export async function getPreferences(env: Env, userId: string, tenantId: string) {

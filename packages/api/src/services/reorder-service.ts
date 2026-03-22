@@ -69,7 +69,7 @@ export async function reorderItem(env: Env, tenantId: string, input: ReorderInpu
     const after = await db
       .select({ position: documents.position })
       .from(documents)
-      .where(and(eq(documents.id, input.afterId), eq(documents.tenantId, tenantId)))
+      .where(and(eq(documents.id, input.afterId), eq(documents.tenantId, tenantId), isNull(documents.deletedAt)))
       .limit(1)
     afterPosition = after[0]?.position ?? null
   }
@@ -77,7 +77,7 @@ export async function reorderItem(env: Env, tenantId: string, input: ReorderInpu
     const before = await db
       .select({ position: documents.position })
       .from(documents)
-      .where(and(eq(documents.id, input.beforeId), eq(documents.tenantId, tenantId)))
+      .where(and(eq(documents.id, input.beforeId), eq(documents.tenantId, tenantId), isNull(documents.deletedAt)))
       .limit(1)
     beforePosition = before[0]?.position ?? null
   }
