@@ -3,6 +3,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { registerDocumentTools } from './tools/document-tools'
 import { registerSearchAndGraphTools } from './tools/search-and-graph-tools'
+import { registerGraphTraversalTools } from './tools/graph-traversal-tools'
 import { registerFolderTools } from './tools/folder-tools'
 import { registerTagTools } from './tools/tag-tools'
 import { registerUploadTools } from './tools/upload-tools'
@@ -24,9 +25,10 @@ export function createMcpServer(
     version: '1.0.0',
   })
 
-  // Register all tools (25 total)
+  // Register all tools (31 total: 25 existing + 6 graph traversal)
   registerDocumentTools(server, env, auth, ctx)
   registerSearchAndGraphTools(server, env, auth, ctx)
+  registerGraphTraversalTools(server, env, auth)
   registerFolderTools(server, env, auth, ctx)
   registerTagTools(server, env, auth, ctx)
   registerUploadTools(server, env, auth, ctx)

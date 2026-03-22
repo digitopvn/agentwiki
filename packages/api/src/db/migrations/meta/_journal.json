@@ -29,6 +29,13 @@
       "when": 1774076233118,
       "tag": "0003_broken_yellowjacket",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1774178764927,
+      "tag": "0004_far_slipstream",
+      "breakpoints": true
     }
   ]
 }

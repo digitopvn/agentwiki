@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Plus, Sun, Moon, PanelLeftClose, PanelLeft, FolderPlus, Filter, Settings, User, X, HardDrive } from 'lucide-react'
+import { Search, Plus, Sun, Moon, PanelLeftClose, PanelLeft, FolderPlus, Filter, Settings, User, X, HardDrive, Network } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAppStore } from '../../stores/app-store'
 import { useIsMobile } from '../../hooks/use-is-mobile'
@@ -240,8 +240,8 @@ export function Sidebar() {
         )}
       </div>
 
-      {/* Storage button */}
-      <div className={cn('border-t px-2 py-1.5', isDark ? 'border-white/[0.06]' : 'border-neutral-200')}>
+      {/* Storage + Graph buttons */}
+      <div className={cn('border-t px-2 py-1.5 space-y-0.5', isDark ? 'border-white/[0.06]' : 'border-neutral-200')}>
         <button
           onClick={toggleStorageDrawer}
           className={cn(
@@ -253,6 +253,18 @@ export function Sidebar() {
         >
           <HardDrive className="h-4 w-4 md:h-3.5 md:w-3.5" />
           Storage
+        </button>
+        <button
+          onClick={() => { navigate('/graph'); if (isMobile) setMobileSidebarOpen(false) }}
+          className={cn(
+            'flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm md:py-1.5 md:text-xs',
+            isDark
+              ? 'text-neutral-400 hover:bg-surface-3 hover:text-neutral-200'
+              : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800',
+          )}
+        >
+          <Network className="h-4 w-4 md:h-3.5 md:w-3.5" />
+          Knowledge Graph
         </button>
       </div>
 
