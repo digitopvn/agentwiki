@@ -2,7 +2,7 @@
 
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { uploadFile, listUploads } from '../../../api/src/services/upload-service'
+import { uploadFile, listUploads } from '@agentwiki/api/services/upload-service'
 import { checkPermission } from '../auth/api-key-auth'
 import { logMcpAudit } from '../utils/audit-logger'
 import { toolResult, toolError, safeToolCall } from '../utils/mcp-error-handler'

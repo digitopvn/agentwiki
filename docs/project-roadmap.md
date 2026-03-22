@@ -94,6 +94,9 @@ AgentWiki is an enterprise knowledge management platform serving humans and AI a
 - [x] OAuth login page
 - [x] TailwindCSS v4 styling
 - [x] Responsive design (mobile-ready)
+- [x] Auto-save performance optimization (2s debounce, deferred markdown) — Issue #32
+- [x] Mobile sidebar drawers (CSS transform, swipe gestures) — Issue #37
+- [x] Drag-and-drop markdown file import — Issue #21
 
 **Key Files**:
 - `packages/web/src/components/editor/editor.tsx` — BlockNote wrapper

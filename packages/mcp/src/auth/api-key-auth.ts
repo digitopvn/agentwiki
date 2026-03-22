@@ -1,6 +1,6 @@
 /** API key extraction, validation, and RBAC for MCP server */
 
-import { validateApiKey } from '../../../api/src/services/api-key-service'
+import { validateApiKey } from '@agentwiki/api/services/api-key-service'
 import { API_KEY_PREFIX } from '@agentwiki/shared'
 import type { Env, McpAuthContext } from '../env'
 

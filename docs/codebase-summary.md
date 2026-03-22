@@ -1,6 +1,6 @@
 # AgentWiki: Codebase Summary
 
-Auto-generated from `repomix-output.xml`. Last updated: 2026-03-18.
+Auto-generated from `repomix-output.xml`. Last updated: 2026-03-22.
 
 ## Overview
 
@@ -116,7 +116,7 @@ agentwiki/
 │   │   ├── src/
 │   │   │   ├── components/
 │   │   │   │   ├── layout/
-│   │   │   │   │   ├── layout.tsx           — 3-panel shell
+│   │   │   │   │   ├── layout.tsx           — 3-panel shell (mobile: CSS transform drawers with swipe)
 │   │   │   │   │   ├── sidebar.tsx          — Left sidebar wrapper
 │   │   │   │   │   ├── main-panel.tsx       — Center editor area
 │   │   │   │   │   └── metadata-panel.tsx   — Right metadata sidebar
@@ -124,14 +124,14 @@ agentwiki/
 │   │   │   │   │   ├── folder-tree.tsx      — Recursive folder tree
 │   │   │   │   │   └── folder-node.tsx      — Single folder node
 │   │   │   │   ├── editor/
-│   │   │   │   │   ├── editor.tsx           — BlockNote wrapper + AI integration
+│   │   │   │   │   ├── editor.tsx           — BlockNote wrapper + AI + auto-save (2s debounce)
 │   │   │   │   │   ├── tab-bar.tsx          — Tab strip
 │   │   │   │   │   ├── tab-item.tsx         — Single tab
 │   │   │   │   │   ├── welcome-screen.tsx   — Empty state
 │   │   │   │   │   ├── ai-slash-commands.ts — 5 AI slash commands for editor
 │   │   │   │   │   └── ai-selection-toolbar.tsx — 6 AI toolbar actions for text
 │   │   │   │   ├── storage/
-│   │   │   │   │   ├── storage-drawer.tsx       — Right-sliding file management drawer (SP2)
+│   │   │   │   │   ├── storage-drawer.tsx       — File management drawer (SP2) + markdown drop support
 │   │   │   │   │   ├── storage-file-card.tsx   — File card with status & delete
 │   │   │   │   │   └── upload-progress-list.tsx — Active upload progress bars
 │   │   │   │   ├── metadata/

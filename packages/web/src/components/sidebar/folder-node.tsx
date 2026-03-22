@@ -1,6 +1,6 @@
-/** Single folder item with expand/collapse, sortable, and context menu */
+/** Single folder item with expand/collapse, sortable, context menu, and external markdown drop */
 
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronRight, Folder, FolderOpen, Plus, Pencil, Trash2 } from 'lucide-react'
 import { useSortable } from '@dnd-kit/sortable'
@@ -10,10 +10,10 @@ import { cn } from '../../lib/utils'
 import { useAppStore } from '../../stores/app-store'
 import { useUpdateFolder, useDeleteFolder, useCreateFolder } from '../../hooks/use-folders'
 import { useCreateDocument, useDocuments } from '../../hooks/use-documents'
-// useReorderItem is used at FolderTree level, not per-node
 import { DocumentContextMenu } from './document-context-menu'
 import { CreateFolderModal } from './create-folder-modal'
 import { SortableDocItem } from './folder-tree'
+import { useMarkdownImport, partitionMarkdownFiles } from '../../hooks/use-markdown-import'
 
 interface FolderTreeNode {
   id: string
@@ -71,6 +71,37 @@ export function FolderNode({
     transition,
     opacity: isDragging ? 0.4 : 1,
   }
+
+  // External markdown drop support (from main)
+  const { importMarkdownFiles } = useMarkdownImport()
+  const [isExternalDragOver, setIsExternalDragOver] = useState(false)
+
+  const handleExternalDragOver = useCallback((e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return
+    e.preventDefault()
+    e.stopPropagation()
+    e.dataTransfer.dropEffect = 'copy'
+    setIsExternalDragOver(true)
+  }, [])
+
+  const handleExternalDragLeave = useCallback((e: React.DragEvent) => {
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return
+    e.preventDefault()
+    setIsExternalDragOver(false)
+  }, [])
+
+  const handleExternalDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsExternalDragOver(false)
+
+    const files = Array.from(e.dataTransfer.files)
+    const { markdown } = partitionMarkdownFiles(files)
+    if (markdown.length === 0) return
+
+    setExpanded(true)
+    await importMarkdownFiles(markdown, folder.id)
+  }, [folder.id, importMarkdownFiles])
 
   const { data: docData } = useDocuments({ folderId: folder.id, sort: 'position', order: 'asc' })
   const docs = docData?.data ?? []
@@ -179,6 +210,7 @@ export function FolderNode({
         {...listeners}
         className={cn(
           'group flex cursor-pointer items-center gap-1.5 rounded-lg py-1 text-xs select-none',
+          isExternalDragOver && 'ring-1 ring-brand-400 bg-brand-500/10',
           isDark
             ? 'text-neutral-300 hover:bg-surface-3'
             : 'text-neutral-700 hover:bg-neutral-100',
@@ -189,6 +221,9 @@ export function FolderNode({
           e.preventDefault()
           setContextMenu({ x: e.clientX, y: e.clientY })
         }}
+        onDragOver={handleExternalDragOver}
+        onDragLeave={handleExternalDragLeave}
+        onDrop={handleExternalDrop}
       >
         <ChevronRight
           className={cn(

@@ -159,6 +159,9 @@ importers:
       cmdk:
         specifier: ^1.1.1
         version: 1.1.1(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      cytoscape:
+        specifier: ^3.33.1
+        version: 3.33.1
       fractional-indexing:
         specifier: ^3.2.0
         version: 3.2.0
@@ -184,6 +187,9 @@ importers:
       '@tailwindcss/vite':
         specifier: ^4.0.0
         version: 4.2.1(vite@6.4.1(@types/node@22.19.15)(jiti@2.6.1)(lightningcss@1.31.1)(yaml@2.8.2))
+      '@types/cytoscape':
+        specifier: ^3.31.0
+        version: 3.31.0
       '@types/react':
         specifier: ^19.0.0
         version: 19.2.14
@@ -1884,6 +1890,10 @@ packages:
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
 
+  '@types/cytoscape@3.31.0':
+    resolution: {integrity: sha512-EXHOHxqQjGxLDEh5cP4te6J0bi7LbCzmZkzsR6f703igUac8UGMdEohMyU3GHAayCTZrLQOMnaE/lqB2Ekh8Ww==}
+    deprecated: This is a stub types definition. cytoscape provides its own type definitions, so you do not need this installed.
+
   '@types/debug@4.1.12':
     resolution: {integrity: sha512-vIChWdVG3LG1SMxEvI/AK+FWJthlrqlTu7fbrlywTkkaONwk/UAGaULXRlf8vkzFBLVm0zkMdCquhL5aOjhXPQ==}
 
@@ -2239,6 +2249,10 @@ packages:
 
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
+
+  cytoscape@3.33.1:
+    resolution: {integrity: sha512-iJc4TwyANnOGR1OmWhsS9ayRS3s+XQ185FmuHObThD+5AeJCakAAbWv8KimMTt08xCCLNgneQwFp+JRJOr9qGQ==}
+    engines: {node: '>=0.10'}
 
   debug@4.4.3:
     resolution: {integrity: sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==}
@@ -5478,6 +5492,10 @@ snapshots:
       '@types/deep-eql': 4.0.2
       assertion-error: 2.0.1
 
+  '@types/cytoscape@3.31.0':
+    dependencies:
+      cytoscape: 3.33.1
+
   '@types/debug@4.1.12':
     dependencies:
       '@types/ms': 2.1.0
@@ -5871,6 +5889,8 @@ snapshots:
       which: 2.0.2
 
   csstype@3.2.3: {}
+
+  cytoscape@3.33.1: {}
 
   debug@4.4.3:
     dependencies:

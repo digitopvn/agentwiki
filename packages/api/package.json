@@ -1,6 +1,12 @@
 {
   "name": "@agentwiki/api",
   "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./services/*": "./src/services/*.ts",
+    "./db/schema": "./src/db/schema.ts",
+    "./utils/*": "./src/utils/*.ts"
+  },
   "scripts": {
     "dev": "wrangler dev",
     "build": "wrangler deploy --dry-run --outdir=dist",
