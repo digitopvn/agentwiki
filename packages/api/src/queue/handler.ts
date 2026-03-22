@@ -128,7 +128,11 @@ async function embedDocumentJob(env: Env, documentId: string, tenantId: string) 
 async function embedUploadJob(env: Env, uploadId: string, tenantId: string) {
   const db = drizzle(env.DB)
   const extraction = await db
-    .select({ extractedText: fileExtractions.extractedText, vectorId: fileExtractions.vectorId })
+    .select({
+      extractedText: fileExtractions.extractedText,
+      vectorId: fileExtractions.vectorId,
+      chunkCount: fileExtractions.chunkCount,
+    })
     .from(fileExtractions)
     .where(eq(fileExtractions.uploadId, uploadId))
     .limit(1)
@@ -137,11 +141,13 @@ async function embedUploadJob(env: Env, uploadId: string, tenantId: string) {
 
   const text = extraction[0].extractedText
   const vectorPrefix = extraction[0].vectorId ?? `upload-${uploadId}`
+  const oldChunkCount = extraction[0].chunkCount ?? 0
   const chunks = chunkMarkdown(text)
   if (!chunks.length) return
 
-  // Delete existing vectors for this upload
-  const existingIds = chunks.map((_, i) => `${vectorPrefix}-${i}`)
+  // Delete existing vectors — use max(old, new) to clean up orphans from previous extractions
+  const deleteCount = Math.max(oldChunkCount, chunks.length)
+  const existingIds = Array.from({ length: deleteCount }, (_, i) => `${vectorPrefix}-${i}`)
   try { await env.VECTORIZE.deleteByIds(existingIds) } catch { /* may not exist */ }
 
   // Generate embeddings in batches
@@ -174,6 +180,11 @@ async function embedUploadJob(env: Env, uploadId: string, tenantId: string) {
   if (vectors.length) {
     await env.VECTORIZE.upsert(vectors)
   }
+
+  // Store actual chunk count for exact cleanup on re-extraction or deletion
+  await db.update(fileExtractions)
+    .set({ chunkCount: chunks.length })
+    .where(eq(fileExtractions.uploadId, uploadId))
 }
 
 /** Generate AI summary for uploaded file's extracted text */

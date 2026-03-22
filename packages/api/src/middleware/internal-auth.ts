@@ -19,6 +19,11 @@ function timingSafeEqual(a: string, b: string): boolean {
 
 /** Validate X-Internal-Secret header against EXTRACTION_INTERNAL_SECRET env var */
 export async function internalAuth(c: Context<{ Bindings: Env }>, next: Next) {
+  // Fail-closed: reject all requests if secret is not configured
+  if (!c.env.EXTRACTION_INTERNAL_SECRET) {
+    console.error('EXTRACTION_INTERNAL_SECRET is not configured')
+    return c.json({ error: 'Service misconfigured' }, 503)
+  }
   const secret = c.req.header('X-Internal-Secret')
   if (!secret || !timingSafeEqual(secret, c.env.EXTRACTION_INTERNAL_SECRET)) {
     return c.json({ error: 'Unauthorized' }, 401)

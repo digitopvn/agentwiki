@@ -49,7 +49,7 @@ export async function dispatchExtractionJob(env: Env, upload: {
     })
 
     if (response.ok) {
-      await db.update(uploads).set({ extractionStatus: 'processing' }).where(eq(uploads.id, upload.id))
+      await db.update(uploads).set({ extractionStatus: 'processing', lastDispatchedAt: new Date() }).where(eq(uploads.id, upload.id))
     } else {
       console.error(`Failed to dispatch extraction job: ${response.status} ${response.statusText}`)
       // Keep status=pending for retry later

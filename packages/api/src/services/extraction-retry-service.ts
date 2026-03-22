@@ -19,6 +19,7 @@ export async function retryStuckExtractions(env: Env) {
   const maxRetryCutoff = new Date(now - MAX_RETRY_AGE_MS)
 
   // Mark uploads older than 2 hours as permanently failed (prevent infinite retry)
+  // Use lastDispatchedAt if set, otherwise fall back to createdAt
   await db.update(uploads).set({ extractionStatus: 'failed' }).where(
     and(
       or(
@@ -29,7 +30,8 @@ export async function retryStuckExtractions(env: Env) {
     ),
   )
 
-  // Find uploads stuck in pending (created > 15min ago, < 2h)
+  // Find uploads stuck in pending — use lastDispatchedAt (set by dispatchExtractionJob) to avoid
+  // re-dispatching recently dispatched jobs. Fall back to createdAt for uploads never dispatched.
   const stuckPending = await db
     .select({
       id: uploads.id,
@@ -42,12 +44,12 @@ export async function retryStuckExtractions(env: Env) {
     .where(
       and(
         eq(uploads.extractionStatus, 'pending'),
-        lt(uploads.createdAt, pendingCutoff),
+        sql`COALESCE(${uploads.lastDispatchedAt}, ${uploads.createdAt}) < ${pendingCutoff.getTime()}`,
       ),
     )
     .limit(10)
 
-  // Find uploads stuck in processing (created > 10min ago, < 2h)
+  // Find uploads stuck in processing — use lastDispatchedAt for accurate timeout
   const stuckProcessing = await db
     .select({
       id: uploads.id,
@@ -60,7 +62,7 @@ export async function retryStuckExtractions(env: Env) {
     .where(
       and(
         eq(uploads.extractionStatus, 'processing'),
-        lt(uploads.createdAt, processingCutoff),
+        sql`COALESCE(${uploads.lastDispatchedAt}, ${uploads.createdAt}) < ${processingCutoff.getTime()}`,
       ),
     )
     .limit(10)

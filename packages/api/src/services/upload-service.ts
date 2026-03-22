@@ -79,8 +79,14 @@ export async function getFile(env: Env, fileKey: string, tenantId: string) {
   }
 }
 
-/** List uploads for a tenant */
-export async function listUploads(env: Env, tenantId: string, documentId?: string) {
+/** List uploads for a tenant with pagination */
+export async function listUploads(
+  env: Env,
+  tenantId: string,
+  documentId?: string,
+  limit = 50,
+  offset = 0,
+) {
   const db = drizzle(env.DB)
   const conditions = [eq(uploads.tenantId, tenantId)]
   if (documentId) conditions.push(eq(uploads.documentId, documentId))
@@ -98,6 +104,9 @@ export async function listUploads(env: Env, tenantId: string, documentId?: strin
     })
     .from(uploads)
     .where(and(...conditions))
+    .orderBy(uploads.createdAt)
+    .limit(limit)
+    .offset(offset)
 }
 
 /** Delete a file from R2 + D1 + Vectorize vectors */
@@ -115,17 +124,21 @@ export async function deleteFile(env: Env, uploadId: string, tenantId: string) {
   await env.R2.delete(record[0].fileKey)
 
   // Delete Vectorize vectors for this upload (best-effort)
-  // Query fileExtractions for charCount to estimate chunk count
+  // Use exact chunkCount stored during embedding, fallback to charCount estimate
   const vectorPrefix = `upload-${uploadId}`
   let maxChunks = 50
   const extractionRecord = await db
-    .select({ charCount: fileExtractions.charCount })
+    .select({ chunkCount: fileExtractions.chunkCount, charCount: fileExtractions.charCount })
     .from(fileExtractions)
     .where(eq(fileExtractions.uploadId, uploadId))
     .limit(1)
-  if (extractionRecord.length && extractionRecord[0].charCount) {
-    // Each chunk is ~400-800 chars; use conservative estimate + buffer
-    maxChunks = Math.ceil(extractionRecord[0].charCount / 400) + 10
+  if (extractionRecord.length) {
+    const { chunkCount, charCount } = extractionRecord[0]
+    if (chunkCount && chunkCount > 0) {
+      maxChunks = chunkCount
+    } else if (charCount && charCount > 0) {
+      maxChunks = Math.ceil(charCount / 400) + 10
+    }
   }
   const vectorIds = Array.from({ length: maxChunks }, (_, i) => `${vectorPrefix}-${i}`)
   try { await env.VECTORIZE.deleteByIds(vectorIds) } catch { /* may not exist */ }

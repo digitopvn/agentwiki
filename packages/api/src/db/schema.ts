@@ -177,6 +177,7 @@ export const uploads = sqliteTable('uploads', {
   uploadedBy: text('uploaded_by').notNull().references(() => users.id),
   extractionStatus: text('extraction_status').default('pending'), // pending | processing | completed | failed | unsupported
   summary: text('summary'), // AI-generated summary of extracted text
+  lastDispatchedAt: integer('last_dispatched_at', { mode: 'timestamp_ms' }), // last extraction job dispatch time
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 })
 
@@ -187,6 +188,7 @@ export const fileExtractions = sqliteTable('file_extractions', {
   tenantId: text('tenant_id').notNull().references(() => tenants.id),
   extractedText: text('extracted_text').notNull(),
   charCount: integer('char_count').default(0),
+  chunkCount: integer('chunk_count').default(0), // actual number of Vectorize vectors stored
   vectorId: text('vector_id'), // prefix for Vectorize vector IDs
   extractionMethod: text('extraction_method'), // docling | gemini | direct | unsupported
   errorMessage: text('error_message'),
