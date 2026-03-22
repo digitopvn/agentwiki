@@ -35,45 +35,48 @@ export function useMarkdownImport(): {
 
   const importMarkdownFiles = useCallback(async (files: File[], folderId?: string): Promise<number> => {
     setIsImporting(true)
-    let imported = 0
-    let lastDoc: { id: string; title: string; slug: string } | null = null
+    try {
+      let imported = 0
+      let lastDoc: { id: string; title: string; slug: string } | null = null
 
-    for (const file of files) {
-      if (file.size > MAX_MD_FILE_SIZE) {
-        console.warn(`Skipping "${file.name}": exceeds 10MB limit`)
-        continue
+      for (const file of files) {
+        if (file.size > MAX_MD_FILE_SIZE) {
+          console.warn(`Skipping "${file.name}": exceeds 10MB limit`)
+          continue
+        }
+
+        try {
+          const content = await file.text()
+          const title = file.name.replace(MARKDOWN_EXTENSIONS, '')
+
+          const doc = await createDocument.mutateAsync({
+            title,
+            content,
+            folderId,
+          })
+
+          imported++
+          lastDoc = doc
+
+          // Open each imported doc in a tab
+          const tabId = `tab-${doc.id}`
+          openTab({ id: tabId, documentId: doc.id, title: doc.title })
+        } catch (err) {
+          console.error(`Failed to import "${file.name}":`, err)
+        }
       }
 
-      try {
-        const content = await file.text()
-        const title = file.name.replace(MARKDOWN_EXTENSIONS, '')
-
-        const doc = await createDocument.mutateAsync({
-          title,
-          content,
-          folderId,
-        })
-
-        imported++
-        lastDoc = doc
-
-        // Open each imported doc in a tab
-        const tabId = `tab-${doc.id}`
-        openTab({ id: tabId, documentId: doc.id, title: doc.title })
-      } catch (err) {
-        console.error(`Failed to import "${file.name}":`, err)
+      // Navigate only to the last imported doc (avoids redundant history entries)
+      if (lastDoc) {
+        const tabId = `tab-${lastDoc.id}`
+        setActiveTab(tabId)
+        navigate(`/doc/${lastDoc.slug}`)
       }
-    }
 
-    // Navigate only to the last imported doc (avoids redundant history entries)
-    if (lastDoc) {
-      const tabId = `tab-${lastDoc.id}`
-      setActiveTab(tabId)
-      navigate(`/doc/${lastDoc.slug}`)
+      return imported
+    } finally {
+      setIsImporting(false)
     }
-
-    setIsImporting(false)
-    return imported
   }, [createDocument, openTab, setActiveTab, navigate])
 
   return { importMarkdownFiles, isImporting }

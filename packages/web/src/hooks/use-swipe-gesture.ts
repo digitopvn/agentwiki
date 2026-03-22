@@ -5,6 +5,8 @@ import { useEffect, useRef, useCallback } from 'react'
 interface SwipeGestureOptions {
   onSwipeLeft: () => void
   onSwipeRight: () => void
+  onBackdropSwipeLeft?: () => void // close action when swiping left on backdrop
+  onBackdropSwipeRight?: () => void // close action when swiping right on backdrop
   edgeThreshold?: number // px from screen edge to trigger (default: 20)
   swipeThreshold?: number // min px horizontal movement (default: 50)
   enabled?: boolean
@@ -13,6 +15,8 @@ interface SwipeGestureOptions {
 export function useSwipeGesture({
   onSwipeLeft,
   onSwipeRight,
+  onBackdropSwipeLeft,
+  onBackdropSwipeRight,
   edgeThreshold = 20,
   swipeThreshold = 50,
   enabled = true,
@@ -57,11 +61,11 @@ export function useSwipeGesture({
     } else if (start.isEdge === 'right' && dx < 0) {
       onSwipeLeft() // Swipe left from right edge → open metadata
     } else if (start.isBackdrop) {
-      // Swipe on backdrop to close — safe since backdrop has no scrollable content
-      if (dx < 0) onSwipeLeft()
-      else if (dx > 0) onSwipeRight()
+      // Swipe on backdrop to close — use dedicated close callbacks
+      if (dx < 0) (onBackdropSwipeLeft ?? onSwipeLeft)()
+      else if (dx > 0) (onBackdropSwipeRight ?? onSwipeRight)()
     }
-  }, [swipeThreshold, onSwipeLeft, onSwipeRight])
+  }, [swipeThreshold, onSwipeLeft, onSwipeRight, onBackdropSwipeLeft, onBackdropSwipeRight])
 
   useEffect(() => {
     if (!enabled) return

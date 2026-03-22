@@ -28,6 +28,8 @@ export function Layout() {
   useSwipeGesture({
     onSwipeRight: () => setMobileSidebarOpen(true),
     onSwipeLeft: () => setMobileMetadataOpen(true),
+    onBackdropSwipeLeft: () => setMobileSidebarOpen(false),   // swipe left on backdrop → close sidebar
+    onBackdropSwipeRight: () => setMobileMetadataOpen(false), // swipe right on backdrop → close metadata
     enabled: isMobile,
   })
 
@@ -48,7 +50,7 @@ export function Layout() {
       setMobileSidebarOpen(false)
       setMobileMetadataOpen(false)
     }
-  }, [isMobile])
+  }, [isMobile, setMobileSidebarOpen, setMobileMetadataOpen])
 
   // Lock body scroll when mobile drawer is open
   useEffect(() => {
