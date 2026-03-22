@@ -64,6 +64,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @agentwiki/web build
+        env:
+          VITE_API_URL: https://api.agentwiki.cc
       - run: npx wrangler pages deploy packages/web/dist/ --project-name=agentwiki-app
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
