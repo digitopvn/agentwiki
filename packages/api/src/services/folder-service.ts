@@ -1,6 +1,6 @@
 /** Folder tree management */
 
-import { eq, and, isNull, asc, desc } from 'drizzle-orm'
+import { eq, and, isNull, asc, desc, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { generateKeyBetween } from 'fractional-indexing'
 import { folders, documents } from '../db/schema'
@@ -56,13 +56,21 @@ export async function getFolderTree(env: Env, tenantId: string) {
     .where(eq(folders.tenantId, tenantId))
     .orderBy(asc(folders.positionIndex), asc(folders.name))
 
+  // Count docs per folder in a single query
+  const docCounts = await db
+    .select({ folderId: documents.folderId, count: sql<number>`count(*)` })
+    .from(documents)
+    .where(and(eq(documents.tenantId, tenantId), isNull(documents.deletedAt)))
+    .groupBy(documents.folderId)
+  const countMap = new Map(docCounts.filter((r) => r.folderId).map((r) => [r.folderId, r.count]))
+
   // Build tree from flat list
-  type FolderNode = (typeof allFolders)[0] & { children: FolderNode[] }
+  type FolderNode = (typeof allFolders)[0] & { children: FolderNode[]; docCount: number }
   const map = new Map<string, FolderNode>()
   const roots: FolderNode[] = []
 
   for (const f of allFolders) {
-    map.set(f.id, { ...f, children: [] })
+    map.set(f.id, { ...f, children: [], docCount: countMap.get(f.id) ?? 0 })
   }
 
   for (const f of allFolders) {

@@ -199,7 +199,11 @@ export async function listDocuments(
   const db = drizzle(env.DB)
   const conditions = [eq(documents.tenantId, tenantId), isNull(documents.deletedAt)]
 
-  if (filters?.folderId) conditions.push(eq(documents.folderId, filters.folderId))
+  if (filters?.folderId === 'null') {
+    conditions.push(isNull(documents.folderId))
+  } else if (filters?.folderId) {
+    conditions.push(eq(documents.folderId, filters.folderId))
+  }
   if (filters?.category) conditions.push(eq(documents.category, filters.category))
   if (filters?.search) conditions.push(like(documents.title, `%${filters.search}%`))
 

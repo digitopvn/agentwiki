@@ -20,6 +20,7 @@ interface FolderTreeNode {
   name: string
   positionIndex?: string
   updatedAt?: Date | string
+  docCount?: number
   children: FolderTreeNode[]
 }
 
@@ -197,7 +198,7 @@ export function FolderNode({
     return visibleDocs
   }, [visibleDocs, sortMode, sortDirection])
 
-  const hasChildren = sortedChildren.length > 0 || sortedDocs.length > 0
+  const hasChildren = sortedChildren.length > 0 || sortedDocs.length > 0 || (folder.docCount ?? 0) > 0
 
   // DnD ids for nested sortable contexts
   const childFolderDndIds = sortedChildren.map((c) => `folder-${c.id}`)

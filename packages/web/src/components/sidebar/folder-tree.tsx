@@ -45,7 +45,7 @@ export function FolderTree({
   onDocumentOpen,
 }: FolderTreeProps) {
   const { data: folderData, isLoading: foldersLoading } = useFolderTree()
-  const { data: docData, isLoading: docsLoading } = useDocuments({ folderId: undefined, sort: 'position', order: 'asc' })
+  const { data: docData, isLoading: docsLoading } = useDocuments({ folderId: 'null', sort: 'position', order: 'asc', limit: 200 })
   const { theme, openTab, setActiveTab } = useAppStore()
   const updateDocument = useUpdateDocument()
   const reorderItem = useReorderItem()
@@ -64,9 +64,7 @@ export function FolderTree({
   const isDark = theme === 'dark'
   const folders = folderData?.folders ?? []
   const allRootDocs = (docData?.data ?? []).filter(
-    (d) =>
-      !d.folderId &&
-      (!searchQuery || d.title.toLowerCase().includes(searchQuery.toLowerCase())),
+    (d) => !searchQuery || d.title.toLowerCase().includes(searchQuery.toLowerCase()),
   )
 
   // Apply sort to folders

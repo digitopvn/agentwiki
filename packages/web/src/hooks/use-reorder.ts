@@ -78,8 +78,9 @@ export function useReorderItem() {
     },
     onSettled: (_, __, variables) => {
       // Refetch to ensure server state consistency
-      qc.invalidateQueries({ queryKey: ['folders'] })
-      if (variables.type === 'document') {
+      if (variables.type === 'folder') {
+        qc.invalidateQueries({ queryKey: ['folders'] })
+      } else {
         qc.invalidateQueries({ queryKey: ['documents'] })
       }
     },
