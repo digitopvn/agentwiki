@@ -1,4 +1,4 @@
-/** BlockNote editor wrapper: loads content from API, auto-saves on change (debounced 1s) */
+/** BlockNote editor wrapper: loads content from API, auto-saves on change (debounced 2s, deferred markdown) */
 
 import { useEffect, useRef, useCallback } from 'react'
 import { useCreateBlockNote } from '@blocknote/react'
@@ -37,6 +37,9 @@ export function Editor({ documentId, tabId }: EditorProps) {
   const { isGenerating, error: aiError, generate, transform } = useAI()
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const markdownIdleRef = useRef<number | null>(null)
+  const isDirtyRef = useRef(false)
+  const mountedRef = useRef(true)
   const initializedRef = useRef(false)
   const latestDocRef = useRef(doc)
 
@@ -74,27 +77,46 @@ export function Editor({ documentId, tabId }: EditorProps) {
     }
   }, [doc, editor])
 
-  // Debounced save on editor change
+  // Debounced auto-save: contentJson first (fast), markdown deferred via requestIdleCallback
   const handleChange = useCallback(() => {
-    markTabDirty(tabId, true)
+    // Skip redundant dirty-state updates
+    if (!isDirtyRef.current) {
+      isDirtyRef.current = true
+      markTabDirty(tabId, true)
+    }
 
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(async () => {
       try {
         const contentJson = editor.document
-        const content = await editor.blocksToMarkdownLossy(editor.document)
 
+        // Stage 1: save contentJson immediately (near-zero cost)
         await updateDocument.mutateAsync({
           id: documentId,
-          content,
           contentJson,
         })
 
+        isDirtyRef.current = false
         markTabDirty(tabId, false)
+
+        // Stage 2: defer expensive markdown conversion until browser is idle
+        // Capture snapshot NOW (not at idle time) to avoid stale data
+        const snapshotBlocks = editor.document
+        if (markdownIdleRef.current) cancelIdleCallback(markdownIdleRef.current)
+        markdownIdleRef.current = requestIdleCallback(async () => {
+          if (!mountedRef.current) return // guard against unmounted async work
+          try {
+            const content = await editor.blocksToMarkdownLossy(snapshotBlocks)
+            if (!mountedRef.current) return
+            await updateDocument.mutateAsync({ id: documentId, content })
+          } catch (err) {
+            console.error('Deferred markdown sync failed:', err)
+          }
+        }, { timeout: 5000 })
       } catch (err) {
         console.error('Auto-save failed:', err)
       }
-    }, 1000)
+    }, 2000)
   }, [editor, documentId, tabId, markTabDirty, updateDocument])
 
   // Update tab title when doc title is changed externally
@@ -104,10 +126,13 @@ export function Editor({ documentId, tabId }: EditorProps) {
     }
   }, [doc?.title, tabId, updateTabTitle])
 
-  // Cleanup timer on unmount
+  // Cleanup timers on unmount + guard async work
   useEffect(() => {
+    mountedRef.current = true
     return () => {
+      mountedRef.current = false
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      if (markdownIdleRef.current) cancelIdleCallback(markdownIdleRef.current)
     }
   }, [])
 
