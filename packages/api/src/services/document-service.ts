@@ -369,7 +369,20 @@ export async function updateDocument(
   }
   if (input.content !== undefined) updates.content = input.content
   if (input.contentJson !== undefined) updates.contentJson = input.contentJson
-  if (input.folderId !== undefined) updates.folderId = input.folderId
+  if (input.folderId !== undefined) {
+    updates.folderId = input.folderId
+    // When moving to a different folder, recompute position to append at end of target
+    if (input.folderId !== current[0].folderId) {
+      const folderCond = input.folderId ? eq(documents.folderId, input.folderId) : isNull(documents.folderId)
+      const lastSibling = await db
+        .select({ position: documents.position })
+        .from(documents)
+        .where(and(eq(documents.tenantId, tenantId), folderCond, isNull(documents.deletedAt)))
+        .orderBy(desc(documents.position))
+        .limit(1)
+      updates.position = generateKeyBetween(lastSibling[0]?.position ?? null, null)
+    }
+  }
   if (input.category !== undefined) updates.category = input.category
   if (input.accessLevel !== undefined) updates.accessLevel = input.accessLevel
 
