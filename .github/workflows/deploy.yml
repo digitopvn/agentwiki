@@ -19,24 +19,12 @@ jobs:
       - run: pnpm turbo run type-check
       - run: pnpm turbo run lint
       - run: pnpm turbo run build
-      - uses: actions/upload-artifact@v4
-        with:
-          name: build-output
-          path: |
-            packages/api/dist/
-            packages/mcp/dist/
-            packages/web/dist/
-          retention-days: 1
 
   deploy-api:
     needs: check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: build-output
-          path: .
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -53,10 +41,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: build-output
-          path: .
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -73,16 +57,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: build-output
-          path: .
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @agentwiki/web build
       - run: npx wrangler pages deploy packages/web/dist/ --project-name=agentwiki-app
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
