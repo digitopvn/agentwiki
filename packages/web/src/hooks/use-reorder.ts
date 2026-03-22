@@ -36,7 +36,6 @@ export function useReorderItem() {
             const idx = items.findIndex((d) => d.id === variables.id)
             if (idx === -1) return old
             const [moved] = items.splice(idx, 1)
-            // Place after afterId or at start
             if (variables.afterId) {
               const afterIdx = items.findIndex((d) => d.id === variables.afterId)
               items.splice(afterIdx + 1, 0, moved)
@@ -46,6 +45,22 @@ export function useReorderItem() {
             return { ...old, data: items }
           },
         )
+      } else {
+        // Optimistic reorder for folders
+        qc.setQueryData<{ folders: Array<{ id: string }> }>(['folders'], (old) => {
+          if (!old?.folders) return old as { folders: Array<{ id: string }> }
+          const items = [...old.folders]
+          const idx = items.findIndex((f) => f.id === variables.id)
+          if (idx === -1) return old
+          const [moved] = items.splice(idx, 1)
+          if (variables.afterId) {
+            const afterIdx = items.findIndex((f) => f.id === variables.afterId)
+            items.splice(afterIdx + 1, 0, moved)
+          } else {
+            items.splice(0, 0, moved)
+          }
+          return { ...old, folders: items }
+        })
       }
 
       return { prevFolders, prevDocs }

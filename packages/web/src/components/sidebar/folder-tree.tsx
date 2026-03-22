@@ -200,7 +200,7 @@ export function FolderTree({
       // Compute afterId and beforeId based on new position
       const realIds = items.map((id) => parseItemId(id).id)
       const withoutActive = realIds.filter((_, i) => i !== oldIndex)
-      const insertAt = newIndex > oldIndex ? newIndex - 1 : newIndex
+      const insertAt = newIndex
       const afterId = insertAt > 0 ? withoutActive[insertAt - 1] : undefined
       const beforeId = insertAt < withoutActive.length ? withoutActive[insertAt] : undefined
 
