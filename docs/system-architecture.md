@@ -189,6 +189,38 @@ Content-Type: application/json
 }
 ```
 
+### 3.5. Knowledge Graph Layer
+
+**Technology**: Typed edges in D1 + Vectorize similarity + MCP tools
+
+**Architecture**: Dual-layer graph with explicit (typed wikilinks) and implicit (semantic similarity) edges:
+- **Layer 1 (Explicit)**: `document_links` table with 6 edge types (relates-to, depends-on, extends, references, contradicts, implements)
+- **Layer 2 (Implicit)**: `document_similarities` table caching top-5 semantic neighbors via Vectorize
+- **Traversal**: BFS in-memory for neighbors, subgraph, shortest path queries
+- **Auto-organization**: Queue jobs infer edge types via Workers AI (>80% accuracy target)
+
+**Services**:
+- `graph-service.ts`: Full graph queries, traversal (neighbors, subgraph, paths), analytics
+- `similarity-service.ts`: Vectorize integration, cache management, on-demand similarity queries
+
+**API Endpoints**:
+- `GET /api/graph` — Full graph with typed edges, optional implicit merging
+- `GET /api/graph/neighbors/:id` — N-hop neighborhood traversal
+- `GET /api/graph/subgraph/:id` — Ego network extraction
+- `GET /api/graph/path/:from/:to` — Shortest path via BFS
+- `GET /api/graph/stats` — Node/edge counts, density, orphan detection
+- `GET /api/graph/similar/:id` — On-demand semantic similarity
+
+**MCP Tools** (6 tools for AI agents):
+- `graph_get` — Full graph with filters
+- `graph_traverse` — Multi-hop traversal with edge type filter
+- `graph_find_path` — Shortest path reasoning
+- `graph_clusters` — Topic clustering via similarity
+- `graph_suggest_links` — Link recommendations
+- `graph_explain_connection` — Natural language relationship explanation
+
+**Frontend**: `/graph` page with Cytoscape.js visualization, edge-type styling, AI insight panel showing clusters/suggestions.
+
 ### 4. Service Layer
 
 **Responsibilities**:
