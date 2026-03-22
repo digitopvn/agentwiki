@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, primaryKey, index, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, primaryKey, index, uniqueIndex, type AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
 
 /** Tenant (organization/workspace) */
 export const tenants = sqliteTable('tenants', {
@@ -74,6 +74,7 @@ export const documents = sqliteTable('documents', {
   id: text('id').primaryKey(),
   tenantId: text('tenant_id').notNull().references(() => tenants.id),
   folderId: text('folder_id'),
+  position: text('position').notNull().default('a0'), // fractional indexing for manual sort order
   title: text('title').notNull(),
   slug: text('slug').notNull(),
   content: text('content').notNull().default(''), // markdown body
@@ -124,6 +125,7 @@ export const folders = sqliteTable('folders', {
   name: text('name').notNull(),
   slug: text('slug').notNull(),
   position: integer('position').notNull().default(0),
+  positionIndex: text('position_index').notNull().default('a0'), // fractional indexing for manual sort order
   createdBy: text('created_by').notNull().references(() => users.id),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
@@ -236,4 +238,16 @@ export const searchAnalytics = sqliteTable('search_analytics', {
 }, (table) => [
   index('idx_analytics_tenant_date').on(table.tenantId, table.createdAt),
   index('idx_analytics_tenant_query').on(table.tenantId, table.query),
+])
+
+/** User preferences (per-user per-tenant key-value store) */
+export const userPreferences = sqliteTable('user_preferences', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  key: text('key').notNull(),
+  value: text('value').notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+}, (table) => [
+  uniqueIndex('idx_user_pref_unique').on(table.userId, table.tenantId, table.key),
 ])

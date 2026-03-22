@@ -9,9 +9,12 @@ import { useIsMobile } from '../../hooks/use-is-mobile'
 import { useAuth } from '../../hooks/use-auth'
 import { FolderTree } from '../sidebar/folder-tree'
 import { BrowsePanel, type BrowseFilter } from '../sidebar/browse-panel'
+import { SortControls } from '../sidebar/sort-controls'
+import { RecentDocuments } from '../sidebar/recent-documents'
 import { CreateFolderModal } from '../sidebar/create-folder-modal'
 import { useCreateFolder } from '../../hooks/use-folders'
 import { useCreateDocument, useDocuments } from '../../hooks/use-documents'
+import { useSidebarSort } from '../../hooks/use-preferences'
 import { FileText } from 'lucide-react'
 
 export function Sidebar() {
@@ -26,6 +29,7 @@ export function Sidebar() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const isMobile = useIsMobile()
+  const { sortMode, sortDirection, setSortPref } = useSidebarSort()
 
   const isDark = theme === 'dark'
 
@@ -210,6 +214,16 @@ export function Sidebar() {
         </div>
       )}
 
+      {/* Sort controls */}
+      {!browseFilter && (
+        <SortControls mode={sortMode} direction={sortDirection} onChange={setSortPref} />
+      )}
+
+      {/* Recent modifications */}
+      {!browseFilter && !search && (
+        <RecentDocuments onDocumentOpen={isMobile ? () => setMobileSidebarOpen(false) : undefined} />
+      )}
+
       {/* Folder tree or filtered results */}
       <div className="flex-1 overflow-y-auto px-1 py-1">
         {browseFilter ? (
@@ -236,7 +250,12 @@ export function Sidebar() {
             )}
           </div>
         ) : (
-          <FolderTree searchQuery={search} onDocumentOpen={isMobile ? () => setMobileSidebarOpen(false) : undefined} />
+          <FolderTree
+            searchQuery={search}
+            sortMode={sortMode}
+            sortDirection={sortDirection}
+            onDocumentOpen={isMobile ? () => setMobileSidebarOpen(false) : undefined}
+          />
         )}
       </div>
 

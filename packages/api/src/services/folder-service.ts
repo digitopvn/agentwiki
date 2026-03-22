@@ -1,13 +1,14 @@
 /** Folder tree management */
 
-import { eq, and, isNull, asc } from 'drizzle-orm'
+import { eq, and, isNull, asc, desc } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
+import { generateKeyBetween } from 'fractional-indexing'
 import { folders, documents } from '../db/schema'
 import { generateId } from '../utils/crypto'
 import { slugify } from '../utils/slug'
 import type { Env } from '../env'
 
-/** Create a folder */
+/** Create a folder (appended at end of siblings) */
 export async function createFolder(
   env: Env,
   tenantId: string,
@@ -19,6 +20,17 @@ export async function createFolder(
   const now = new Date()
   const id = generateId()
 
+  // Compute position: append after last sibling
+  const parentCondition = parentId ? eq(folders.parentId, parentId) : isNull(folders.parentId)
+  const lastSibling = await db
+    .select({ positionIndex: folders.positionIndex })
+    .from(folders)
+    .where(and(eq(folders.tenantId, tenantId), parentCondition))
+    .orderBy(desc(folders.positionIndex))
+    .limit(1)
+
+  const newPosition = generateKeyBetween(lastSibling[0]?.positionIndex ?? null, null)
+
   await db.insert(folders).values({
     id,
     tenantId,
@@ -26,6 +38,7 @@ export async function createFolder(
     name,
     slug: slugify(name),
     position: 0,
+    positionIndex: newPosition,
     createdBy: userId,
     createdAt: now,
     updatedAt: now,
@@ -42,7 +55,7 @@ export async function getFolderTree(env: Env, tenantId: string) {
     .select()
     .from(folders)
     .where(eq(folders.tenantId, tenantId))
-    .orderBy(asc(folders.position), asc(folders.name))
+    .orderBy(asc(folders.positionIndex), asc(folders.name))
 
   // Build tree from flat list
   type FolderNode = (typeof allFolders)[0] & { children: FolderNode[] }
@@ -70,7 +83,7 @@ export async function updateFolder(
   env: Env,
   tenantId: string,
   folderId: string,
-  updates: { name?: string; parentId?: string | null; position?: number },
+  updates: { name?: string; parentId?: string | null; position?: number; positionIndex?: string },
 ) {
   const db = drizzle(env.DB)
   const set: Record<string, unknown> = { updatedAt: new Date() }
@@ -81,6 +94,7 @@ export async function updateFolder(
   }
   if (updates.parentId !== undefined) set.parentId = updates.parentId
   if (updates.position !== undefined) set.position = updates.position
+  if (updates.positionIndex !== undefined) set.positionIndex = updates.positionIndex
 
   await db
     .update(folders)
