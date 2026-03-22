@@ -1,17 +1,20 @@
-/** Global drag & drop overlay — shows when external files are dragged into the app window */
+/** Global drag & drop overlay — handles markdown import and file uploads */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Upload } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAppStore } from '../../stores/app-store'
 import { useUploadWithProgress } from '../../hooks/use-upload-with-progress'
+import { useMarkdownImport, partitionMarkdownFiles } from '../../hooks/use-markdown-import'
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
 
 export function GlobalDropZone() {
   const [isDragging, setIsDragging] = useState(false)
+  // Removed unreliable MIME-based hasMarkdown detection (OS reports .md as text/plain)
   const { setStorageDrawerOpen, theme } = useAppStore()
   const uploadWithProgress = useUploadWithProgress()
+  const { importMarkdownFiles } = useMarkdownImport()
   const isDark = theme === 'dark'
 
   // Track drag counter to handle nested elements (useRef to survive re-renders)
@@ -44,18 +47,27 @@ export function GlobalDropZone() {
     const files = e.dataTransfer?.files
     if (!files?.length) return
 
-    // Open storage drawer to show progress
-    setStorageDrawerOpen(true)
+    const allFiles = Array.from(files)
+    const { markdown, other } = partitionMarkdownFiles(allFiles)
 
-    const validFiles = Array.from(files).filter((file) => {
-      if (file.size > MAX_FILE_SIZE) {
-        alert(`"${file.name}" is too large (max 100MB)`)
-        return false
-      }
-      return true
-    })
-    await Promise.allSettled(validFiles.map((file) => uploadWithProgress(file)))
-  }, [setStorageDrawerOpen, uploadWithProgress])
+    // Import markdown files as documents
+    if (markdown.length > 0) {
+      await importMarkdownFiles(markdown)
+    }
+
+    // Upload non-markdown files to storage
+    if (other.length > 0) {
+      setStorageDrawerOpen(true)
+      const validFiles = other.filter((file) => {
+        if (file.size > MAX_FILE_SIZE) {
+          console.warn(`"${file.name}" is too large (max 100MB)`)
+          return false
+        }
+        return true
+      })
+      await Promise.allSettled(validFiles.map((file) => uploadWithProgress(file)))
+    }
+  }, [setStorageDrawerOpen, uploadWithProgress, importMarkdownFiles])
 
   useEffect(() => {
     document.addEventListener('dragenter', handleDragEnter)
@@ -82,10 +94,10 @@ export function GlobalDropZone() {
       >
         <Upload className="h-12 w-12 text-brand-400" />
         <p className={cn('text-lg font-semibold', isDark ? 'text-neutral-100' : 'text-neutral-900')}>
-          Drop files to upload
+          Drop files here
         </p>
         <p className={cn('text-sm', isDark ? 'text-neutral-400' : 'text-neutral-500')}>
-          Files will be uploaded to storage (max 100MB each)
+          Markdown files create documents, others upload to storage
         </p>
       </div>
     </div>

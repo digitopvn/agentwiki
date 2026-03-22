@@ -1,99 +1,168 @@
-# AgentWiki Project Changelog
+# AgentWiki: Project Changelog
 
-Detailed record of significant features, improvements, and fixes.
+All notable changes to AgentWiki are documented here, organized by version.
 
-## [2026-03-22] Dual-Layer Knowledge Graph (Issue #34)
+**Current Version**: 0.1.0 (MVP)
+**Last Updated**: 2026-03-22
 
-**Status**: Completed
-**Effort**: 80h across 6 phases
-**Branch**: claude/great-blackwell
-**Impact**: High — enables AI agents to reason over document relationships
+## [0.1.0] — MVP Release (In Progress)
 
-### Features Implemented
+### Added
 
-1. **Typed Explicit Edges** (Phase 1)
-   - Added 6 edge types: relates-to, depends-on, extends, references, contradicts, implements
-   - Enhanced wikilink syntax: `[[target|type:depends-on]]`
-   - Schema migration: `document_links` + `document_similarities` tables
-   - Backward compatible — existing links default to `relates-to`
+#### Features
+- **Dual-Layer Knowledge Graph** (Issue #34)
+  - 6 typed edge types: relates-to, depends-on, extends, references, contradicts, implements
+  - Enhanced wikilink syntax: `[[target|type:depends-on]]` (backward compatible)
+  - BFS graph traversal: neighbors, subgraph, shortest path (<200ms for 5K docs)
+  - Implicit similarity edges via Vectorize (top-5 cached per document)
+  - AI auto-classification of edge types via Workers AI (Llama 3.1 8B)
+  - Interactive graph visualization with Cytoscape.js force-directed layout
+  - AI insight panel: stats, similar docs, path finder, link suggestions
+  - 7 MCP tools for AI agent graph reasoning (traverse, find_path, suggest_links, explain_connection, etc.)
 
-2. **Graph Traversal API** (Phase 2)
-   - Full graph queries with type filtering
-   - BFS-based neighbors (1-N hop), subgraph, shortest path
-   - Graph statistics (density, degree distribution, orphan detection)
-   - 5 new REST endpoints + enhanced existing `/api/graph`
+- **Auto-save Performance** (Issue #32)
+  - Changed debounce timing from 1s to 2s for reduced flickering
+  - Separated contentJson (saved immediately) from markdown conversion (deferred via requestIdleCallback)
+  - Reduced perceived lag in editor responsiveness
 
-3. **Implicit Similarity Layer** (Phase 3)
-   - Vectorize integration for semantic edges
-   - Top-5 nearest neighbors cached per document
-   - On-demand similarity queries (<500ms)
-   - Optional implicit edge merging in graph responses
+- **Mobile Sidebar Drawers** (Issue #37)
+  - Replaced keyframe animations with GPU-accelerated CSS `transform` transitions
+  - Added edge swipe gesture support (20px detection zone) for opening/closing sidebars
+  - Fixed sidebar positioning for mobile/tablet viewports
 
-4. **MCP Tools Enhancement** (Phase 4)
-   - 6 tools for AI agent graph reasoning:
-     - `graph_get`, `graph_traverse`, `graph_find_path`
-     - `graph_clusters`, `graph_suggest_links`, `graph_explain_connection`
-   - Enables multi-hop reasoning, link discovery, relationship explanation
+- **Markdown File Drag-and-Drop Import** (Issue #21)
+  - Extended GlobalDropZone to detect `.md` and `.markdown` file drops
+  - Dropped files create new documents via `POST /api/documents`
+  - Support for dropping files into specific folders
+  - FileReader-based parsing (async, 10MB limit)
 
-5. **Frontend Visualization** (Phase 5)
-   - `/graph` page with Cytoscape.js force-directed layout
-   - Edge-type styling (color + line style)
-   - Implicit edges shown as dotted lines
-   - AI insight panel: clusters, suggestions, stats
-   - <1s render time for 1K nodes
+#### API & Backend
+- Hybrid search (keyword + semantic) with RRF combination
+- Vectorize semantic search integration
+- Multi-vendor AI providers (6: OpenAI, Anthropic, Google, OpenRouter, MiniMax, Alibaba)
+- AI slash commands (5) in BlockNote editor
+- AI selection toolbar (6 actions) for text transformation
+- R2 file uploads (presigned URLs, 100MB limit)
+- File extraction pipeline (PDF, DOCX support)
+- Document versioning (append-only history)
+- Share links with expiration support
+- Public document publishing as web pages
+- MCP server (25 tools, 6 resources, 4 prompts)
+- Knowledge graph API: 7 REST endpoints (full graph, neighbors, subgraph, path, stats, similar, suggest-links)
+- Graph similarity computation via async Queue jobs
+- AI edge type inference via Workers AI
 
-6. **AI Auto-Organization** (Phase 6)
-   - Queue jobs infer edge types via Workers AI
-   - Link suggestions based on semantic similarity
-   - Graceful fallback on inference failure
-   - Batch processing with rate limiting (10 calls/batch)
+#### Frontend Components
+- BlockNote rich text editor integration
+- 3-panel layout (sidebar, editor, metadata)
+- Folder tree navigation (recursive)
+- Document tab management
+- Document properties editor (title, category, access level)
+- Tag management UI
+- Version history timeline
+- Storage file management drawer
+- Upload progress tracking
+- AI settings page (provider configuration, usage dashboard)
+- Responsive design (desktop & mobile)
+- Knowledge graph visualization page (`/graph`) with Cytoscape.js
+- Graph filter toolbar (edge type, category, implicit edges toggle)
+- Graph AI insight panel (stats, similar docs, path finder)
 
-### Key Files Modified
+#### Database & Data
+- Multi-tenant isolation (15 tables)
+- User authentication (OAuth + JWT + API keys)
+- RBAC with 4 roles (Admin, Editor, Viewer, Agent)
+- Audit logging
+- D1 FTS5 keyword search
+- Vectorize semantic embeddings
+- D1 soft deletes
+- Document version snapshots
+- `document_similarities` table for cached Vectorize results
+- Typed `document_links` with weight, inferred flag, and edge type columns
 
-| Package | File | Changes |
-|---------|------|---------|
-| shared | `types/graph.ts` | New: EdgeType enum, GraphNode/Edge/Response interfaces |
-| api | `db/schema.ts` | New columns in documentLinks, new documentSimilarities table |
-| api | `db/migrations/0005_*` | Migration SQL |
-| api | `utils/wikilink-extractor.ts` | Parse `\|type:X` syntax |
-| api | `services/document-service.ts` | Updated syncWikilinks() |
-| api | `services/graph-service.ts` | New: BFS traversal, graph queries |
-| api | `services/similarity-service.ts` | New: Vectorize caching + on-demand queries |
-| api | `services/graph-ai-service.ts` | New: AI edge type inference, link suggestions |
-| api | `routes/graph.ts` | 5 new endpoints, enhanced existing |
-| api | `queue/handler.ts` | compute-similarities, infer-edge-type jobs |
-| mcp | `tools/search-and-graph-tools.ts` | 5 new graph tools |
-| web | `components/graph/` | New: Graph page, Cytoscape canvas, toolbar, insight panel |
+#### DevOps & Deployment
+- GitHub Actions CI/CD pipeline
+- Cloudflare Workers deployment (API)
+- Cloudflare Pages deployment (Web)
+- TypeScript strict mode enforcement
+- ESLint & Prettier configuration
+- Vitest test runner
 
-### Success Metrics
+### Changed
 
-- ✓ Edge types stored and queryable for all wikilinks
-- ✓ AI auto-classifies edge types with >80% accuracy
-- ✓ Traversal API returns neighbors, subgraph, shortest path <200ms for 5K docs
-- ✓ Implicit similarity edges discoverable via API
-- ✓ MCP tools enable multi-hop reasoning for AI agents
-- ✓ Frontend renders interactive graph <1s for 1K nodes
-- ✓ AI insight panel shows clusters, suggested links, impact analysis
+- Editor auto-save behavior now separates fast JSON saves from slower markdown conversion
+- Mobile UI transitions now use CSS transforms instead of keyframe animations (improved performance)
+- Global drop zone now supports markdown file detection and document creation
+- MCP cross-package imports refactored from relative paths to `@agentwiki/api` package exports
 
-### Breaking Changes
+### Fixed
 
-None. All changes backward compatible.
+- Reduced editor responsiveness lag on keystroke (Issue #32)
+- Fixed mobile sidebar animation stuttering on lower-end devices (Issue #37)
 
-### Migration Notes
+### Technical Debt
 
-- Migration adds new columns with defaults — zero downtime
-- Existing links automatically typed as `relates-to`
-- New wikilink syntax optional — old syntax still works
+- [ ] E2E test suite (Playwright/Cypress)
+- [x] Interactive graph UI component (Cytoscape.js) — completed in Issue #34
+- [ ] Full security audit
+- [ ] Monitoring/alerting dashboard
 
-### Known Limitations
+## [0.2.0] — Real-Time Collaboration (Planned Q2 2026)
 
-- Implicit edge threshold: 0.7 similarity score (configurable)
-- BFS capped at 5 hops for path finding
-- Batch inference limited to 10 calls/batch (Workers AI quota)
-- Graph rendering optimized for <10K nodes
+### Planned Features
+- Real-time collaborative editing (CRDT/OT algorithm)
+- WebSocket presence indicators
+- Cursor position sharing
+- Inline comments & discussion threads
+- Mention notifications
+
+## [0.3.0] — Enterprise Features (Planned Q3 2026)
+
+### Planned Features
+- GDPR compliance (data export, right to be forgotten)
+- Enterprise SSO (SAML)
+- IP whitelisting
+- Advanced search syntax (AND, OR, NOT, phrases)
+- Saved searches & filters
+- Team/department management
+
+## [1.0.0] — Stable Release (Planned Q4 2026)
+
+### Planned Features
+- Multi-region failover
+- Database sharding automation
+- Graph visualization & analytics
+- Recommendation engine
+- Webhook integrations
+- Mobile native app (iOS/Android)
+
+## [Unreleased] — Backlog
+
+Items under consideration for future versions:
+- Dark mode
+- Markdown import/export (bulk)
+- Slack/Teams integration
+- Email digest notifications
+- Batch operations (bulk tag, bulk move)
+- Custom white-label branding
+- Advanced analytics dashboard
+- Machine learning recommendations
 
 ---
 
-## Previous Releases
+## Version History
 
-[Future entries will be added here]
+| Version | Date | Status | Highlights |
+|---------|------|--------|-----------|
+| 0.1.0 | Mar 2026 | In Progress | MVP launch (core CRUD, search, AI, mobile, knowledge graph) |
+| 0.2.0 | Jun 2026 | Planned | Real-time collaboration |
+| 0.3.0 | Sep 2026 | Planned | Enterprise features |
+| 1.0.0 | Dec 2026 | Planned | Stable, production-ready |
+
+## Document History
+
+| Date | Editor | Change |
+|------|--------|--------|
+| 2026-03-22 | Team | Added Dual-Layer Knowledge Graph feature (Issue #34) |
+| 2026-03-22 | Team | Added changeset for auto-save, mobile sidebar, and markdown import features (Issues #32, #37, #21) |
+| 2026-03-18 | Team | Initial changelog created |
