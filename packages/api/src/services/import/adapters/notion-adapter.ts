@@ -97,11 +97,19 @@ export class NotionAdapter implements ImportAdapter {
 /** Detect common root prefix directory in ZIP entries */
 function detectRootPrefix(paths: string[]): string {
   if (!paths.length) return ''
-  const first = paths[0]
-  const firstSlash = first.indexOf('/')
-  if (firstSlash === -1) return ''
 
-  const prefix = first.substring(0, firstSlash + 1)
+  // Collect first-level directory candidates from ALL paths
+  const candidates = new Set<string>()
+  for (const p of paths) {
+    const slashIdx = p.indexOf('/')
+    if (slashIdx === -1) return '' // file at root → no common prefix
+    candidates.add(p.substring(0, slashIdx + 1))
+  }
+
+  // Only valid if all paths share the same single root directory
+  if (candidates.size !== 1) return ''
+  const prefix = [...candidates][0]
+  // Double-check every path actually starts with this prefix
   if (paths.every((p) => p.startsWith(prefix))) return prefix
   return ''
 }
@@ -172,14 +180,34 @@ function csvToMarkdownTable(csv: string): string | null {
   if (lines.length < 2) return null
 
   const parseRow = (line: string): string[] => {
-    // Simple CSV parse (handles quoted fields)
+    // RFC 4180 CSV parser (handles "" escape sequences inside quoted fields)
     const fields: string[] = []
     let current = ''
     let inQuote = false
-    for (const char of line) {
-      if (char === '"') { inQuote = !inQuote; continue }
-      if (char === ',' && !inQuote) { fields.push(current.trim()); current = ''; continue }
-      current += char
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i]
+      if (inQuote) {
+        if (char === '"') {
+          // Peek next char: "" is an escaped quote, otherwise end of quoted field
+          if (i + 1 < line.length && line[i + 1] === '"') {
+            current += '"'
+            i++ // skip the second quote
+          } else {
+            inQuote = false
+          }
+        } else {
+          current += char
+        }
+      } else {
+        if (char === '"') {
+          inQuote = true
+        } else if (char === ',') {
+          fields.push(current.trim())
+          current = ''
+        } else {
+          current += char
+        }
+      }
     }
     fields.push(current.trim())
     return fields

@@ -86,13 +86,14 @@ export class LarkAdapter implements ImportAdapter {
         const attachments: ImportAttachment[] = []
         for (const img of images) {
           try {
-            const imageData = await downloadMedia(token, img.token)
-            if (imageData) {
+            const result = await downloadMedia(token, img.token)
+            if (result) {
+              const ext = mimeToExt(result.contentType)
               attachments.push({
                 sourcePath: `lark-image-${img.token}`,
-                filename: `${img.token}.png`,
-                data: imageData,
-                contentType: 'image/png',
+                filename: `${img.token}${ext}`,
+                data: result.data,
+                contentType: result.contentType.split(';')[0].trim(),
               })
             }
           } catch {
@@ -204,14 +205,28 @@ async function fetchDocumentBlocks(token: string, docToken: string): Promise<Lar
   return blocks
 }
 
-/** Download media file by token */
-async function downloadMedia(token: string, fileToken: string): Promise<ArrayBuffer | null> {
+/** Download media file by token, returns data + detected content type */
+async function downloadMedia(token: string, fileToken: string): Promise<{ data: ArrayBuffer; contentType: string } | null> {
   const url = `${LARK_API}/drive/v1/medias/${fileToken}/download`
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
   })
   if (!res.ok) return null
-  return res.arrayBuffer()
+  const contentType = res.headers.get('Content-Type') ?? 'image/png'
+  const data = await res.arrayBuffer()
+  return { data, contentType }
+}
+
+/** Map MIME content type to file extension */
+function mimeToExt(contentType: string): string {
+  const map: Record<string, string> = {
+    'image/png': '.png',
+    'image/jpeg': '.jpg',
+    'image/gif': '.gif',
+    'image/webp': '.webp',
+    'image/svg+xml': '.svg',
+  }
+  return map[contentType.split(';')[0].trim()] ?? '.png'
 }
 
 // --- Block → Markdown conversion ---
@@ -226,9 +241,16 @@ function convertBlocksToMarkdown(blocks: LarkBlock[]): ConversionResult {
   const lines: string[] = []
   const images: { token: string }[] = []
   const mentionedDocs: { token: string; title: string }[] = []
+  let orderedListIndex = 0
 
   for (const block of blocks) {
-    const line = convertBlock(block, images, mentionedDocs)
+    // Track ordered list numbering: increment for consecutive ordered blocks, reset otherwise
+    if (block.ordered) {
+      orderedListIndex++
+    } else {
+      orderedListIndex = 0
+    }
+    const line = convertBlock(block, images, mentionedDocs, orderedListIndex)
     if (line !== null) lines.push(line)
   }
 
@@ -239,6 +261,7 @@ function convertBlock(
   block: LarkBlock,
   images: { token: string }[],
   mentions: { token: string; title: string }[],
+  orderedListIndex = 1,
 ): string | null {
   // Block type mapping (Lark uses numeric types)
   // Type 2 = text, 3 = heading1, 4 = heading2, 5 = heading3, 6 = heading4
@@ -251,7 +274,7 @@ function convertBlock(
   if (block.heading3) return `### ${renderElements(block.heading3.elements, mentions)}`
   if (block.heading4) return `#### ${renderElements(block.heading4.elements, mentions)}`
   if (block.bullet) return `- ${renderElements(block.bullet.elements, mentions)}`
-  if (block.ordered) return `1. ${renderElements(block.ordered.elements, mentions)}`
+  if (block.ordered) return `${orderedListIndex}. ${renderElements(block.ordered.elements, mentions)}`
   if (block.quote) return `> ${renderElements(block.quote.elements, mentions)}`
   if (block.todo) {
     const checked = block.todo.style?.done ? 'x' : ' '
@@ -270,6 +293,14 @@ function convertBlock(
   if (block.callout) {
     const emoji = block.callout.emoji_id ? `${block.callout.emoji_id} ` : ''
     return `> ${emoji}${renderElements(block.callout.elements, mentions)}`
+  }
+  if (block.table?.cells) {
+    const rows = block.table.cells
+    if (rows.length === 0) return null
+    const header = `| ${rows[0].join(' | ')} |`
+    const separator = `| ${rows[0].map(() => '---').join(' | ')} |`
+    const body = rows.slice(1).map((row) => `| ${row.join(' | ')} |`).join('\n')
+    return body ? `${header}\n${separator}\n${body}` : `${header}\n${separator}`
   }
 
   return null

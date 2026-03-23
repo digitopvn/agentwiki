@@ -75,18 +75,45 @@ export function parseFrontmatter(markdown: string): {
   const frontmatter: Record<string, unknown> = {}
 
   // Simple YAML parser for common fields (tags, title, date, aliases)
-  for (const line of yamlText.split('\n')) {
-    const kv = line.match(/^(\w+)\s*:\s*(.+)$/)
-    if (!kv) continue
-    const [, key, rawValue] = kv
-    let value: unknown = rawValue.trim()
+  const lines = yamlText.split('\n')
+  let currentKey = ''
 
-    // Parse arrays: [item1, item2] or - item
-    if (typeof value === 'string' && value.startsWith('[') && value.endsWith(']')) {
-      value = value.slice(1, -1).split(',').map((s) => s.trim().replace(/^["']|["']$/g, ''))
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+
+    // Check for list item: "  - value" (continuation of previous key)
+    const listItem = line.match(/^\s+-\s+(.+)$/)
+    if (listItem && currentKey) {
+      const existing = frontmatter[currentKey]
+      const itemValue = listItem[1].trim().replace(/^["']|["']$/g, '')
+      if (Array.isArray(existing)) {
+        existing.push(itemValue)
+      } else {
+        frontmatter[currentKey] = [itemValue]
+      }
+      continue
     }
 
-    frontmatter[key] = value
+    // Check for key: value pair
+    const kv = line.match(/^(\w+)\s*:\s*(.*)$/)
+    if (!kv) continue
+    const [, key, rawValue] = kv
+    const trimmed = rawValue.trim()
+    currentKey = key
+
+    // Empty value means list items follow on next lines
+    if (!trimmed) {
+      frontmatter[key] = []
+      continue
+    }
+
+    // Parse inline arrays: [item1, item2]
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      frontmatter[key] = trimmed.slice(1, -1).split(',').map((s) => s.trim().replace(/^["']|["']$/g, ''))
+      continue
+    }
+
+    frontmatter[key] = trimmed
   }
 
   return { frontmatter, body }

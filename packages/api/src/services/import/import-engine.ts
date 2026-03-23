@@ -2,7 +2,7 @@
 
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
-import { importJobs, documentLinks } from '../../db/schema'
+import { importJobs, documentLinks, documents } from '../../db/schema'
 import { createDocument } from '../document-service'
 import { createFolder } from '../folder-service'
 import { generateId } from '../../utils/crypto'
@@ -85,7 +85,7 @@ export async function runImport(
         }
       }
 
-      // Rewrite image links in markdown content
+      // Rewrite image links in markdown content (wikilinks resolved in Step 3 after all docs exist)
       let content = rewriteImageLinks(doc.content, mappings.attachmentMap)
       content = rewriteObsidianEmbeds(content, mappings.attachmentMap)
 
@@ -123,7 +123,24 @@ export async function runImport(
     }
   }
 
-  // Step 3: Resolve internal links (second pass)
+  // Step 3: Rewrite wikilinks now that all documents are created and slugMap is complete
+  for (const doc of documents) {
+    const docId = mappings.documentMap.get(doc.sourcePath)
+    if (!docId) continue
+    // Only rewrite if document has wikilink syntax
+    if (!doc.content.includes('[[')) continue
+
+    try {
+      const rewritten = rewriteWikilinks(doc.content, mappings.slugMap)
+      if (rewritten !== doc.content) {
+        await db.update(documents).set({ content: rewritten }).where(eq(documents.id, docId))
+      }
+    } catch {
+      // Non-fatal: wikilink rewriting failure doesn't block import
+    }
+  }
+
+  // Step 4: Resolve internal links (insert document_links rows)
   let linksResolved = 0
   for (const doc of documents) {
     const sourceDocId = mappings.documentMap.get(doc.sourcePath)
@@ -177,10 +194,20 @@ export async function runImport(
   return summary
 }
 
-/** Write progress event to KV for SSE streaming */
+/** Sequence counter for progress events — ensures SSE clients detect every event */
+const progressSeqMap = new Map<string, number>()
+
+/** Write progress event to KV for SSE streaming with sequence counter */
 async function emitProgress(env: Env, jobId: string, event: ImportProgressEvent): Promise<void> {
   try {
-    await env.KV.put(`import:${jobId}`, JSON.stringify(event), { expirationTtl: 3600 })
+    const seq = (progressSeqMap.get(jobId) ?? 0) + 1
+    progressSeqMap.set(jobId, seq)
+    const eventWithSeq = { ...event, seq }
+    await env.KV.put(`import:${jobId}`, JSON.stringify(eventWithSeq), { expirationTtl: 3600 })
+    // Clean up seq map when import completes
+    if (event.type === 'complete' || event.type === 'error') {
+      progressSeqMap.delete(jobId)
+    }
   } catch {
     // KV write failure is non-fatal
   }

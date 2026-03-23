@@ -271,8 +271,15 @@ async function importJobHandler(env: Env, jobId: string, tenantId: string) {
       zipData = await obj.arrayBuffer()
     }
 
+    // Extract Lark config and immediately clear token from DB before processing
+    let config: { token: string; spaceId?: string } | undefined
+    if (larkConfig) {
+      config = { token: larkConfig.token, spaceId: larkConfig.spaceId }
+      // Clear token from DB immediately — hold in memory only during processing
+      await db.update(importJobs).set({ larkConfig: null }).where(eq(importJobs.id, jobId))
+    }
+
     // Parse source
-    const config = larkConfig ? { token: larkConfig.token, spaceId: larkConfig.spaceId } : undefined
     const { folders, documents } = await entry.adapter.parse(env, zipData, config)
 
     // Run import engine
@@ -281,11 +288,6 @@ async function importJobHandler(env: Env, jobId: string, tenantId: string) {
     // Cleanup: delete temp ZIP from R2
     if (fileKey) {
       try { await env.R2.delete(fileKey) } catch { /* non-fatal */ }
-    }
-
-    // Clear Lark token from DB for security
-    if (larkConfig) {
-      await db.update(importJobs).set({ larkConfig: null }).where(eq(importJobs.id, jobId))
     }
   } catch (err) {
     // Always clear Lark token on failure for security

@@ -262,7 +262,7 @@ function LarkForm({ isDark, onJobStart }: { isDark: boolean; onJobStart: (id: st
 /** Progress bar and log display */
 function ProgressSection({ progress, logs, isDark }: { progress: ImportProgressEvent; logs: string[]; isDark: boolean }) {
   const isComplete = progress.type === 'complete'
-  const isError = progress.type === 'error' && !progress.summary
+  const isError = progress.type === 'error'
   const pct = progress.total && progress.current ? Math.round((progress.current / progress.total) * 100) : 0
 
   return (

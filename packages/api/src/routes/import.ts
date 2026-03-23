@@ -8,10 +8,26 @@ import { authGuard } from '../middleware/auth-guard'
 import { requirePermission } from '../middleware/require-permission'
 import { generateId } from '../utils/crypto'
 import { logAudit } from '../utils/audit'
-import { startLarkImportSchema } from '@agentwiki/shared'
+import { startImportSchema, startLarkImportSchema } from '@agentwiki/shared'
 import type { Env } from '../env'
 
 export const importRouter = new Hono<{ Bindings: Env }>()
+
+/** Max concurrent import jobs per tenant */
+const MAX_CONCURRENT_IMPORTS = 3
+
+/** Check if tenant has too many in-flight import jobs */
+async function checkConcurrentLimit(env: Env, tenantId: string): Promise<boolean> {
+  const db = drizzle(env.DB)
+  const active = await db.select({ id: importJobs.id })
+    .from(importJobs)
+    .where(and(
+      eq(importJobs.tenantId, tenantId),
+      eq(importJobs.status, 'processing'),
+    ))
+    .limit(MAX_CONCURRENT_IMPORTS + 1)
+  return active.length >= MAX_CONCURRENT_IMPORTS
+}
 
 /** Upload ZIP and start Obsidian/Notion import */
 importRouter.post('/', authGuard, requirePermission('doc:create'), async (c) => {
@@ -21,11 +37,21 @@ importRouter.post('/', authGuard, requirePermission('doc:create'), async (c) => 
   const targetFolderId = (formData.get('targetFolderId') as string) || null
 
   if (!file) return c.json({ error: 'File required' }, 400)
-  if (!['obsidian', 'notion'].includes(source)) return c.json({ error: 'Source must be obsidian or notion' }, 400)
+
+  // Validate source using shared schema
+  const parsed = startImportSchema.safeParse({ source, targetFolderId })
+  if (!parsed.success) return c.json({ error: 'Source must be obsidian or notion' }, 400)
+
   if (file.size > 100 * 1024 * 1024) return c.json({ error: 'Max file size is 100MB' }, 400)
   if (!file.name.endsWith('.zip')) return c.json({ error: 'ZIP file required' }, 400)
 
   const { tenantId, userId } = c.get('auth')
+
+  // Rate limit: prevent too many concurrent import jobs
+  if (await checkConcurrentLimit(c.env, tenantId)) {
+    return c.json({ error: `Max ${MAX_CONCURRENT_IMPORTS} concurrent imports allowed. Please wait for current imports to finish.` }, 429)
+  }
+
   const jobId = generateId()
   const safeName = file.name.replace(/[^\w.\-]/g, '_')
   const fileKey = `${tenantId}/imports/${jobId}/${safeName}`
@@ -59,6 +85,12 @@ importRouter.post('/', authGuard, requirePermission('doc:create'), async (c) => 
 importRouter.post('/lark', authGuard, requirePermission('doc:create'), async (c) => {
   const body = startLarkImportSchema.parse(await c.req.json())
   const { tenantId, userId } = c.get('auth')
+
+  // Rate limit: prevent too many concurrent import jobs
+  if (await checkConcurrentLimit(c.env, tenantId)) {
+    return c.json({ error: `Max ${MAX_CONCURRENT_IMPORTS} concurrent imports allowed. Please wait for current imports to finish.` }, 429)
+  }
+
   const jobId = generateId()
 
   const db = drizzle(c.env.DB)
@@ -95,7 +127,7 @@ importRouter.get('/:id/progress', authGuard, async (c) => {
   const encoder = new TextEncoder()
   const stream = new ReadableStream({
     async start(controller) {
-      let lastEvent = ''
+      let lastSeq = 0
       let closed = false
 
       const send = (data: string) => {
@@ -107,20 +139,23 @@ importRouter.get('/:id/progress', authGuard, async (c) => {
         }
       }
 
-      // Poll KV for progress every 500ms
+      // Poll KV for progress every 500ms, using sequence counter to detect new events
       const poll = async () => {
         if (closed) return
         try {
           const progress = await c.env.KV.get(`import:${jobId}`)
-          if (progress && progress !== lastEvent) {
-            lastEvent = progress
-            send(progress)
-
+          if (progress) {
             const parsed = JSON.parse(progress)
-            if (parsed.type === 'complete' || parsed.type === 'error') {
-              closed = true
-              controller.close()
-              return
+            const seq = parsed.seq ?? 0
+            if (seq > lastSeq) {
+              lastSeq = seq
+              send(progress)
+
+              if (parsed.type === 'complete' || parsed.type === 'error') {
+                closed = true
+                controller.close()
+                return
+              }
             }
           }
         } catch {
@@ -154,7 +189,10 @@ importRouter.get('/:id/progress', authGuard, async (c) => {
   })
 })
 
-/** Get import job status */
+/** Max processing time before a job is considered stuck (30 minutes) */
+const STUCK_JOB_TIMEOUT_MS = 30 * 60 * 1000
+
+/** Get import job status — auto-marks stuck jobs as failed */
 importRouter.get('/:id', authGuard, async (c) => {
   const { tenantId } = c.get('auth')
   const jobId = c.req.param('id')
@@ -167,14 +205,30 @@ importRouter.get('/:id', authGuard, async (c) => {
 
   if (!job.length) return c.json({ error: 'Import job not found' }, 404)
 
+  // Auto-recover stuck jobs: if processing for > 30 min, mark as failed
+  const record = job[0]
+  if (record.status === 'processing' && record.createdAt) {
+    const elapsed = Date.now() - new Date(record.createdAt).getTime()
+    if (elapsed > STUCK_JOB_TIMEOUT_MS) {
+      await db.update(importJobs).set({
+        status: 'failed',
+        errors: [{ path: '', message: 'Import job timed out after 30 minutes' }],
+        errorCount: 1,
+        larkConfig: null,
+        completedAt: new Date(),
+      }).where(eq(importJobs.id, jobId))
+      record.status = 'failed'
+    }
+  }
+
   // Strip sensitive larkConfig from response
-  const { larkConfig: _, ...safe } = job[0]
+  const { larkConfig: _, ...safe } = record
   return c.json(safe)
 })
 
-/** List import history */
+/** List import history — filtered to current user's imports */
 importRouter.get('/', authGuard, async (c) => {
-  const { tenantId } = c.get('auth')
+  const { tenantId, userId } = c.get('auth')
   const db = drizzle(c.env.DB)
 
   const jobs = await db.select({
@@ -190,7 +244,7 @@ importRouter.get('/', authGuard, async (c) => {
     completedAt: importJobs.completedAt,
   })
     .from(importJobs)
-    .where(eq(importJobs.tenantId, tenantId))
+    .where(and(eq(importJobs.tenantId, tenantId), eq(importJobs.userId, userId)))
     .orderBy(desc(importJobs.createdAt))
     .limit(20)
 

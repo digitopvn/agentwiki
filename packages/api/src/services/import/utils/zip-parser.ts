@@ -35,10 +35,16 @@ export interface ZipEntry {
   isDirectory: boolean
 }
 
+/** Per-file size limit (20MB) to prevent memory exhaustion on large entries */
+const MAX_FILE_SIZE = 20 * 1024 * 1024
+/** Total decompressed size limit (256MB) to stay within Workers memory budget */
+const MAX_TOTAL_SIZE = 256 * 1024 * 1024
+
 /** Parse a ZIP file and return all valid entries */
 export function parseZip(zipData: ArrayBuffer): ZipEntry[] {
   const unzipped = unzipSync(new Uint8Array(zipData))
   const entries: ZipEntry[] = []
+  let totalSize = 0
 
   for (const [path, data] of Object.entries(unzipped)) {
     // Skip system files
@@ -50,6 +56,18 @@ export function parseZip(zipData: ArrayBuffer): ZipEntry[] {
 
     // Security: reject path traversal, absolute paths, null bytes
     if (path.includes('..') || path.startsWith('/') || path.includes('\0')) continue
+
+    // Safety: skip individual files that are too large
+    if (data.byteLength > MAX_FILE_SIZE) {
+      console.warn(`Skipping oversized file in ZIP: ${path} (${(data.byteLength / 1024 / 1024).toFixed(1)}MB)`)
+      continue
+    }
+
+    totalSize += data.byteLength
+    if (totalSize > MAX_TOTAL_SIZE) {
+      console.warn(`ZIP decompressed size exceeds ${MAX_TOTAL_SIZE / 1024 / 1024}MB limit, truncating entries`)
+      break
+    }
 
     entries.push({ path, data, isDirectory: false })
   }
