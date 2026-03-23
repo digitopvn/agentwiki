@@ -6,9 +6,13 @@ import { indexDocumentTrigrams } from '../services/trigram-service'
 import { pruneOldAnalytics } from '../services/analytics-service'
 import { computeSimilarities } from '../services/similarity-service'
 import { inferEdgeTypesForDoc } from '../services/graph-ai-service'
+import { runImport } from '../services/import/import-engine'
+import { ObsidianAdapter } from '../services/import/adapters/obsidian-adapter'
+import { NotionAdapter } from '../services/import/adapters/notion-adapter'
+import { LarkAdapter } from '../services/import/adapters/lark-adapter'
 import { drizzle } from 'drizzle-orm/d1'
 import { eq } from 'drizzle-orm'
-import { documents, uploads, fileExtractions } from '../db/schema'
+import { documents, uploads, fileExtractions, importJobs } from '../db/schema'
 import { chunkMarkdown } from '../utils/chunker'
 import type { Env } from '../env'
 
@@ -16,6 +20,7 @@ interface QueueMessage {
   type: string
   documentId?: string
   uploadId?: string
+  jobId?: string
   tenantId: string
 }
 
@@ -60,6 +65,9 @@ async function processMessage(msg: QueueMessage, env: Env) {
       break
     case 'infer-edge-types':
       if (msg.documentId) await inferEdgeTypesForDoc(env, msg.documentId, msg.tenantId)
+      break
+    case 'import-job':
+      if (msg.jobId) await importJobHandler(env, msg.jobId, msg.tenantId)
       break
     default:
       console.warn(`Unknown queue message type: ${msg.type}`)
@@ -233,5 +241,69 @@ async function summarizeUploadJob(env: Env, uploadId: string, tenantId: string) 
 
   if (result.response) {
     await db.update(uploads).set({ summary: result.response.trim() }).where(eq(uploads.id, uploadId))
+  }
+}
+
+/** Process an import job — load adapter, parse source, run import engine */
+async function importJobHandler(env: Env, jobId: string, tenantId: string) {
+  const db = drizzle(env.DB)
+  const job = await db.select().from(importJobs).where(eq(importJobs.id, jobId)).limit(1)
+  if (!job.length) return
+
+  const { source, fileKey, larkConfig, userId, targetFolderId } = job[0]
+
+  try {
+    // Select adapter based on source
+    const adapters: Record<string, { adapter: InstanceType<typeof ObsidianAdapter | typeof NotionAdapter | typeof LarkAdapter>; needsZip: boolean }> = {
+      obsidian: { adapter: new ObsidianAdapter(), needsZip: true },
+      notion: { adapter: new NotionAdapter(), needsZip: true },
+      lark: { adapter: new LarkAdapter(), needsZip: false },
+    }
+
+    const entry = adapters[source]
+    if (!entry) throw new Error(`Unknown import source: ${source}`)
+
+    // Load ZIP data from R2 if needed
+    let zipData: ArrayBuffer | null = null
+    if (entry.needsZip && fileKey) {
+      const obj = await env.R2.get(fileKey)
+      if (!obj) throw new Error('ZIP file not found in R2')
+      zipData = await obj.arrayBuffer()
+    }
+
+    // Extract Lark config and immediately clear token from DB before processing
+    let config: { token: string; spaceId?: string } | undefined
+    if (larkConfig) {
+      config = { token: larkConfig.token, spaceId: larkConfig.spaceId }
+      // Clear token from DB immediately — hold in memory only during processing
+      await db.update(importJobs).set({ larkConfig: null }).where(eq(importJobs.id, jobId))
+    }
+
+    // Parse source
+    const { folders, documents } = await entry.adapter.parse(env, zipData, config)
+
+    // Run import engine
+    await runImport(env, jobId, tenantId, userId, folders, documents, targetFolderId)
+
+    // Cleanup: delete temp ZIP from R2
+    if (fileKey) {
+      try { await env.R2.delete(fileKey) } catch { /* non-fatal */ }
+    }
+  } catch (err) {
+    // Always clear Lark token on failure for security
+    await db.update(importJobs).set({
+      status: 'failed',
+      errors: [{ path: '', message: (err as Error).message }],
+      errorCount: 1,
+      larkConfig: null,
+    }).where(eq(importJobs.id, jobId))
+
+    // Write error to KV for SSE
+    try {
+      await env.KV.put(`import:${jobId}`, JSON.stringify({
+        type: 'error',
+        message: (err as Error).message,
+      }), { expirationTtl: 3600 })
+    } catch { /* KV error non-fatal */ }
   }
 }

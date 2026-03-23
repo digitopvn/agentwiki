@@ -259,6 +259,7 @@ AgentWiki is an enterprise knowledge management platform serving humans and AI a
 | API completeness | ✅ | 100% | RESTful, type-safe |
 | Sidebar sorting | ✅ | 100% | DnD, manual/name/date modes |
 | User preferences | ✅ | 100% | Persistent KV store |
+| Import Files (Obsidian, Notion, LarkSuite) | 🔄 | 95% | Adapter pattern, Queue-based processing, SSE progress |
 
 ### Quality & Operations
 | Aspect | Status | Progress | Notes |

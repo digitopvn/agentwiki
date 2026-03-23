@@ -2,15 +2,16 @@
 
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Users, Building2, Key, Keyboard, Trash2, HardDrive, Sparkles } from 'lucide-react'
+import { ArrowLeft, Users, Building2, Key, Keyboard, Trash2, HardDrive, Sparkles, Download } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAppStore } from '../stores/app-store'
 import { apiClient } from '../lib/api-client'
 import { cn } from '../lib/utils'
 import { StorageTab } from '../components/settings/storage-tab'
 import { AISettingsTab } from '../components/settings/ai-settings-tab'
+import { ImportTab } from '../components/settings/import-tab'
 
-type TabId = 'members' | 'workspace' | 'api-keys' | 'ai' | 'storage' | 'shortcuts'
+type TabId = 'members' | 'workspace' | 'api-keys' | 'ai' | 'storage' | 'import' | 'shortcuts'
 
 const TABS: { id: TabId; label: string; icon: typeof Users }[] = [
   { id: 'members', label: 'Members', icon: Users },
@@ -18,6 +19,7 @@ const TABS: { id: TabId; label: string; icon: typeof Users }[] = [
   { id: 'api-keys', label: 'API Keys', icon: Key },
   { id: 'ai', label: 'AI', icon: Sparkles },
   { id: 'storage', label: 'Storage', icon: HardDrive },
+  { id: 'import', label: 'Import', icon: Download },
   { id: 'shortcuts', label: 'Shortcuts', icon: Keyboard },
 ]
 
@@ -66,6 +68,7 @@ export function SettingsPage() {
         {activeTab === 'api-keys' && <ApiKeysTab isDark={isDark} />}
         {activeTab === 'ai' && <AISettingsTab isDark={isDark} />}
         {activeTab === 'storage' && <StorageTab isDark={isDark} />}
+        {activeTab === 'import' && <ImportTab isDark={isDark} />}
         {activeTab === 'shortcuts' && <ShortcutsTab isDark={isDark} />}
       </div>
     </div>

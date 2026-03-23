@@ -70,7 +70,8 @@ agentwiki/
 │   │   │   │   ├── publish-service.ts — Public page generation
 │   │   │   │   ├── extraction-service.ts — VPS result callback handler
 │   │   │   │   ├── extraction-job-dispatcher.ts — Job dispatch + token mgmt
-│   │   │   │   └── extraction-retry-service.ts — Stuck job retry logic
+│   │   │   │   ├── extraction-retry-service.ts — Stuck job retry logic
+│   │   │   │   └── import-service.ts — Multi-source import (Obsidian, Notion, LarkSuite adapters)
 │   │   │   ├── queue/
 │   │   │   │   └── handler.ts      — Queue consumer (embeddings, summaries)
 │   │   │   ├── utils/
