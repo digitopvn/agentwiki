@@ -28,6 +28,10 @@ export function Editor({ documentId, tabId }: EditorProps) {
 
   const editor = useCreateBlockNote({
     uploadFile: async (file: File) => {
+      if (!file.type.startsWith('image/')) {
+        throw new Error('Only image files are supported')
+      }
+
       const formData = new FormData()
       formData.append('file', file)
 
@@ -42,7 +46,8 @@ export function Editor({ documentId, tabId }: EditorProps) {
         throw new Error(err?.error ?? `Upload failed (${res.status})`)
       }
 
-      const data = (await res.json()) as { url: string }
+      const data = (await res.json()) as { url?: string }
+      if (!data.url) throw new Error('Upload response missing URL')
       return data.url
     },
   })
