@@ -94,6 +94,9 @@ AgentWiki is an enterprise knowledge management platform serving humans and AI a
 - [x] OAuth login page
 - [x] TailwindCSS v4 styling
 - [x] Responsive design (mobile-ready)
+- [x] Auto-save performance optimization (2s debounce, deferred markdown) — Issue #32
+- [x] Mobile sidebar drawers (CSS transform, swipe gestures) — Issue #37
+- [x] Drag-and-drop markdown file import — Issue #21
 
 **Key Files**:
 - `packages/web/src/components/editor/editor.tsx` — BlockNote wrapper
@@ -170,13 +173,17 @@ AgentWiki is an enterprise knowledge management platform serving humans and AI a
 ### Phase 7: Graph & Hardening 🔄 IN PROGRESS
 
 **Timeline**: Mar 2026 - Mar 2026
-**Status**: 95% Complete
+**Status**: 97% Complete
 
 **Deliverables**:
 - [x] Document graph endpoint (nodes + edges)
 - [x] Cytoscape.js integration (pending: UI component)
 - [x] Relationship analysis
 - [x] Wikilink visualization prep
+- [x] Sidebar DnD sorting (Issue #29: Explorer Sidebar Positions, Sorting & Recent Modifications)
+- [x] Sort controls (Manual, By Name, By Date Modified)
+- [x] User preferences persistence (key-value store)
+- [x] Recent modifications section
 - [ ] Interactive graph UI component
 - [ ] Graph-based recommendations
 - [ ] Enhanced error handling
@@ -250,6 +257,8 @@ AgentWiki is an enterprise knowledge management platform serving humans and AI a
 | MCP server | ✅ | 100% | 25 tools, 6 resources, 4 prompts |
 | CLI tool | ✅ | 100% | All major commands |
 | API completeness | ✅ | 100% | RESTful, type-safe |
+| Sidebar sorting | ✅ | 100% | DnD, manual/name/date modes |
+| User preferences | ✅ | 100% | Persistent KV store |
 | Import Files (Obsidian, Notion, LarkSuite) | 🔄 | 95% | Adapter pattern, Queue-based processing, SSE progress |
 
 ### Quality & Operations

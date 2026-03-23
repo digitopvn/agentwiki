@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, primaryKey, index, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, real, primaryKey, index, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 /** Tenant (organization/workspace) */
 export const tenants = sqliteTable('tenants', {
@@ -74,6 +74,7 @@ export const documents = sqliteTable('documents', {
   id: text('id').primaryKey(),
   tenantId: text('tenant_id').notNull().references(() => tenants.id),
   folderId: text('folder_id'),
+  position: text('position').notNull().default('a0'), // fractional indexing for manual sort order
   title: text('title').notNull(),
   slug: text('slug').notNull(),
   content: text('content').notNull().default(''), // markdown body
@@ -86,7 +87,9 @@ export const documents = sqliteTable('documents', {
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
   deletedAt: integer('deleted_at', { mode: 'timestamp_ms' }),
-})
+}, (table) => [
+  index('idx_documents_tenant_folder_position').on(table.tenantId, table.folderId, table.position),
+])
 
 /** Document tags (many-to-many) */
 export const documentTags = sqliteTable('document_tags', {
@@ -107,14 +110,29 @@ export const documentVersions = sqliteTable('document_versions', {
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 })
 
-/** Wikilinks between documents */
+/** Wikilinks between documents (typed edges for knowledge graph) */
 export const documentLinks = sqliteTable('document_links', {
   id: text('id').primaryKey(),
   sourceDocId: text('source_doc_id').notNull().references(() => documents.id),
   targetDocId: text('target_doc_id').notNull().references(() => documents.id),
   context: text('context'), // surrounding text for preview
+  type: text('type').notNull().default('relates-to'), // EdgeType: relates-to | depends-on | extends | references | contradicts | implements
+  weight: real('weight').default(1.0), // relationship strength 0-1
+  inferred: integer('inferred').default(0), // 0=explicit, 1=ai-inferred, 2=user-confirmed
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 })
+
+/** Cached document similarities from Vectorize (implicit graph edges) */
+export const documentSimilarities = sqliteTable('document_similarities', {
+  id: text('id').primaryKey(),
+  sourceDocId: text('source_doc_id').notNull().references(() => documents.id),
+  targetDocId: text('target_doc_id').notNull().references(() => documents.id),
+  score: real('score').notNull(), // cosine similarity 0-1
+  computedAt: integer('computed_at', { mode: 'timestamp_ms' }).notNull(),
+}, (table) => [
+  index('idx_similarities_source').on(table.sourceDocId),
+  uniqueIndex('idx_similarities_pair').on(table.sourceDocId, table.targetDocId),
+])
 
 /** Folders for document organization */
 export const folders = sqliteTable('folders', {
@@ -123,11 +141,13 @@ export const folders = sqliteTable('folders', {
   parentId: text('parent_id'),
   name: text('name').notNull(),
   slug: text('slug').notNull(),
-  position: integer('position').notNull().default(0),
+  positionIndex: text('position_index').notNull().default('a0'), // fractional indexing for manual sort order
   createdBy: text('created_by').notNull().references(() => users.id),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
-})
+}, (table) => [
+  index('idx_folders_tenant_position').on(table.tenantId, table.positionIndex),
+])
 
 /** Share links for documents */
 export const shareLinks = sqliteTable('share_links', {
@@ -236,6 +256,18 @@ export const searchAnalytics = sqliteTable('search_analytics', {
 }, (table) => [
   index('idx_analytics_tenant_date').on(table.tenantId, table.createdAt),
   index('idx_analytics_tenant_query').on(table.tenantId, table.query),
+])
+
+/** User preferences (per-user per-tenant key-value store) */
+export const userPreferences = sqliteTable('user_preferences', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  key: text('key').notNull(),
+  value: text('value').notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+}, (table) => [
+  uniqueIndex('idx_user_pref_unique').on(table.userId, table.tenantId, table.key),
 ])
 
 /** Import jobs for tracking bulk document imports */

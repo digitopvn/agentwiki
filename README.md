@@ -13,6 +13,7 @@ AgentWiki is a full-stack knowledge management system designed for enterprises a
 - **Dual User Interfaces**: Rich web UI for humans (React 19 + BlockNote), REST API + CLI for agents
 - **MCP Integration**: Model Context Protocol server enabling AI agents (Claude, ChatGPT, Cursor) to access knowledge directly
 - **Knowledge Organization**: Hierarchical folders, tagging, version history, wikilinks between documents
+- **[Knowledge Graph](./docs/knowledge-graph.md)**: Dual-layer graph with typed edges (6 types) + semantic similarity; interactive Cytoscape.js visualization, BFS traversal, AI auto-classification, 7 MCP tools for agent graph reasoning
 - **Multi-tenant**: Isolated workspaces (tenants) with RBAC (Admin, Editor, Viewer, Agent roles)
 - **Hybrid Search**: Combines full-text keyword search (D1 FTS) with semantic search (Vectorize) via Reciprocal Rank Fusion
 - **Real-time Collaboration**: BlockNote editor with automatic markdown sync
@@ -60,6 +61,7 @@ agentwiki/
 ┌─────────────────────────────────────────────────────┐
 │                    Frontend Layer                    │
 │  React 19 + Vite + BlockNote + TailwindCSS v4       │
+│  + Cytoscape.js (Knowledge Graph Visualization)     │
 │         Deployed: Cloudflare Pages                   │
 └───────────────────┬─────────────────────────────────┘
                     │ REST API
@@ -69,6 +71,7 @@ agentwiki/
 │  ├── Auth (OAuth + JWT + API Keys)                  │
 │  ├── Documents, Folders, Tags                       │
 │  ├── Search (Hybrid: FTS + Semantic)                │
+│  ├── Knowledge Graph (Typed Edges + Similarity)     │
 │  ├── AI (6 providers, generate, transform, suggest) │
 │  ├── Sharing & Publishing                          │
 │  └── Uploads & File Serving                         │
@@ -81,11 +84,12 @@ agentwiki/
     │(SQL) │   │Files │   │Cache │
     └──────┘   └──────┘   └──────┘
         │
-    ┌───▼────────────────┐
-    │  Workers AI +      │
-    │  Vectorize         │
-    │  (Embeddings)      │
-    └────────────────────┘
+    ┌───▼────────────────┐     ┌────────────────────┐
+    │  Workers AI +      │     │  Cloudflare Queues  │
+    │  Vectorize         │◄────│  (Async Jobs)       │
+    │  (Embeddings +     │     │  • Similarities     │
+    │   Edge Inference)  │     │  • Edge Inference   │
+    └────────────────────┘     └────────────────────┘
 ```
 
 ## Quick Start
@@ -171,8 +175,14 @@ pnpm -F @agentwiki/api db:migrate:remote
 - `POST /api/keys` — Create API key
 - `DELETE /api/keys/:id` — Revoke API key
 
-### Graph
-- `GET /api/graph` — Get document graph (nodes + edges for visualization)
+### Knowledge Graph ([docs](./docs/knowledge-graph.md))
+- `GET /api/graph` — Full graph with typed edges, filter by type/category/tag
+- `GET /api/graph/neighbors/:id` — N-hop neighbors (BFS traversal, 1-3 depth)
+- `GET /api/graph/subgraph/:id` — Ego-network centered on a document
+- `GET /api/graph/path/:from/:to` — Shortest path between two documents
+- `GET /api/graph/stats` — Graph analytics (density, degree distribution, orphans)
+- `GET /api/graph/similar/:id` — Semantic similarity via Vectorize
+- `GET /api/graph/suggest-links/:id` — AI-suggested missing links
 
 ### AI
 - `POST /api/ai/generate` — AI text generation via slash commands (SSE stream)
@@ -187,7 +197,7 @@ pnpm -F @agentwiki/api db:migrate:remote
 
 AgentWiki provides a **Model Context Protocol server** enabling Claude, ChatGPT, and other AI agents to access organizational knowledge with 25 tools:
 
-**Tools**: document_create/get/update/delete, search, folder management, uploads, member management, API keys, sharing
+**Tools**: document_create/get/update/delete, search, folder management, uploads, member management, API keys, sharing, **knowledge graph** (traverse, find_path, suggest_links, explain_connection, stats)
 
 **Configure in Claude Desktop**:
 ```json
@@ -285,6 +295,7 @@ All services deploy to Cloudflare: Frontend (Pages), API (Workers), MCP (Workers
 - [Code Standards](./docs/code-standards.md)
 - [System Architecture](./docs/system-architecture.md)
 - [Deployment Guide](./docs/deployment-guide.md)
+- [Knowledge Graph](./docs/knowledge-graph.md) — Dual-layer graph with typed edges, traversal, AI reasoning
 - [MCP Server](./docs/mcp-server.md) — AI agent integration via Model Context Protocol
 - [Project Roadmap](./docs/project-roadmap.md)
 - [AI-Assisted Features](./docs/ai-assisted-features.md)

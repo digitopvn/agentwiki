@@ -12,7 +12,7 @@ import {
   getVersionHistory,
   createVersionCheckpoint,
   getDocumentLinks,
-} from '../../../api/src/services/document-service'
+} from '@agentwiki/api/services/document-service'
 import { checkPermission } from '../auth/api-key-auth'
 import { logMcpAudit } from '../utils/audit-logger'
 import { toolResult, toolError, toolText, safeToolCall } from '../utils/mcp-error-handler'

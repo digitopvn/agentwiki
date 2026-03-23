@@ -6,6 +6,7 @@ import { useAppStore } from '../../stores/app-store'
 import { useDocumentBySlug, useCreateDocument } from '../../hooks/use-documents'
 import { useKeyboardShortcuts, type ShortcutDefinition } from '../../hooks/use-keyboard-shortcuts'
 import { useIsMobile } from '../../hooks/use-is-mobile'
+import { useSwipeGesture } from '../../hooks/use-swipe-gesture'
 import { Sidebar } from './sidebar'
 import { MainPanel } from './main-panel'
 import { MetadataPanel } from './metadata-panel'
@@ -23,6 +24,15 @@ export function Layout() {
   const { data: slugDoc } = useDocumentBySlug(slug)
   const isMobile = useIsMobile()
 
+  // Edge-swipe gestures for mobile drawer open/close (edge-only to avoid editor conflicts)
+  useSwipeGesture({
+    onSwipeRight: () => setMobileSidebarOpen(true),
+    onSwipeLeft: () => setMobileMetadataOpen(true),
+    onBackdropSwipeLeft: () => setMobileSidebarOpen(false),   // swipe left on backdrop → close sidebar
+    onBackdropSwipeRight: () => setMobileMetadataOpen(false), // swipe right on backdrop → close metadata
+    enabled: isMobile,
+  })
+
   // Hydrate tab from URL slug
   useEffect(() => {
     if (!slugDoc) return
@@ -32,7 +42,7 @@ export function Layout() {
       openTab({ id: tabId, documentId: slugDoc.id, title: slugDoc.title })
     }
     setActiveTab(tabId)
-  }, [slugDoc])
+  }, [slugDoc, openTab, setActiveTab, openTabs])
 
   // Close mobile drawers on resize to desktop
   useEffect(() => {
@@ -40,7 +50,7 @@ export function Layout() {
       setMobileSidebarOpen(false)
       setMobileMetadataOpen(false)
     }
-  }, [isMobile])
+  }, [isMobile, setMobileSidebarOpen, setMobileMetadataOpen])
 
   // Lock body scroll when mobile drawer is open
   useEffect(() => {
@@ -98,6 +108,7 @@ export function Layout() {
   }, [theme])
 
   if (isMobile) {
+    const anyDrawerOpen = mobileSidebarOpen || mobileMetadataOpen
     return (
       <div
         className={cn(
@@ -108,31 +119,28 @@ export function Layout() {
         {/* Main content takes full screen */}
         <MainPanel />
 
-        {/* Sidebar overlay drawer */}
-        {mobileSidebarOpen && (
-          <div className="fixed inset-0 z-50 flex">
-            <div
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-              onClick={() => setMobileSidebarOpen(false)}
-            />
-            <div className="relative z-10 h-full w-[280px] max-w-[85vw] animate-slide-in-left">
-              <Sidebar />
-            </div>
-          </div>
-        )}
+        {/* Always-rendered drawer backdrop (GPU-accelerated opacity transition) */}
+        <div
+          className={cn('fixed inset-0 z-50 bg-black/60 backdrop-blur-sm drawer-backdrop', anyDrawerOpen && 'drawer-open')}
+          onClick={() => { setMobileSidebarOpen(false); setMobileMetadataOpen(false) }}
+          aria-hidden={!anyDrawerOpen}
+        />
 
-        {/* Metadata overlay drawer */}
-        {mobileMetadataOpen && (
-          <div className="fixed inset-0 z-50 flex justify-end">
-            <div
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-              onClick={() => setMobileMetadataOpen(false)}
-            />
-            <div className="relative z-10 h-full w-[300px] max-w-[85vw] animate-slide-in-right">
-              <MetadataPanel />
-            </div>
-          </div>
-        )}
+        {/* Left sidebar drawer (always mounted, hidden via translateX) */}
+        <div
+          className={cn('fixed inset-y-0 left-0 z-50 h-full w-[280px] max-w-[85vw] drawer-left', mobileSidebarOpen && 'drawer-open')}
+          aria-hidden={!mobileSidebarOpen}
+        >
+          <Sidebar />
+        </div>
+
+        {/* Right metadata drawer (always mounted, hidden via translateX) */}
+        <div
+          className={cn('fixed inset-y-0 right-0 z-50 h-full w-[300px] max-w-[85vw] drawer-right', mobileMetadataOpen && 'drawer-open')}
+          aria-hidden={!mobileMetadataOpen}
+        >
+          <MetadataPanel />
+        </div>
 
         <CommandPalette />
         <StorageDrawer />

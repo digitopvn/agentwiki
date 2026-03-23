@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "ba77b10b-80b6-45af-a01f-7d44807e7782",
-  "prevId": "27ff1b8c-ecc6-48fe-852c-1454ed226de5",
+  "id": "891d6285-b008-43df-8ecf-d303e4e2c10d",
+  "prevId": "ba77b10b-80b6-45af-a01f-7d44807e7782",
   "tables": {
     "ai_settings": {
       "name": "ai_settings",
@@ -419,6 +419,30 @@
           "notNull": false,
           "autoincrement": false
         },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'relates-to'"
+        },
+        "weight": {
+          "name": "weight",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": 1
+        },
+        "inferred": {
+          "name": "inferred",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": 0
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -445,6 +469,94 @@
         "document_links_target_doc_id_documents_id_fk": {
           "name": "document_links_target_doc_id_documents_id_fk",
           "tableFrom": "document_links",
+          "tableTo": "documents",
+          "columnsFrom": [
+            "target_doc_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "document_similarities": {
+      "name": "document_similarities",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source_doc_id": {
+          "name": "source_doc_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "target_doc_id": {
+          "name": "target_doc_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "score": {
+          "name": "score",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "computed_at": {
+          "name": "computed_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_similarities_source": {
+          "name": "idx_similarities_source",
+          "columns": [
+            "source_doc_id"
+          ],
+          "isUnique": false
+        },
+        "idx_similarities_pair": {
+          "name": "idx_similarities_pair",
+          "columns": [
+            "source_doc_id",
+            "target_doc_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "document_similarities_source_doc_id_documents_id_fk": {
+          "name": "document_similarities_source_doc_id_documents_id_fk",
+          "tableFrom": "document_similarities",
+          "tableTo": "documents",
+          "columnsFrom": [
+            "source_doc_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "document_similarities_target_doc_id_documents_id_fk": {
+          "name": "document_similarities_target_doc_id_documents_id_fk",
+          "tableFrom": "document_similarities",
           "tableTo": "documents",
           "columnsFrom": [
             "target_doc_id"

@@ -1,8 +1,8 @@
 /** Non-blocking audit log for MCP server (no Hono dependency) */
 
 import { drizzle } from 'drizzle-orm/d1'
-import { auditLogs } from '../../../api/src/db/schema'
-import { generateId } from '../../../api/src/utils/crypto'
+import { auditLogs } from '@agentwiki/api/db/schema'
+import { generateId } from '@agentwiki/api/utils/crypto'
 import type { Env, McpAuthContext } from '../env'
 
 /** Log an audit event via ctx.waitUntil (non-blocking) */
