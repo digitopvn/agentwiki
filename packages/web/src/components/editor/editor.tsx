@@ -1,12 +1,39 @@
-/** BlockNote editor wrapper: loads content from API, auto-saves on change (debounced 1s) */
+/** BlockNote editor wrapper: loads content from API, auto-saves on change (debounced 2s, deferred markdown) */
 
 import { useEffect, useRef, useCallback } from 'react'
 import { useCreateBlockNote } from '@blocknote/react'
 import { BlockNoteView } from '@blocknote/mantine'
+import {
+  SuggestionMenuController,
+  getDefaultReactSlashMenuItems,
+  FormattingToolbarController,
+  FormattingToolbar,
+  BlockTypeSelect,
+  BasicTextStyleButton,
+  TextAlignButton,
+  ColorStyleButton,
+  NestBlockButton,
+  UnnestBlockButton,
+  CreateLinkButton,
+} from '@blocknote/react'
+import { filterSuggestionItems } from '@blocknote/core'
 import '@blocknote/mantine/style.css'
 import { useDocument, useUpdateDocument } from '../../hooks/use-documents'
 import { useAppStore } from '../../stores/app-store'
+import { useAI } from '../../hooks/use-ai'
+import { getAISlashMenuItems } from './ai-slash-commands'
+import { AISelectionToolbar } from './ai-selection-toolbar'
 import { cn } from '../../lib/utils'
+
+// Safari lacks requestIdleCallback — polyfill with setTimeout (module-level, evaluated once)
+const rIC: typeof requestIdleCallback =
+  typeof window !== 'undefined' && window.requestIdleCallback
+    ? window.requestIdleCallback.bind(window)
+    : (cb) => window.setTimeout(() => cb({ didTimeout: false, timeRemaining: () => 50 } as IdleDeadline), 0)
+const cIC: typeof cancelIdleCallback =
+  typeof window !== 'undefined' && window.cancelIdleCallback
+    ? window.cancelIdleCallback.bind(window)
+    : clearTimeout
 
 interface EditorProps {
   documentId: string
@@ -17,14 +44,13 @@ export function Editor({ documentId, tabId }: EditorProps) {
   const { data: doc, isLoading } = useDocument(documentId)
   const updateDocument = useUpdateDocument()
   const { markTabDirty, updateTabTitle, theme } = useAppStore()
+  const { isGenerating, error: aiError, generate, transform } = useAI()
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const markdownIdleRef = useRef<number | null>(null)
+  const isDirtyRef = useRef(false)
+  const mountedRef = useRef(true)
   const initializedRef = useRef(false)
-  const latestDocRef = useRef(doc)
-
-  useEffect(() => {
-    latestDocRef.current = doc
-  }, [doc])
 
   const editor = useCreateBlockNote({
     uploadFile: async (file: File) => {
@@ -34,11 +60,10 @@ export function Editor({ documentId, tabId }: EditorProps) {
 
       const formData = new FormData()
       formData.append('file', file)
-
-      const res = await fetch('/api/uploads', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL ?? ''}/api/uploads`, {
         method: 'POST',
-        credentials: 'include',
         body: formData,
+        credentials: 'include',
       })
 
       if (!res.ok) {
@@ -46,9 +71,9 @@ export function Editor({ documentId, tabId }: EditorProps) {
         throw new Error(err?.error ?? `Upload failed (${res.status})`)
       }
 
-      const data = (await res.json()) as { url?: string }
-      if (!data.url) throw new Error('Upload response missing URL')
-      return data.url
+      const data = await res.json() as { fileKey?: string }
+      if (!data.fileKey) throw new Error('Upload response missing fileKey')
+      return `/api/files/${data.fileKey}`
     },
   })
 
@@ -67,27 +92,46 @@ export function Editor({ documentId, tabId }: EditorProps) {
     }
   }, [doc, editor])
 
-  // Debounced save on editor change
+  // Debounced auto-save: contentJson first (fast), markdown deferred via requestIdleCallback
   const handleChange = useCallback(() => {
-    markTabDirty(tabId, true)
+    // Skip redundant dirty-state updates
+    if (!isDirtyRef.current) {
+      isDirtyRef.current = true
+      markTabDirty(tabId, true)
+    }
 
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(async () => {
       try {
         const contentJson = editor.document
-        const content = await editor.blocksToMarkdownLossy(editor.document)
 
+        // Stage 1: save contentJson immediately (near-zero cost)
         await updateDocument.mutateAsync({
           id: documentId,
-          content,
           contentJson,
         })
 
+        isDirtyRef.current = false
         markTabDirty(tabId, false)
+
+        // Stage 2: defer expensive markdown conversion until browser is idle
+        // Capture snapshot NOW (not at idle time) to avoid stale data
+        const snapshotBlocks = editor.document
+        if (markdownIdleRef.current) cIC(markdownIdleRef.current)
+        markdownIdleRef.current = rIC(async () => {
+          if (!mountedRef.current) return // guard against unmounted async work
+          try {
+            const content = await editor.blocksToMarkdownLossy(snapshotBlocks)
+            if (!mountedRef.current) return
+            await updateDocument.mutateAsync({ id: documentId, content })
+          } catch (err) {
+            console.error('Deferred markdown sync failed:', err)
+          }
+        }, { timeout: 5000 })
       } catch (err) {
         console.error('Auto-save failed:', err)
       }
-    }, 1000)
+    }, 2000)
   }, [editor, documentId, tabId, markTabDirty, updateDocument])
 
   // Update tab title when doc title is changed externally
@@ -97,10 +141,13 @@ export function Editor({ documentId, tabId }: EditorProps) {
     }
   }, [doc?.title, tabId, updateTabTitle])
 
-  // Cleanup timer on unmount
+  // Cleanup timers on unmount + guard async work
   useEffect(() => {
+    mountedRef.current = true
     return () => {
+      mountedRef.current = false
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      if (markdownIdleRef.current) cIC(markdownIdleRef.current)
     }
   }, [])
 
@@ -131,15 +178,28 @@ export function Editor({ documentId, tabId }: EditorProps) {
   return (
     <div className={cn('flex h-full flex-col', theme === 'dark' ? 'bg-neutral-950' : 'bg-white')}>
       {/* Document title */}
-      <div className="px-8 pt-8 pb-2">
+      <div className="px-4 pt-4 pb-2 md:px-8 md:pt-8">
         <input
           type="text"
           defaultValue={doc.title}
           placeholder="Untitled"
           className={cn(
-            'w-full bg-transparent text-3xl font-bold outline-none placeholder-neutral-500',
+            'w-full bg-transparent text-2xl font-bold outline-none placeholder-neutral-500 md:text-3xl',
             theme === 'dark' ? 'text-neutral-100' : 'text-neutral-900',
           )}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              const newTitle = e.currentTarget.value.trim() || 'Untitled'
+              if (newTitle !== doc.title) {
+                updateTabTitle(tabId, newTitle)
+                updateDocument.mutateAsync({ id: documentId, title: newTitle }).catch((err) =>
+                  console.error('Failed to update title:', err),
+                )
+              }
+              editor.focus()
+            }
+          }}
           onBlur={async (e) => {
             const newTitle = e.target.value.trim() || 'Untitled'
             if (newTitle === doc.title) return
@@ -153,14 +213,59 @@ export function Editor({ documentId, tabId }: EditorProps) {
         />
       </div>
 
-      {/* BlockNote editor */}
-      <div className="flex-1 overflow-y-auto px-4">
+      {/* AI error indicator */}
+      {aiError && (
+        <div className="mx-4 mb-2 rounded bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-950 dark:text-red-400">
+          AI error: {aiError}
+        </div>
+      )}
+
+      {/* BlockNote editor with AI slash commands and selection toolbar */}
+      <div className="flex-1 overflow-y-auto px-1 md:px-4">
         <BlockNoteView
           editor={editor}
           onChange={handleChange}
           theme={theme}
           className="min-h-full"
-        />
+          slashMenu={false}
+          formattingToolbar={false}
+        >
+          <SuggestionMenuController
+            triggerCharacter="/"
+            getItems={async (query) =>
+              filterSuggestionItems(
+                [...getDefaultReactSlashMenuItems(editor), ...getAISlashMenuItems(editor, documentId, generate)],
+                query,
+              )
+            }
+          />
+          <FormattingToolbarController
+            formattingToolbar={() => (
+              <FormattingToolbar>
+                <BlockTypeSelect key="blockTypeSelect" />
+                <BasicTextStyleButton basicTextStyle="bold" key="boldStyleButton" />
+                <BasicTextStyleButton basicTextStyle="italic" key="italicStyleButton" />
+                <BasicTextStyleButton basicTextStyle="underline" key="underlineStyleButton" />
+                <BasicTextStyleButton basicTextStyle="strike" key="strikeStyleButton" />
+                <BasicTextStyleButton basicTextStyle="code" key="codeStyleButton" />
+                <TextAlignButton textAlignment="left" key="textAlignLeftButton" />
+                <TextAlignButton textAlignment="center" key="textAlignCenterButton" />
+                <TextAlignButton textAlignment="right" key="textAlignRightButton" />
+                <ColorStyleButton key="colorStyleButton" />
+                <NestBlockButton key="nestBlockButton" />
+                <UnnestBlockButton key="unnestBlockButton" />
+                <CreateLinkButton key="createLinkButton" />
+                <AISelectionToolbar
+                  key="aiToolbar"
+                  editor={editor}
+                  documentId={documentId}
+                  transform={transform}
+                  isGenerating={isGenerating}
+                />
+              </FormattingToolbar>
+            )}
+          />
+        </BlockNoteView>
       </div>
     </div>
   )

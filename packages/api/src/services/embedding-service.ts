@@ -4,7 +4,7 @@ import { chunkMarkdown } from '../utils/chunker'
 import type { Env } from '../env'
 
 /** Generate embeddings for a document and store in Vectorize */
-export async function embedDocument(env: Env, docId: string, content: string, tenantId: string) {
+export async function embedDocument(env: Env, docId: string, content: string, tenantId: string, category?: string) {
   const chunks = chunkMarkdown(content)
   if (!chunks.length) return
 
@@ -37,6 +37,7 @@ export async function embedDocument(env: Env, docId: string, content: string, te
           doc_id: docId,
           chunk_index: batch[j].index,
           heading: batch[j].heading ?? '',
+          category: category ?? '',
         },
       })
     }

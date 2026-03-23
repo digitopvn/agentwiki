@@ -15,7 +15,7 @@ program
   .command('login')
   .description('Configure API key for authentication')
   .option('--api-key <key>', 'API key (starts with aw_)')
-  .option('--url <url>', 'API base URL', 'https://agentwiki.cc')
+  .option('--url <url>', 'API base URL', 'https://app.agentwiki.cc')
   .action(async (opts) => {
     if (opts.apiKey) {
       saveCredentials({ apiKey: opts.apiKey, apiUrl: opts.url })
@@ -165,12 +165,13 @@ doc
 
 doc
   .command('search <query>')
-  .description('Search documents')
+  .description('Search documents and/or uploaded files')
   .option('--type <type>', 'Search type: hybrid|keyword|semantic', 'hybrid')
+  .option('--source <source>', 'Search source: docs|storage|all', 'docs')
   .option('--limit <n>', 'Max results', '10')
   .option('--json', 'Output as JSON')
   .action(async (query, opts) => {
-    const params = new URLSearchParams({ q: query, type: opts.type, limit: opts.limit })
+    const params = new URLSearchParams({ q: query, type: opts.type, limit: opts.limit, source: opts.source })
     const result = await apiFetch<{ results: Array<{ id: string; title: string; snippet: string; score?: number }> }>(
       `/search?${params}`,
     )
@@ -244,6 +245,34 @@ folder
     })
 
     console.log('✓ Folder created:', JSON.stringify(result, null, 2))
+  })
+
+// --- Uploads ---
+
+const upload = program.command('upload').description('Manage uploads')
+
+upload
+  .command('list')
+  .description('List uploaded files with extraction status')
+  .option('--json', 'Output as JSON')
+  .action(async (opts) => {
+    const result = await apiFetch<{ files: Array<{ id: string; filename: string; contentType: string; sizeBytes: number; extractionStatus: string | null; summary: string | null }> }>(
+      '/uploads',
+    )
+
+    if (opts.json) {
+      console.log(JSON.stringify(result, null, 2))
+    } else {
+      for (const f of result.files) {
+        const status = f.extractionStatus ?? 'unknown'
+        const size = f.sizeBytes < 1024 * 1024
+          ? `${(f.sizeBytes / 1024).toFixed(1)}KB`
+          : `${(f.sizeBytes / (1024 * 1024)).toFixed(1)}MB`
+        console.log(`${f.id}  ${f.filename}  ${size}  [${status}]`)
+        if (f.summary) console.log(`  ${f.summary}`)
+      }
+      console.log(`\n${result.files.length} files`)
+    }
   })
 
 // --- Tags ---

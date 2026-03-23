@@ -88,7 +88,7 @@ wrangler kv:namespace create agentwiki-kv
 1. Go to GitHub Settings → **Developer settings** → **OAuth Apps**
 2. Click **New OAuth App**
 3. Application name: `AgentWiki`
-4. Homepage URL: `https://agentwiki.cc`
+4. Homepage URL: `https://app.agentwiki.cc`
 5. Authorization callback URL: `https://api.agentwiki.cc/api/auth/github/callback`
 6. Save **Client ID** and **Client Secret**
 
@@ -241,6 +241,31 @@ wrangler deploy --dry-run
 # Deploy to production
 wrangler deploy
 ```
+
+### 4b. Deploy MCP Worker
+
+The MCP server shares the same Cloudflare bindings (D1, R2, KV, Vectorize, Queues, AI) as the REST API:
+
+```bash
+cd packages/mcp
+
+# Build MCP server
+pnpm build
+
+# Dry run
+wrangler deploy --dry-run
+
+# Deploy to production
+wrangler deploy
+
+# Health check
+curl https://api.agentwiki.cc/health
+# Response: {"status": "ok", "timestamp": "..."}
+```
+
+MCP endpoint: `POST https://api.agentwiki.cc/mcp`
+
+Configure in Claude Desktop, Cursor, or other MCP clients with API key. See [MCP Server Documentation](./mcp-server.md) for setup.
 
 ### 5. Deploy Frontend
 

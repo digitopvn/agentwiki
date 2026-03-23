@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, real, primaryKey, index, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 /** Tenant (organization/workspace) */
 export const tenants = sqliteTable('tenants', {
@@ -107,14 +107,29 @@ export const documentVersions = sqliteTable('document_versions', {
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 })
 
-/** Wikilinks between documents */
+/** Wikilinks between documents (typed edges for knowledge graph) */
 export const documentLinks = sqliteTable('document_links', {
   id: text('id').primaryKey(),
   sourceDocId: text('source_doc_id').notNull().references(() => documents.id),
   targetDocId: text('target_doc_id').notNull().references(() => documents.id),
   context: text('context'), // surrounding text for preview
+  type: text('type').notNull().default('relates-to'), // EdgeType: relates-to | depends-on | extends | references | contradicts | implements
+  weight: real('weight').default(1.0), // relationship strength 0-1
+  inferred: integer('inferred').default(0), // 0=explicit, 1=ai-inferred, 2=user-confirmed
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 })
+
+/** Cached document similarities from Vectorize (implicit graph edges) */
+export const documentSimilarities = sqliteTable('document_similarities', {
+  id: text('id').primaryKey(),
+  sourceDocId: text('source_doc_id').notNull().references(() => documents.id),
+  targetDocId: text('target_doc_id').notNull().references(() => documents.id),
+  score: real('score').notNull(), // cosine similarity 0-1
+  computedAt: integer('computed_at', { mode: 'timestamp_ms' }).notNull(),
+}, (table) => [
+  index('idx_similarities_source').on(table.sourceDocId),
+  uniqueIndex('idx_similarities_pair').on(table.sourceDocId, table.targetDocId),
+])
 
 /** Folders for document organization */
 export const folders = sqliteTable('folders', {
@@ -140,6 +155,31 @@ export const shareLinks = sqliteTable('share_links', {
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 })
 
+/** AI provider settings per tenant (encrypted API keys) */
+export const aiSettings = sqliteTable('ai_settings', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  providerId: text('provider_id').notNull(),
+  encryptedApiKey: text('encrypted_api_key').notNull(),
+  defaultModel: text('default_model').notNull(),
+  isEnabled: integer('is_enabled', { mode: 'boolean' }).notNull().default(true),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
+/** AI usage tracking for token consumption monitoring */
+export const aiUsage = sqliteTable('ai_usage', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  userId: text('user_id').notNull().references(() => users.id),
+  providerId: text('provider_id').notNull(),
+  model: text('model').notNull(),
+  action: text('action').notNull(),
+  inputTokens: integer('input_tokens').notNull().default(0),
+  outputTokens: integer('output_tokens').notNull().default(0),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
 /** File uploads (R2 metadata) */
 export const uploads = sqliteTable('uploads', {
   id: text('id').primaryKey(),
@@ -150,5 +190,65 @@ export const uploads = sqliteTable('uploads', {
   contentType: text('content_type').notNull(),
   sizeBytes: integer('size_bytes').notNull(),
   uploadedBy: text('uploaded_by').notNull().references(() => users.id),
+  extractionStatus: text('extraction_status').default('pending'), // pending | processing | completed | failed | unsupported
+  summary: text('summary'), // AI-generated summary of extracted text
+  lastDispatchedAt: integer('last_dispatched_at', { mode: 'timestamp_ms' }), // last extraction job dispatch time
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 })
+
+/** Extracted text from uploaded files (separated due to large text size) */
+export const fileExtractions = sqliteTable('file_extractions', {
+  id: text('id').primaryKey(),
+  uploadId: text('upload_id').notNull().references(() => uploads.id, { onDelete: 'cascade' }),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  extractedText: text('extracted_text').notNull(),
+  charCount: integer('char_count').default(0),
+  chunkCount: integer('chunk_count').default(0), // actual number of Vectorize vectors stored
+  vectorId: text('vector_id'), // prefix for Vectorize vector IDs
+  extractionMethod: text('extraction_method'), // docling | gemini | direct | unsupported
+  errorMessage: text('error_message'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+}, (table) => [
+  index('idx_file_extractions_upload').on(table.uploadId),
+  index('idx_file_extractions_tenant').on(table.tenantId),
+])
+
+/** Trigram index for fuzzy search */
+export const searchTrigrams = sqliteTable('search_trigrams', {
+  trigram: text('trigram').notNull(),
+  documentId: text('document_id').notNull().references(() => documents.id),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  field: text('field').notNull(), // 'title' | 'summary' | 'content'
+  frequency: integer('frequency').notNull().default(1),
+}, (table) => [
+  primaryKey({ columns: [table.trigram, table.documentId, table.field] }),
+  index('idx_trigram_tenant').on(table.trigram, table.tenantId),
+])
+
+/** Search history for autocomplete suggestions */
+export const searchHistory = sqliteTable('search_history', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  query: text('query').notNull(),
+  resultCount: integer('result_count').notNull(),
+  searchCount: integer('search_count').notNull().default(1),
+  lastSearchedAt: integer('last_searched_at', { mode: 'timestamp_ms' }).notNull(),
+}, (table) => [
+  uniqueIndex('idx_history_tenant_query').on(table.tenantId, table.query),
+])
+
+/** Search analytics for tracking queries and clicks */
+export const searchAnalytics = sqliteTable('search_analytics', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  query: text('query').notNull(),
+  searchType: text('search_type').notNull(), // 'hybrid' | 'keyword' | 'semantic'
+  resultCount: integer('result_count').notNull(),
+  clickedDocId: text('clicked_doc_id'),
+  clickPosition: integer('click_position'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+}, (table) => [
+  index('idx_analytics_tenant_date').on(table.tenantId, table.createdAt),
+  index('idx_analytics_tenant_query').on(table.tenantId, table.query),
+])

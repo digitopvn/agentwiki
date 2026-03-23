@@ -12,15 +12,22 @@ import {
   issueTokens,
   refreshAccessToken,
   revokeSession,
+  updateUserProfile,
 } from '../services/auth-service'
+import { sendWelcomeEmail } from '../services/email-service'
 import { verifyJwt } from '../utils/crypto'
 import { logAudit } from '../utils/audit'
+import { TOKEN_TTL } from '@agentwiki/shared'
+import { authGuard } from '../middleware/auth-guard'
 import { drizzle } from 'drizzle-orm/d1'
 import { eq } from 'drizzle-orm'
 import { users } from '../db/schema'
 import type { Env } from '../env'
+import type { AuthContext } from '@agentwiki/shared'
 
-const auth = new Hono<{ Bindings: Env }>()
+type AuthEnv = { Bindings: Env; Variables: { auth: AuthContext } }
+
+const auth = new Hono<AuthEnv>()
 
 /** Cookie options — secure only in production (HTTPS) */
 function getCookieOpts(c: { env: { APP_URL: string } }) {
@@ -63,15 +70,24 @@ auth.get('/google/callback', async (c) => {
     const tokens = await google.validateAuthorizationCode(code, codeVerifier)
     const profile = await fetchGoogleProfile(tokens.accessToken())
 
-    const { user, tenantId, role } = await findOrCreateUser(c.env, profile)
+    const { user, tenantId, role, isNewUser } = await findOrCreateUser(c.env, profile)
     if (!tenantId) return c.json({ error: 'No tenant found' }, 500)
 
     const { accessToken, refreshToken } = await issueTokens(c.env, user.id, tenantId, role)
 
-    setCookie(c, 'access_token', accessToken, { ...getCookieOpts(c), maxAge: 900 })
-    setCookie(c, 'refresh_token', refreshToken, { ...getCookieOpts(c), maxAge: 604800 })
+    setCookie(c, 'access_token', accessToken, { ...getCookieOpts(c), maxAge: TOKEN_TTL.accessToken / 1000 })
+    setCookie(c, 'refresh_token', refreshToken, { ...getCookieOpts(c), maxAge: TOKEN_TTL.refreshToken / 1000 })
 
     logAudit(c as never, 'auth.login', 'user', user.id, { provider: 'google' })
+
+    // Send welcome email for new signups (non-blocking)
+    if (isNewUser) {
+      c.executionCtx.waitUntil(
+        sendWelcomeEmail(c.env, user.email, user.name ?? 'there').catch((err: unknown) =>
+          console.error('Welcome email failed:', err)
+        )
+      )
+    }
 
     return c.redirect(c.env.APP_URL)
   } catch (err) {
@@ -86,7 +102,7 @@ auth.get('/google/callback', async (c) => {
 auth.get('/github', async (c) => {
   const github = createGithubAuth(c.env)
   const state = generateState()
-  const url = github.createAuthorizationURL(state, [])
+  const url = github.createAuthorizationURL(state, ['user:email'])
 
   setCookie(c, 'oauth_state', state, { ...getCookieOpts(c), maxAge: 600 })
   return c.redirect(url.toString())
@@ -107,15 +123,24 @@ auth.get('/github/callback', async (c) => {
     const tokens = await github.validateAuthorizationCode(code)
     const profile = await fetchGithubProfile(tokens.accessToken())
 
-    const { user, tenantId, role } = await findOrCreateUser(c.env, profile)
+    const { user, tenantId, role, isNewUser } = await findOrCreateUser(c.env, profile)
     if (!tenantId) return c.json({ error: 'No tenant found' }, 500)
 
     const { accessToken, refreshToken } = await issueTokens(c.env, user.id, tenantId, role)
 
-    setCookie(c, 'access_token', accessToken, { ...getCookieOpts(c), maxAge: 900 })
-    setCookie(c, 'refresh_token', refreshToken, { ...getCookieOpts(c), maxAge: 604800 })
+    setCookie(c, 'access_token', accessToken, { ...getCookieOpts(c), maxAge: TOKEN_TTL.accessToken / 1000 })
+    setCookie(c, 'refresh_token', refreshToken, { ...getCookieOpts(c), maxAge: TOKEN_TTL.refreshToken / 1000 })
 
     logAudit(c as never, 'auth.login', 'user', user.id, { provider: 'github' })
+
+    // Send welcome email for new signups (non-blocking)
+    if (isNewUser) {
+      c.executionCtx.waitUntil(
+        sendWelcomeEmail(c.env, user.email, user.name ?? 'there').catch((err: unknown) =>
+          console.error('Welcome email failed:', err)
+        )
+      )
+    }
 
     return c.redirect(c.env.APP_URL)
   } catch (err) {
@@ -135,7 +160,7 @@ auth.post('/refresh', async (c) => {
   const newAccessToken = await refreshAccessToken(c.env, refreshToken)
   if (!newAccessToken) return c.json({ error: 'Invalid refresh token' }, 401)
 
-  setCookie(c, 'access_token', newAccessToken, { ...getCookieOpts(c), maxAge: 900 })
+  setCookie(c, 'access_token', newAccessToken, { ...getCookieOpts(c), maxAge: TOKEN_TTL.accessToken / 1000 })
   return c.json({ ok: true })
 })
 
@@ -173,6 +198,16 @@ auth.get('/me', async (c) => {
     tenantId: payload.tid,
     role: payload.role,
   })
+})
+
+// --- Update current user profile ---
+
+auth.patch('/me', authGuard, async (c) => {
+  const { userId } = c.get('auth')
+  const body = await c.req.json() as { name?: string }
+  const updated = await updateUserProfile(c.env, userId, body)
+  if (!updated) return c.json({ error: 'User not found' }, 404)
+  return c.json({ user: { id: updated.id, email: updated.email, name: updated.name, avatarUrl: updated.avatarUrl } })
 })
 
 export { auth as authRoutes }

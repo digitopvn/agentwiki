@@ -61,9 +61,17 @@ export async function fetchGithubProfile(accessToken: string): Promise<OAuthProf
   ])
   if (!userRes.ok) throw new Error('Failed to fetch GitHub profile')
 
-  const userData = (await userRes.json()) as { id: number; login: string; name?: string; avatar_url?: string }
-  const emails = (await emailRes.json()) as Array<{ email: string; primary: boolean }>
-  const primaryEmail = emails.find((e) => e.primary)?.email ?? `${userData.login}@github`
+  const userData = (await userRes.json()) as { id: number; login: string; name?: string; avatar_url?: string; email?: string }
+
+  // Emails endpoint may fail if scope not granted — fallback to profile email
+  let primaryEmail = userData.email ?? `${userData.login}@users.noreply.github.com`
+  if (emailRes.ok) {
+    const emails = await emailRes.json()
+    if (Array.isArray(emails)) {
+      const found = emails.find((e: { email: string; primary: boolean }) => e.primary)
+      if (found) primaryEmail = found.email
+    }
+  }
 
   return {
     email: primaryEmail,
@@ -90,7 +98,7 @@ export async function findOrCreateUser(env: Env, profile: OAuthProfile) {
       .from(tenantMemberships)
       .where(eq(tenantMemberships.userId, user.id))
       .limit(1)
-    return { user, tenantId: membership[0]?.tenantId, role: (membership[0]?.role ?? 'viewer') as Role }
+    return { user, tenantId: membership[0]?.tenantId, role: (membership[0]?.role ?? 'viewer') as Role, isNewUser: false }
   }
 
   // Create new user + tenant
@@ -128,6 +136,7 @@ export async function findOrCreateUser(env: Env, profile: OAuthProfile) {
     user: { id: userId, email: profile.email, name: profile.name, avatarUrl: profile.avatarUrl },
     tenantId,
     role: 'admin' as Role,
+    isNewUser: true,
   }
 }
 
@@ -202,4 +211,14 @@ export async function revokeSession(env: Env, refreshToken: string) {
   const db = drizzle(env.DB)
   const tokenHash = await hashToken(refreshToken)
   await db.delete(sessions).where(eq(sessions.tokenHash, tokenHash))
+}
+
+/** Update mutable user profile fields */
+export async function updateUserProfile(env: Env, userId: string, input: { name?: string }) {
+  const db = drizzle(env.DB)
+  if (input.name) {
+    await db.update(users).set({ name: input.name }).where(eq(users.id, userId))
+  }
+  const result = await db.select().from(users).where(eq(users.id, userId)).limit(1)
+  return result[0] ?? null
 }

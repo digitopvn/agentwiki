@@ -2,11 +2,13 @@
 
 import { eq, and, isNull, desc, sql, like, inArray } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
+import { deleteDocumentTrigrams } from './trigram-service'
 import {
   documents,
   documentVersions,
   documentTags,
   documentLinks,
+  users,
 } from '../db/schema'
 import { generateId } from '../utils/crypto'
 import { slugify, uniqueSlug } from '../utils/slug'
@@ -82,6 +84,8 @@ export async function createDocument(
   // Extract and store wikilinks
   if (input.content) {
     await syncWikilinks(db, id, input.content, tenantId)
+    // Enqueue AI edge type inference for new links
+    try { await env.QUEUE.send({ type: 'infer-edge-types', documentId: id, tenantId }) } catch { /* dev */ }
   }
 
   // Enqueue AI summary generation
@@ -99,8 +103,27 @@ export async function getDocument(env: Env, tenantId: string, docId: string) {
   const db = drizzle(env.DB)
 
   const doc = await db
-    .select()
+    .select({
+      id: documents.id,
+      tenantId: documents.tenantId,
+      folderId: documents.folderId,
+      title: documents.title,
+      slug: documents.slug,
+      content: documents.content,
+      contentJson: documents.contentJson,
+      summary: documents.summary,
+      category: documents.category,
+      accessLevel: documents.accessLevel,
+      createdBy: documents.createdBy,
+      updatedBy: documents.updatedBy,
+      createdAt: documents.createdAt,
+      updatedAt: documents.updatedAt,
+      deletedAt: documents.deletedAt,
+      authorName: users.name,
+      authorAvatar: users.avatarUrl,
+    })
     .from(documents)
+    .leftJoin(users, eq(documents.createdBy, users.id))
     .where(and(eq(documents.id, docId), eq(documents.tenantId, tenantId), isNull(documents.deletedAt)))
     .limit(1)
 
@@ -110,6 +133,45 @@ export async function getDocument(env: Env, tenantId: string, docId: string) {
     .select({ tag: documentTags.tag })
     .from(documentTags)
     .where(eq(documentTags.documentId, docId))
+
+  return { ...doc[0], tags: tags.map((t) => t.tag) }
+}
+
+/** Get a single document by slug */
+export async function getDocumentBySlug(env: Env, tenantId: string, slug: string) {
+  const db = drizzle(env.DB)
+
+  const doc = await db
+    .select({
+      id: documents.id,
+      tenantId: documents.tenantId,
+      folderId: documents.folderId,
+      title: documents.title,
+      slug: documents.slug,
+      content: documents.content,
+      contentJson: documents.contentJson,
+      summary: documents.summary,
+      category: documents.category,
+      accessLevel: documents.accessLevel,
+      createdBy: documents.createdBy,
+      updatedBy: documents.updatedBy,
+      createdAt: documents.createdAt,
+      updatedAt: documents.updatedAt,
+      deletedAt: documents.deletedAt,
+      authorName: users.name,
+      authorAvatar: users.avatarUrl,
+    })
+    .from(documents)
+    .leftJoin(users, eq(documents.createdBy, users.id))
+    .where(and(eq(documents.slug, slug), eq(documents.tenantId, tenantId), isNull(documents.deletedAt)))
+    .limit(1)
+
+  if (!doc.length) return null
+
+  const tags = await db
+    .select({ tag: documentTags.tag })
+    .from(documentTags)
+    .where(eq(documentTags.documentId, doc[0].id))
 
   return { ...doc[0], tags: tags.map((t) => t.tag) }
 }
@@ -184,7 +246,38 @@ export async function listDocuments(
   return { data, total: countResult[0]?.count ?? 0 }
 }
 
-/** Update a document — creates a version */
+/** Hash content for version dedup comparison */
+async function contentHash(content: string): Promise<string> {
+  const data = new TextEncoder().encode(content)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+/** Decide if a new version should be created (content-hash + 5-min time-gate) */
+async function shouldCreateVersion(
+  currentContent: string,
+  newContent: string | undefined,
+  lastVersionCreatedAt: Date | number | undefined,
+): Promise<boolean> {
+  if (newContent === undefined) return false
+
+  const currentH = await contentHash(currentContent)
+  const newH = await contentHash(newContent)
+  if (currentH === newH) return false
+
+  // Time gate: at least 5 minutes since last version
+  if (lastVersionCreatedAt) {
+    const MIN_INTERVAL = 5 * 60 * 1000
+    const elapsed = Date.now() - new Date(lastVersionCreatedAt).getTime()
+    if (elapsed < MIN_INTERVAL) return false
+  }
+
+  return true
+}
+
+/** Update a document — conditionally creates a version (hash+time-gate) */
 export async function updateDocument(
   env: Env,
   tenantId: string,
@@ -204,27 +297,34 @@ export async function updateDocument(
 
   if (!current.length) return null
 
-  // Get current version number
+  // Get last version for dedup check
   const lastVersion = await db
-    .select({ version: documentVersions.version })
+    .select({ version: documentVersions.version, createdAt: documentVersions.createdAt })
     .from(documentVersions)
     .where(eq(documentVersions.documentId, docId))
     .orderBy(desc(documentVersions.version))
     .limit(1)
 
-  const nextVersion = (lastVersion[0]?.version ?? 0) + 1
+  // Only create version if content genuinely changed + time-gate passed
+  const shouldVersion = await shouldCreateVersion(
+    current[0].content,
+    input.content,
+    lastVersion[0]?.createdAt,
+  )
 
-  // Save current as version
-  await db.insert(documentVersions).values({
-    id: generateId(),
-    documentId: docId,
-    version: nextVersion,
-    content: current[0].content,
-    contentJson: current[0].contentJson,
-    changeSummary: null,
-    createdBy: userId,
-    createdAt: now,
-  })
+  if (shouldVersion) {
+    const nextVersion = (lastVersion[0]?.version ?? 0) + 1
+    await db.insert(documentVersions).values({
+      id: generateId(),
+      documentId: docId,
+      version: nextVersion,
+      content: current[0].content,
+      contentJson: current[0].contentJson,
+      changeSummary: null,
+      createdBy: userId,
+      createdAt: now,
+    })
+  }
 
   // Build update object
   const updates: Record<string, unknown> = { updatedBy: userId, updatedAt: now }
@@ -253,6 +353,8 @@ export async function updateDocument(
   // Sync wikilinks
   if (input.content !== undefined) {
     await syncWikilinks(db, docId, input.content, tenantId)
+    // Enqueue AI edge type inference for updated links
+    try { await env.QUEUE.send({ type: 'infer-edge-types', documentId: docId, tenantId }) } catch { /* dev */ }
   }
 
   // Enqueue summary regeneration
@@ -262,16 +364,53 @@ export async function updateDocument(
     // Queue may not be available in dev
   }
 
+  return { id: docId }
+}
+
+/** Force create a version checkpoint (manual save) */
+export async function createVersionCheckpoint(env: Env, tenantId: string, docId: string, userId: string) {
+  const db = drizzle(env.DB)
+  const current = await db
+    .select()
+    .from(documents)
+    .where(and(eq(documents.id, docId), eq(documents.tenantId, tenantId), isNull(documents.deletedAt)))
+    .limit(1)
+
+  if (!current.length) return null
+
+  const lastVersion = await db
+    .select({ version: documentVersions.version })
+    .from(documentVersions)
+    .where(eq(documentVersions.documentId, docId))
+    .orderBy(desc(documentVersions.version))
+    .limit(1)
+
+  const nextVersion = (lastVersion[0]?.version ?? 0) + 1
+
+  await db.insert(documentVersions).values({
+    id: generateId(),
+    documentId: docId,
+    version: nextVersion,
+    content: current[0].content,
+    contentJson: current[0].contentJson,
+    changeSummary: 'Manual checkpoint',
+    createdBy: userId,
+    createdAt: new Date(),
+  })
+
   return { id: docId, version: nextVersion }
 }
 
-/** Soft-delete a document */
+/** Soft-delete a document and clean up trigram index */
 export async function deleteDocument(env: Env, tenantId: string, docId: string) {
   const db = drizzle(env.DB)
   const result = await db
     .update(documents)
     .set({ deletedAt: new Date() })
     .where(and(eq(documents.id, docId), eq(documents.tenantId, tenantId), isNull(documents.deletedAt)))
+
+  // Clean up trigram index for deleted document
+  await deleteDocumentTrigrams(env, docId).catch(() => {})
 
   return result
 }
@@ -287,7 +426,7 @@ export async function getVersionHistory(env: Env, docId: string, limit = 20) {
     .limit(limit)
 }
 
-/** Get forward + backlinks for a document */
+/** Get forward + backlinks for a document (with typed edges) */
 export async function getDocumentLinks(env: Env, docId: string) {
   const db = drizzle(env.DB)
 
@@ -295,6 +434,8 @@ export async function getDocumentLinks(env: Env, docId: string) {
     .select({
       targetId: documentLinks.targetDocId,
       context: documentLinks.context,
+      type: documentLinks.type,
+      weight: documentLinks.weight,
       title: documents.title,
       slug: documents.slug,
     })
@@ -306,6 +447,8 @@ export async function getDocumentLinks(env: Env, docId: string) {
     .select({
       sourceId: documentLinks.sourceDocId,
       context: documentLinks.context,
+      type: documentLinks.type,
+      weight: documentLinks.weight,
       title: documents.title,
       slug: documents.slug,
     })
@@ -316,7 +459,7 @@ export async function getDocumentLinks(env: Env, docId: string) {
   return { forward, backlinks }
 }
 
-/** Sync wikilinks — delete old, insert new */
+/** Sync wikilinks — delete old, insert new (with typed edges) */
 async function syncWikilinks(
   db: ReturnType<typeof drizzle>,
   docId: string,
@@ -343,12 +486,15 @@ async function syncWikilinks(
       )
       .limit(1)
 
-    if (target.length) {
+    if (target.length && target[0].id !== docId) {
       await db.insert(documentLinks).values({
         id: generateId(),
         sourceDocId: docId,
         targetDocId: target[0].id,
         context: link.context,
+        type: link.type ?? 'relates-to',
+        weight: 1.0,
+        inferred: 0,
         createdAt: new Date(),
       })
     }

@@ -6,6 +6,7 @@ export interface RankedResult {
   slug: string
   snippet: string
   score?: number
+  category?: string
 }
 
 /**

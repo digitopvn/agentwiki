@@ -62,6 +62,14 @@ export function useDocument(id: string | null) {
   })
 }
 
+export function useDocumentBySlug(slug: string | undefined) {
+  return useQuery<Document>({
+    queryKey: ['documents', 'by-slug', slug],
+    queryFn: () => apiClient.get<Document>(`/api/documents/by-slug/${slug}`),
+    enabled: !!slug,
+  })
+}
+
 export function useDocumentVersions(id: string | null) {
   return useQuery<{ versions: DocumentVersion[] }>({
     queryKey: ['documents', id, 'versions'],

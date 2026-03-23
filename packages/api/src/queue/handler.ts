@@ -1,14 +1,21 @@
 /** Cloudflare Queue consumer — processes async jobs */
 
 import { embedDocument } from '../services/embedding-service'
+import { generateSummaryWithProvider } from '../ai/ai-service'
+import { indexDocumentTrigrams } from '../services/trigram-service'
+import { pruneOldAnalytics } from '../services/analytics-service'
+import { computeSimilarities } from '../services/similarity-service'
+import { inferEdgeTypesForDoc } from '../services/graph-ai-service'
 import { drizzle } from 'drizzle-orm/d1'
 import { eq } from 'drizzle-orm'
-import { documents } from '../db/schema'
+import { documents, uploads, fileExtractions } from '../db/schema'
+import { chunkMarkdown } from '../utils/chunker'
 import type { Env } from '../env'
 
 interface QueueMessage {
   type: string
-  documentId: string
+  documentId?: string
+  uploadId?: string
   tenantId: string
 }
 
@@ -31,17 +38,35 @@ export async function handleQueueBatch(
 async function processMessage(msg: QueueMessage, env: Env) {
   switch (msg.type) {
     case 'generate-summary':
-      await generateSummary(env, msg.documentId, msg.tenantId)
+      if (msg.documentId) await generateSummary(env, msg.documentId, msg.tenantId)
       break
     case 'embed':
-      await embedDocumentJob(env, msg.documentId, msg.tenantId)
+      if (msg.documentId) await embedDocumentJob(env, msg.documentId, msg.tenantId)
+      break
+    case 'index-trigrams':
+      if (msg.documentId) await indexDocumentTrigrams(env, msg.documentId, msg.tenantId)
+      break
+    case 'cleanup-analytics':
+      await pruneOldAnalytics(env, msg.tenantId, 90)
+      break
+    case 'embed-upload':
+      if (msg.uploadId) await embedUploadJob(env, msg.uploadId, msg.tenantId)
+      break
+    case 'summarize-upload':
+      if (msg.uploadId) await summarizeUploadJob(env, msg.uploadId, msg.tenantId)
+      break
+    case 'compute-similarities':
+      if (msg.documentId) await computeSimilarities(env, msg.documentId, msg.tenantId)
+      break
+    case 'infer-edge-types':
+      if (msg.documentId) await inferEdgeTypesForDoc(env, msg.documentId, msg.tenantId)
       break
     default:
       console.warn(`Unknown queue message type: ${msg.type}`)
   }
 }
 
-/** Generate AI summary for a document */
+/** Generate AI summary — uses tenant's configured provider, falls back to Workers AI */
 async function generateSummary(env: Env, documentId: string, tenantId: string) {
   const db = drizzle(env.DB)
   const doc = await db
@@ -52,9 +77,21 @@ async function generateSummary(env: Env, documentId: string, tenantId: string) {
 
   if (!doc.length || !doc[0].content) return
 
-  // Truncate content for AI (avoid token limits)
   const truncated = doc[0].content.slice(0, 3000)
 
+  // Try tenant's configured AI provider first
+  try {
+    const summary = await generateSummaryWithProvider(env, tenantId, doc[0].title, truncated)
+    if (summary) {
+      await db.update(documents).set({ summary }).where(eq(documents.id, documentId))
+      await embedDocumentJob(env, documentId, tenantId)
+      return
+    }
+  } catch (err) {
+    console.warn('AI provider summary failed, falling back to Workers AI:', err)
+  }
+
+  // Fallback: Workers AI (Llama 3.1 8B)
   const result = await (env.AI as Ai).run('@cf/meta/llama-3.1-8b-instruct' as never, {
     messages: [
       {
@@ -76,20 +113,125 @@ async function generateSummary(env: Env, documentId: string, tenantId: string) {
       .where(eq(documents.id, documentId))
   }
 
-  // Also trigger embedding
+  // Also trigger embedding and trigram indexing
   await embedDocumentJob(env, documentId, tenantId)
+  await indexDocumentTrigrams(env, documentId, tenantId)
 }
 
-/** Generate embeddings for a document */
+/** Generate embeddings for a document (includes category in vector metadata) */
 async function embedDocumentJob(env: Env, documentId: string, tenantId: string) {
   const db = drizzle(env.DB)
   const doc = await db
-    .select({ content: documents.content })
+    .select({ content: documents.content, category: documents.category })
     .from(documents)
     .where(eq(documents.id, documentId))
     .limit(1)
 
   if (!doc.length || !doc[0].content) return
 
-  await embedDocument(env, documentId, doc[0].content, tenantId)
+  await embedDocument(env, documentId, doc[0].content, tenantId, doc[0].category ?? undefined)
+
+  // Trigger similarity computation after embedding completes
+  await env.QUEUE.send({ type: 'compute-similarities', documentId, tenantId })
+}
+
+/** Generate embeddings for uploaded file's extracted text */
+async function embedUploadJob(env: Env, uploadId: string, tenantId: string) {
+  const db = drizzle(env.DB)
+  const extraction = await db
+    .select({
+      extractedText: fileExtractions.extractedText,
+      vectorId: fileExtractions.vectorId,
+      chunkCount: fileExtractions.chunkCount,
+    })
+    .from(fileExtractions)
+    .where(eq(fileExtractions.uploadId, uploadId))
+    .limit(1)
+
+  if (!extraction.length || !extraction[0].extractedText) return
+
+  const text = extraction[0].extractedText
+  const vectorPrefix = extraction[0].vectorId ?? `upload-${uploadId}`
+  const oldChunkCount = extraction[0].chunkCount ?? 0
+  const chunks = chunkMarkdown(text)
+  if (!chunks.length) return
+
+  // Delete existing vectors — use max(old, new) to clean up orphans from previous extractions
+  const deleteCount = Math.max(oldChunkCount, chunks.length)
+  const existingIds = Array.from({ length: deleteCount }, (_, i) => `${vectorPrefix}-${i}`)
+  try { await env.VECTORIZE.deleteByIds(existingIds) } catch { /* may not exist */ }
+
+  // Generate embeddings in batches
+  const batchSize = 5
+  const vectors: VectorizeVector[] = []
+
+  for (let i = 0; i < chunks.length; i += batchSize) {
+    const batch = chunks.slice(i, i + batchSize)
+    const texts = batch.map((c) => c.text)
+
+    const result = await env.AI.run('@cf/baai/bge-base-en-v1.5', {
+      text: texts,
+    }) as { data: number[][] }
+
+    for (let j = 0; j < batch.length; j++) {
+      vectors.push({
+        id: `${vectorPrefix}-${batch[j].index}`,
+        values: result.data[j],
+        metadata: {
+          org_id: tenantId,
+          upload_id: uploadId,
+          source_type: 'upload',
+          chunk_index: batch[j].index,
+          heading: batch[j].heading ?? '',
+        },
+      })
+    }
+  }
+
+  if (vectors.length) {
+    await env.VECTORIZE.upsert(vectors)
+  }
+
+  // Store actual chunk count for exact cleanup on re-extraction or deletion
+  await db.update(fileExtractions)
+    .set({ chunkCount: chunks.length })
+    .where(eq(fileExtractions.uploadId, uploadId))
+}
+
+/** Generate AI summary for uploaded file's extracted text */
+async function summarizeUploadJob(env: Env, uploadId: string, tenantId: string) {
+  const db = drizzle(env.DB)
+  const extraction = await db
+    .select({ extractedText: fileExtractions.extractedText })
+    .from(fileExtractions)
+    .where(eq(fileExtractions.uploadId, uploadId))
+    .limit(1)
+
+  if (!extraction.length || !extraction[0].extractedText) return
+
+  const truncated = extraction[0].extractedText.slice(0, 3000)
+
+  // Try tenant's configured AI provider first
+  try {
+    const summary = await generateSummaryWithProvider(env, tenantId, 'Uploaded file', truncated)
+    if (summary) {
+      await db.update(uploads).set({ summary }).where(eq(uploads.id, uploadId))
+      return
+    }
+  } catch (err) {
+    console.warn('AI provider summary failed for upload, falling back to Workers AI:', err)
+  }
+
+  // Fallback: Workers AI
+  const result = await (env.AI as Ai).run('@cf/meta/llama-3.1-8b-instruct' as never, {
+    messages: [
+      { role: 'system', content: 'Summarize the following file content in 1-2 concise sentences. Return only the summary.' },
+      { role: 'user', content: truncated },
+    ],
+    max_tokens: 150,
+  } as never) as { response: string }
+
+  if (result.response) {
+    await db.update(uploads).set({ summary: result.response.trim() }).where(eq(uploads.id, uploadId))
+  }
 }

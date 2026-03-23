@@ -94,6 +94,9 @@ AgentWiki is an enterprise knowledge management platform serving humans and AI a
 - [x] OAuth login page
 - [x] TailwindCSS v4 styling
 - [x] Responsive design (mobile-ready)
+- [x] Auto-save performance optimization (2s debounce, deferred markdown) — Issue #32
+- [x] Mobile sidebar drawers (CSS transform, swipe gestures) — Issue #37
+- [x] Drag-and-drop markdown file import — Issue #21
 
 **Key Files**:
 - `packages/web/src/components/editor/editor.tsx` — BlockNote wrapper
@@ -123,6 +126,12 @@ AgentWiki is an enterprise knowledge management platform serving humans and AI a
 - [x] Async embedding generation (Queues)
 - [x] Queue consumer for batch processing
 - [x] Document summary generation
+- [x] Multi-vendor AI providers (6: OpenAI, Anthropic, Google, OpenRouter, MiniMax, Alibaba)
+- [x] AI slash commands (5) in BlockNote editor
+- [x] AI selection toolbar (6 actions) for text
+- [x] AI settings page with provider configuration
+- [x] Usage tracking & cost dashboard
+- [x] Encrypted provider API keys storage
 
 **Key Files**:
 - `packages/api/src/services/search-service.ts` — Hybrid search
@@ -164,7 +173,7 @@ AgentWiki is an enterprise knowledge management platform serving humans and AI a
 ### Phase 7: Graph & Hardening 🔄 IN PROGRESS
 
 **Timeline**: Mar 2026 - Mar 2026
-**Status**: 90% Complete
+**Status**: 95% Complete
 
 **Deliverables**:
 - [x] Document graph endpoint (nodes + edges)
@@ -176,6 +185,33 @@ AgentWiki is an enterprise knowledge management platform serving humans and AI a
 - [ ] Enhanced error handling
 - [ ] E2E test suite
 - [ ] Load testing & optimization
+
+### Phase 8: MCP Server Implementation ✅ COMPLETE
+
+**Timeline**: Mar 2026 - Mar 2026
+**Status**: Shipped
+
+**Deliverables**:
+- [x] Model Context Protocol (MCP) server on Cloudflare Workers
+- [x] 25 MCP tools (document, search, folder, tag, upload, member, key, share operations)
+- [x] 6 context resources (documents, search results, folder tree, members, keys, shares)
+- [x] 4 system prompts for AI agent guidance (wiki writer, research, coordination, architecture)
+- [x] API key authentication (PBKDF2 + scope-based RBAC)
+- [x] Streamable HTTP transport (stateless)
+- [x] Service reuse from packages/api (D1, R2, KV, Vectorize, Queue, AI bindings)
+- [x] Audit logging for MCP actions
+- [x] Error handling & serialization
+
+**Key Files**:
+- `packages/mcp/src/server.ts` — McpServer factory
+- `packages/mcp/src/tools/*` — Tool implementations
+- `packages/mcp/src/resources/wiki-resources.ts` — Context resources
+- `packages/mcp/src/prompts/wiki-prompts.ts` — System prompts
+- `packages/mcp/src/auth/api-key-auth.ts` — Authentication
+
+**Deployment**:
+- URL: `https://mcp.agentwiki.cc`
+- Bindings: Shared with REST API (D1, R2, KV, Vectorize, Queue, AI)
 
 **Key Files**:
 - `packages/api/src/routes/graph.ts` — Graph API
@@ -213,6 +249,8 @@ AgentWiki is an enterprise knowledge management platform serving humans and AI a
 | File uploads | ✅ | 100% | R2 storage |
 | Sharing | ✅ | 100% | Token-based links |
 | Publishing | ✅ | 100% | Public web pages |
+| AI-assisted writing | ✅ | 100% | 6 providers, 11 commands |
+| MCP server | ✅ | 100% | 25 tools, 6 resources, 4 prompts |
 | CLI tool | ✅ | 100% | All major commands |
 | API completeness | ✅ | 100% | RESTful, type-safe |
 
@@ -472,6 +510,7 @@ AgentWiki is an enterprise knowledge management platform serving humans and AI a
 - Web editor (BlockNote)
 - Document sharing
 - Audit logging
+- MCP server for AI agent integration (25 tools, 6 resources, 4 prompts)
 
 ### 0.2.0 (Planned Q2 2026)
 - Real-time collaborative editing
@@ -513,7 +552,7 @@ Items under consideration for future versions:
 
 For roadmap questions or feature requests:
 - GitHub Issues: [agentwiki/issues](https://github.com/your-org/agentwiki/issues)
-- Email: [product@agentwiki.cc](mailto:product@agentwiki.cc)
+- Email: [support@agentwiki.cc](mailto:support@agentwiki.cc)
 - Roadmap discussions: [Roadmap label](https://github.com/your-org/agentwiki/labels/roadmap)
 
 ## Document History

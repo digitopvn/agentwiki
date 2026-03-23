@@ -17,7 +17,7 @@ export async function uniqueSlug(
   baseSlug: string,
   checkExists: (slug: string) => Promise<boolean>,
 ): Promise<string> {
-  let slug = baseSlug || 'untitled'
+  const slug = baseSlug || 'untitled'
   if (!(await checkExists(slug))) return slug
 
   for (let i = 2; i <= 100; i++) {
