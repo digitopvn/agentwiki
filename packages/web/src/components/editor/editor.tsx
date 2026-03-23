@@ -26,7 +26,26 @@ export function Editor({ documentId, tabId }: EditorProps) {
     latestDocRef.current = doc
   }, [doc])
 
-  const editor = useCreateBlockNote()
+  const editor = useCreateBlockNote({
+    uploadFile: async (file: File) => {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const res = await fetch('/api/uploads', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      })
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => null)
+        throw new Error(err?.error ?? `Upload failed (${res.status})`)
+      }
+
+      const data = (await res.json()) as { url: string }
+      return data.url
+    },
+  })
 
   // Load initial content once doc is fetched
   useEffect(() => {
