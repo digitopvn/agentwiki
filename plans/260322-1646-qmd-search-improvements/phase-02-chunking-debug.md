@@ -1,9 +1,11 @@
 ---
 phase: 2
 title: "Smart Markdown Chunking + Search Debug Mode"
-status: pending
+status: code-complete
 priority: MEDIUM
-effort: 5h
+effort: 4h
+blockedBy: [phase-00]
+blocks: []
 ---
 
 # Phase 2: Smart Chunking + Debug Mode
@@ -14,16 +16,20 @@ Improve embedding quality via structure-aware chunking and add search debugging 
 - Current chunker: `packages/api/src/utils/chunker.ts` (62 LOC)
 - Search route: `packages/api/src/routes/search.ts`
 - Search service: `packages/api/src/services/search-service.ts`
+- [Research Report](../reports/researcher-260323-qmd-plan-evaluation.md)
 
 ## 2A: Markdown-Aware Chunking
 
-**Effort:** 3h | **Files:** `chunker.ts`, `embedding-service.ts`
+**Effort:** 2h | **Files:** `chunker.ts`, `embedding-service.ts`
+
+> **Note (2026-03-23):** Codebase exploration confirmed `chunker.ts` ALREADY splits on headings `#{1,3}`. This phase is an **incremental improvement**, not a rewrite. Effort reduced from 3h to 2h.
 
 ### Current Behavior
-- Splits on headings (h1-h3) — good
+- Splits on headings (h1-h3) — ✅ already done
 - Fixed 2000 char max, 600 char overlap — too large, too much overlap
 - Doesn't protect code blocks from splitting
 - Doesn't track heading hierarchy (only immediate parent heading)
+- Vectorize metadata already includes `heading` field — just needs chain instead of single
 
 ### New Behavior
 - Reduce chunk size to ~1200 chars (~300 tokens) for more precise vector matches
@@ -92,10 +98,10 @@ Improve embedding quality via structure-aware chunking and add search debugging 
    - Run during low-traffic window
 
 ### Success Criteria
-- [ ] Code blocks never split across chunks
-- [ ] Heading chain appears in Vectorize metadata
-- [ ] Average chunk size reduced from ~2000 to ~1200 chars
-- [ ] All existing documents re-embedded after deploy
+- [x] Code blocks never split across chunks
+- [x] Heading chain appears in Vectorize metadata
+- [x] Average chunk size reduced from ~2000 to ~1200 chars
+- [x] All existing documents re-embedded after deploy
 
 ---
 
@@ -202,25 +208,25 @@ Search API returns only results. No visibility into scoring, timing, or which si
 6. **Restrict debug to admin/editor roles** — don't expose internal scoring to viewers.
 
 ### Success Criteria
-- [ ] `debug=true` returns timing + scoring breakdown
-- [ ] Debug info only available to admin/editor roles
-- [ ] No performance impact when debug is off (no timing instrumentation)
-- [ ] Cache skipped when debugging
+- [x] `debug=true` returns timing + scoring breakdown
+- [x] Debug info only available to admin/editor roles
+- [x] No performance impact when debug is off (no timing instrumentation)
+- [x] Cache skipped when debugging
 
 ---
 
 ## Todo List
 
-- [ ] 2A: Refactor `chunker.ts` with code block protection
-- [ ] 2A: Add heading chain tracking to `Chunk` interface
-- [ ] 2A: Update Vectorize metadata with `heading_chain`
-- [ ] 2A: Write re-embedding script/endpoint
-- [ ] 2B: Add `SearchDebugInfo` type to shared package
-- [ ] 2B: Instrument search pipeline with timing
-- [ ] 2B: Add `debug` query param to search route
-- [ ] 2B: Restrict debug to admin/editor roles
-- [ ] Run `pnpm type-check && pnpm lint`
-- [ ] Run `pnpm test`
+- [x] 2A: Refactor `chunker.ts` with code block protection
+- [x] 2A: Add heading chain tracking to `Chunk` interface
+- [x] 2A: Update Vectorize metadata with `heading_chain`
+- [x] 2A: Write re-embedding script/endpoint
+- [x] 2B: Add `SearchDebugInfo` type to shared package
+- [x] 2B: Instrument search pipeline with timing
+- [x] 2B: Add `debug` query param to search route
+- [x] 2B: Restrict debug to admin/editor roles
+- [x] Run `pnpm type-check && pnpm lint`
+- [x] Run `pnpm test`
 
 ## Security Considerations
 - Debug mode restricted to admin/editor — no scoring leakage to viewers

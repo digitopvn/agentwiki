@@ -1,7 +1,7 @@
 ---
 phase: 1
 title: "Quick Wins: Position-Aware RRF + Content Hash + Search Cache"
-status: pending
+status: code-complete
 priority: HIGH
 effort: 5h
 ---
@@ -86,10 +86,10 @@ Weight keyword (trigram) vs semantic differently based on final rank position:
    Storage search results use `signal: 'default'` (no weighting change).
 
 ### Success Criteria
-- [ ] Exact keyword matches rank higher for top positions
-- [ ] Semantic-only matches still appear but ranked lower in top 3
-- [ ] Backward compatible: existing callers with bare arrays still work
-- [ ] No latency impact (pure math, no new I/O)
+- [x] Exact keyword matches rank higher for top positions
+- [x] Semantic-only matches still appear but ranked lower in top 3
+- [x] Backward compatible: existing callers with bare arrays still work
+- [x] No latency impact (pure math, no new I/O)
 
 ---
 
@@ -151,10 +151,10 @@ Every document update triggers full re-embedding (delete all vectors + regenerat
 4. **Extract `computeHash` to shared utility** (`packages/api/src/utils/hash.ts`) since `document-service.ts` already has similar code.
 
 ### Success Criteria
-- [ ] Whitespace-only doc updates skip re-embedding
-- [ ] First-time documents still get embedded (hash is null)
-- [ ] Hash updated after successful embedding
-- [ ] Workers AI call count reduced on doc update spikes
+- [x] Whitespace-only doc updates skip re-embedding
+- [x] First-time documents still get embedded (hash is null)
+- [x] Hash updated after successful embedding
+- [x] Workers AI call count reduced on doc update spikes
 
 ---
 
@@ -224,25 +224,25 @@ Only suggestions are cached in KV (5-min TTL). Full search results are computed 
 4. **Don't cache if `debug=true`** (Phase 2 addition — prepare for it now by skipping cache when debug param present).
 
 ### Success Criteria
-- [ ] Identical search queries within 5 min return cached results
-- [ ] Document mutations invalidate cache via generation counter
-- [ ] Cache miss = normal search path (no behavior change)
-- [ ] KV read adds <5ms latency on cache hit
+- [x] Identical search queries within 5 min return cached results
+- [x] Document mutations invalidate cache via generation counter
+- [x] Cache miss = normal search path (no behavior change)
+- [x] KV read adds <5ms latency on cache hit
 
 ---
 
 ## Todo List
 
-- [ ] 1A: Modify `rrf.ts` with position-aware weighting
-- [ ] 1A: Update `search-service.ts` callers with signal labels
-- [ ] 1A: Update `storage-search-service.ts` callers
-- [ ] 1B: Add `contentHash` column to schema + migration
-- [ ] 1B: Extract `computeHash` to `utils/hash.ts`
-- [ ] 1B: Add hash check in `embedDocumentJob` queue handler
-- [ ] 1C: Add KV cache layer in `searchDocuments()`
-- [ ] 1C: Add generation counter for cache invalidation
-- [ ] Run `pnpm type-check && pnpm lint`
-- [ ] Run `pnpm test`
+- [x] 1A: Modify `rrf.ts` with position-aware weighting
+- [x] 1A: Update `search-service.ts` callers with signal labels
+- [x] 1A: Update `storage-search-service.ts` callers
+- [x] 1B: Add `contentHash` column to schema + migration
+- [x] 1B: Extract `computeHash` to `utils/hash.ts`
+- [x] 1B: Add hash check in `embedDocumentJob` queue handler
+- [x] 1C: Add KV cache layer in `searchDocuments()`
+- [x] 1C: Add generation counter for cache invalidation
+- [x] Run `pnpm type-check && pnpm lint`
+- [x] Run `pnpm test`
 
 ## Security Considerations
 - Cache keys include `tenantId` → no cross-tenant data leakage
