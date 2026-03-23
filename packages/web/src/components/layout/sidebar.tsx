@@ -8,6 +8,7 @@ import { useAppStore } from '../../stores/app-store'
 import { useIsMobile } from '../../hooks/use-is-mobile'
 import { useAuth } from '../../hooks/use-auth'
 import { FolderTree } from '../sidebar/folder-tree'
+import { ErrorBoundary } from './error-boundary'
 import { BrowsePanel, type BrowseFilter } from '../sidebar/browse-panel'
 import { SortControls } from '../sidebar/sort-controls'
 import { RecentDocuments } from '../sidebar/recent-documents'
@@ -250,12 +251,14 @@ export function Sidebar() {
             )}
           </div>
         ) : (
-          <FolderTree
-            searchQuery={search}
-            sortMode={sortMode}
-            sortDirection={sortDirection}
-            onDocumentOpen={isMobile ? () => setMobileSidebarOpen(false) : undefined}
-          />
+          <ErrorBoundary>
+            <FolderTree
+              searchQuery={search}
+              sortMode={sortMode}
+              sortDirection={sortDirection}
+              onDocumentOpen={isMobile ? () => setMobileSidebarOpen(false) : undefined}
+            />
+          </ErrorBoundary>
         )}
       </div>
 

@@ -44,9 +44,9 @@ export function FolderTree({
   sortDirection = 'asc',
   onDocumentOpen,
 }: FolderTreeProps) {
-  const { data: folderData, isLoading: foldersLoading } = useFolderTree()
+  const { data: folderData, isLoading: foldersLoading, isError: foldersError } = useFolderTree()
   // limit: 100 = API max; virtual scroll needed for >100 root docs
-  const { data: docData, isLoading: docsLoading } = useDocuments({ folderId: 'null', sort: 'position', order: 'asc', limit: 100 })
+  const { data: docData, isLoading: docsLoading, isError: docsError } = useDocuments({ folderId: 'null', sort: 'position', order: 'asc', limit: 100 })
   const { theme, openTab, setActiveTab } = useAppStore()
   const updateDocument = useUpdateDocument()
   const reorderItem = useReorderItem()
@@ -117,6 +117,25 @@ export function FolderTree({
             className={cn('h-5 animate-pulse rounded-md', isDark ? 'bg-surface-3' : 'bg-neutral-200')}
           />
         ))}
+      </div>
+    )
+  }
+
+  if (foldersError && docsError) {
+    return (
+      <div className="px-3 py-4 text-center">
+        <p className={cn('text-xs', isDark ? 'text-red-400' : 'text-red-500')}>
+          Failed to load documents
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className={cn(
+            'mt-2 rounded-md px-3 py-1 text-xs',
+            isDark ? 'bg-surface-3 text-neutral-300 hover:bg-surface-2' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200',
+          )}
+        >
+          Retry
+        </button>
       </div>
     )
   }
