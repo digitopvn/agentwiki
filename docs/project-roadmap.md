@@ -3,7 +3,7 @@
 Living document tracking development progress, milestones, and future plans.
 
 **Current Version**: 0.1.0 (MVP)
-**Last Updated**: 2026-03-18
+**Last Updated**: 2026-03-23
 **Status**: In Development
 
 ## Executive Summary
@@ -133,6 +133,23 @@ AgentWiki is an enterprise knowledge management platform serving humans and AI a
 - [x] Usage tracking & cost dashboard
 - [x] Encrypted provider API keys storage
 
+**Phase 5.5: QMD-Inspired Search Pipeline (NEW) ✅ COMPLETE**
+
+**Timeline**: Mar 2026
+**Status**: Code-complete, staged rollout
+
+**Deliverables**:
+- [x] Position-aware RRF with signal weighting (keyword/semantic/default)
+- [x] KV search cache (5-min TTL)
+- [x] FTS5/BM25 search service (ready for evaluation, not yet primary)
+- [x] Parallel AI query expansion (Promise.all latency optimization)
+- [x] Folder context enrichment in results
+- [x] Smart markdown chunking (2000→1200 chars, heading chains, code block protection)
+- [x] Content hash skip for embeddings (SHA-256 caching)
+- [x] Search debug mode (`?debug=true`)
+- [x] Search eval harness (MRR@5, Precision@3, Recall@10, NDCG@10)
+- [x] 21 unit tests (all passing)
+
 **Key Files**:
 - `packages/api/src/services/search-service.ts` — Hybrid search
 - `packages/api/src/services/embedding-service.ts` — Vectorize API
@@ -244,8 +261,9 @@ AgentWiki is an enterprise knowledge management platform serving humans and AI a
 | Multi-tenant | ✅ | 100% | Tenant isolation verified |
 | Authentication | ✅ | 100% | OAuth + JWT + API keys |
 | Authorization | ✅ | 100% | RBAC with 4 roles |
-| Search (keyword) | ✅ | 100% | FTS5 on D1 |
-| Search (semantic) | ✅ | 100% | Vectorize integrated |
+| Search (keyword) | ✅ | 100% | Hybrid: trigram + FTS5 ready |
+| Search (semantic) | ✅ | 100% | Vectorize + position-aware RRF |
+| Search (AI-powered) | ✅ | 100% | Parallel query expansion |
 | File uploads | ✅ | 100% | R2 storage |
 | Sharing | ✅ | 100% | Token-based links |
 | Publishing | ✅ | 100% | Public web pages |

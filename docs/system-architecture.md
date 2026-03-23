@@ -244,15 +244,35 @@ Content-Type: application/json
 - Category/tag association
 
 #### SearchService
-- Keyword search via D1 FTS
-- Semantic search via Vectorize
-- Reciprocal Rank Fusion (RRF) combining results
-- Caching recent searches in KV
+- Keyword search via D1 FTS or trigram (configurable)
+- Semantic search via Vectorize (smart markdown chunking with heading chains)
+- Position-aware Reciprocal Rank Fusion (RRF) with signal weighting
+  - Keyword/semantic/default signal types with top-rank bonus
+  - Inverted position weighting for tail results (semantic favored)
+- KV search caching (5-min TTL, skipped with `?debug=true`)
+- Parallel AI query expansion via tenant provider (Promise.all for latency optimization)
+- Folder context enrichment in result metadata
+- Search debug mode (`?debug=true`) returns timing, cache status, expansion count
 
 #### EmbeddingService
 - Query vectorization (bge-base-en)
-- Batch document embedding
+- Batch document embedding with content hash skip (SHA-256 check)
+- Smart markdown chunking (2000→1200 char blocks, heading chain metadata)
 - Vectorize API integration
+- Overlap guard prevents infinite loops
+
+#### QueryExpansionService (NEW)
+- AI-powered synonym generation via tenant's configured provider
+- 1-hour KV cache per tenant
+- System/user message separation for prompt injection defense
+- Configurable per channel (UI=off, MCP=on, API=off)
+
+#### Fts5SearchService (NEW)
+- BM25 keyword search via D1 FTS5 virtual table
+- Porter stemming + Unicode61 tokenizer
+- Query sanitization (strip `:`, balanced quotes, boolean ops)
+- Backfill indexing for existing documents
+- Ready for staged rollout (not yet wired as primary)
 
 #### UploadService
 - R2 presigned URL generation
@@ -355,40 +375,66 @@ await db.transaction(async (tx) => {
     - Updates document.summary field
 ```
 
-## Data Flow: Search Query
+## Data Flow: Search Query (Post-QMD Improvements)
 
 ```
 1. User types in search box
    ↓
 2. 300ms debounce delay
    ↓
-3. React Query fires GET /api/search?q=query&type=hybrid
+3. React Query fires GET /api/search?q=query&type=hybrid[&debug=true][&expand=true]
    ↓
 4. SearchService.searchDocuments() called
-   ├─ Check KV cache (searchCache key)
-   │  ├─ Hit: return cached results
-   │  └─ Miss: continue to step 5
+   ├─ Check KV cache (deterministic key: search:{tenantId}:{query})
+   │  ├─ Hit (and not debug=true): return cached results with cache:hit metadata
+   │  └─ Miss or debug=true: continue to step 5
    ↓
-5. Parallel execution:
-   ├─ Keyword search:
-   │  └─ SELECT * FROM documents WHERE tenantId=? AND (title LIKE ? OR content LIKE ?)
-   │     Returns: [{ id, title, slug, snippet }, ...]
+5. Parallel execution (Promise.all for latency optimization):
    │
-   └─ Semantic search:
-      └─ Call Vectorize.query(embeddedQuery, { limit: 20 })
-         Returns: [{ id, score }, ...] (pre-filtered by tenantId in Vectorize index)
+   ├─ Query Expansion (if enabled):
+   │  ├─ QueryExpansionService.expandQuery(query, tenantId)
+   │  ├─ Call tenant's configured AI provider (with prompt injection defense)
+   │  ├─ Cache result in KV (1-hour TTL per tenant)
+   │  └─ Returns: [expanded_queries, ...] or original if expansion disabled/failed
+   │
+   ├─ Keyword Search:
+   │  └─ SELECT * FROM documents WHERE tenantId=? AND (title LIKE ? OR content LIKE ?)
+   │     OR via FTS5: SELECT * FROM fts5_documents WHERE fts5_documents MATCH 'sanitized_query'
+   │     Returns: [{ id, title, slug, snippet, rank }, ...]
+   │
+   └─ Semantic Search:
+      ├─ Embed query via Vectorize (bge-base-en)
+      ├─ Check content hash of query (SHA-256) — skip if seen before (KV cache)
+      ├─ Call Vectorize.query(embeddedQuery, { limit: 20 })
+      └─ Returns: [{ id, score, heading_chain }, ...] (pre-filtered by tenantId, with smart chunks)
    ↓
-6. RRF (Reciprocal Rank Fusion) combines both result sets
-   - Assigns rank-based scores: 1 / (k + rank)
-   - Merges duplicate IDs, sums scores
-   - Sorts by total score descending
+6. Position-Aware RRF combines result sets
+   ├─ For top-3 results: keyword weight=75%, semantic weight=25%
+   ├─ For tail results: inverted weighting (semantic favored)
+   ├─ Apply signal type bonus: keyword/semantic/default
+   ├─ Merges duplicate IDs, sums scores
+   └─ Sorts by total score descending
    ↓
-7. Cache results in KV (1-hour TTL)
+7. Folder Context Enrichment (batch via Promise.all)
+   ├─ FolderContextResolver.buildHierarchy() for each result's folderId
+   ├─ 10-min KV cache per tenant
+   └─ Attach context: { folder: { name, hierarchy, description }, ... }
    ↓
-8. Return fused results to client
-   { results: [{ id, title, snippet, score }, ...], count, elapsed }
+8. Cache results in KV (5-min TTL for main results)
    ↓
-9. React renders search results with preview
+9. Build response with debug metadata (if ?debug=true)
+   ├─ elapsed: total query time (ms)
+   ├─ cache: 'hit' | 'miss'
+   ├─ expansion_count: # of expanded queries generated
+   ├─ results_count: final result count
+   ├─ keyword_sources: # of keyword results used
+   └─ semantic_sources: # of semantic results used
+   ↓
+10. Return fused results to client
+    { results: [{ id, title, snippet, score, folder, heading_chain }, ...],
+      count, elapsed, cache, expansion_count, ... }
+    ↓
+11. React renders search results with preview + folder breadcrumb
 ```
 
 ## Authentication & Authorization Flow
@@ -484,21 +530,38 @@ Example middleware:
 ```
 Document created/updated
     ↓
-Enqueue job message(s) to Cloudflare Queues
-    ├─ { type: 'embed', documentId, content, tenantId }
-    └─ { type: 'summarize', documentId, content, tenantId }
+Queue Manager checks document state
+    ├─ Calculate content hash (SHA-256)
+    ├─ Skip embedding if hash unchanged (content hash caching)
+    └─ Enqueue job message(s) to Cloudflare Queues
+       ├─ { type: 'embed', documentId, content, contentHash, tenantId }
+       ├─ { type: 'summarize', documentId, content, tenantId }
+       ├─ { type: 'index-fts5', documentId, content, tenantId }  [NEW]
+       └─ { type: 'backfill-fts5', documentId, ... }             [NEW, batched]
     ↓
 Queue consumer (in same Worker)
     ↓
 handleQueueBatch() processes messages
     ├─ For each 'embed' message:
-    │  ├─ Call Workers AI to generate embedding
-    │  ├─ Push vector to Vectorize
-    │  └─ Update document vector_id
+    │  ├─ Chunk content via smart markdown chunker (2000→1200 chars, heading chains)
+    │  ├─ Protect code blocks from splitting
+    │  ├─ Add heading_chain metadata to vectors
+    │  ├─ Call Workers AI to generate embeddings
+    │  ├─ Push vectors to Vectorize
+    │  └─ Update document with vector_ids + contentHash
     │
-    └─ For each 'summarize' message:
-       ├─ Call Workers AI to generate summary
-       └─ Update document.summary
+    ├─ For each 'summarize' message:
+    │  ├─ Call Workers AI to generate summary
+    │  └─ Update document.summary
+    │
+    ├─ For each 'index-fts5' message:  [NEW]
+    │  ├─ Insert/update FTS5 virtual table
+    │  ├─ Sanitize query syntax
+    │  └─ Update search index
+    │
+    └─ For each 'backfill-fts5' message:  [NEW]
+       ├─ Bulk index documents for FTS5
+       └─ Async background task (non-blocking)
     ↓
 On failure:
     ├─ Log error
@@ -899,7 +962,10 @@ Middleware checks: ratelimit:{ipOrKey} in KV
 | User session | JWT | 15 min | Expired |
 | Refresh token | KV | 7 days | Logout, revoke |
 | Document list | React Query | 30 sec | Manual invalidate |
-| Search results | KV | 1 hour | Manual |
+| Search results | KV | 5 min | Manual, or `?debug=true` bypasses |
+| Query expansion | KV (per-tenant) | 1 hour | Per-tenant basis |
+| Folder context | KV (per-tenant) | 10 min | Per-tenant basis |
+| Content hash | KV cache | 5 min | Auto-expire |
 | Share tokens | KV | Until expiry | Token expiry |
 | R2 files | CF CDN | 24 hours | Cloudflare |
 | API responses | React Query | 30 sec | Mutation |
