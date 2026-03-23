@@ -11,6 +11,47 @@ interface ReorderInput {
   beforeId?: string
 }
 
+interface FolderNode {
+  id: string
+  parentId?: string | null
+  children?: FolderNode[]
+}
+
+/** Recursively reorder a folder within its sibling array in the tree */
+function reorderFolderInTree(
+  nodes: FolderNode[],
+  folderId: string,
+  afterId: string | undefined,
+): FolderNode[] | null {
+  // Try reordering at this level
+  const idx = nodes.findIndex((f) => f.id === folderId)
+  if (idx !== -1) {
+    const items = [...nodes]
+    const [moved] = items.splice(idx, 1)
+    if (afterId) {
+      const afterIdx = items.findIndex((f) => f.id === afterId)
+      if (afterIdx === -1) return null
+      items.splice(afterIdx + 1, 0, moved)
+    } else {
+      items.splice(0, 0, moved)
+    }
+    return items
+  }
+  // Recurse into children
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i]
+    if (node.children?.length) {
+      const result = reorderFolderInTree(node.children, folderId, afterId)
+      if (result) {
+        const updated = [...nodes]
+        updated[i] = { ...node, children: result }
+        return updated
+      }
+    }
+  }
+  return null
+}
+
 export function useReorderItem() {
   const qc = useQueryClient()
   return useMutation({
@@ -47,21 +88,12 @@ export function useReorderItem() {
           },
         )
       } else {
-        // Optimistic reorder for folders
-        qc.setQueryData<{ folders: Array<{ id: string }> }>(['folders'], (old) => {
-          if (!old?.folders) return old as { folders: Array<{ id: string }> }
-          const items = [...old.folders]
-          const idx = items.findIndex((f) => f.id === variables.id)
-          if (idx === -1) return old
-          const [moved] = items.splice(idx, 1)
-          if (variables.afterId) {
-            const afterIdx = items.findIndex((f) => f.id === variables.afterId)
-            if (afterIdx === -1) return old // afterId not in cache
-            items.splice(afterIdx + 1, 0, moved)
-          } else {
-            items.splice(0, 0, moved)
-          }
-          return { ...old, folders: items }
+        // Optimistic reorder for folders (supports nested subfolders)
+        qc.setQueryData<{ folders: FolderNode[] }>(['folders'], (old) => {
+          if (!old?.folders) return old as { folders: FolderNode[] }
+          const result = reorderFolderInTree(old.folders, variables.id, variables.afterId)
+          if (!result) return old
+          return { ...old, folders: result }
         })
       }
 

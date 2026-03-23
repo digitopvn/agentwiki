@@ -26,7 +26,6 @@ export interface Folder {
   parentId: string | null
   name: string
   slug: string
-  position: number
   positionIndex: string
   createdAt: Date
   updatedAt: Date
