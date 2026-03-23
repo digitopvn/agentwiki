@@ -71,9 +71,9 @@ export function Editor({ documentId, tabId }: EditorProps) {
         throw new Error(err?.error ?? `Upload failed (${res.status})`)
       }
 
-      const data = await res.json() as { fileKey?: string }
-      if (!data.fileKey) throw new Error('Upload response missing fileKey')
-      return `/api/files/${data.fileKey}`
+      const data = await res.json() as { url?: string }
+      if (!data.url) throw new Error('Upload response missing URL')
+      return data.url
     },
   })
 
