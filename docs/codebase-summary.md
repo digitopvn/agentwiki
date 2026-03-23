@@ -75,7 +75,8 @@ agentwiki/
 │   │   │   │   ├── publish-service.ts — Public page generation
 │   │   │   │   ├── extraction-service.ts — VPS result callback handler
 │   │   │   │   ├── extraction-job-dispatcher.ts — Job dispatch + token mgmt
-│   │   │   │   └── extraction-retry-service.ts — Stuck job retry logic
+│   │   │   │   ├── extraction-retry-service.ts — Stuck job retry logic
+│   │   │   │   └── import-service.ts — Multi-source import (Obsidian, Notion, LarkSuite adapters)
 │   │   │   ├── queue/
 │   │   │   │   └── handler.ts      — Queue consumer (embeddings, summaries, FTS5 indexing, content hash skip)
 │   │   │   ├── utils/
@@ -318,6 +319,7 @@ agentwiki/
   id: string          (PK)
   tenantId: string    (FK → tenants)
   folderId?: string   (FK → folders)
+  position: string    (fractional indexing for manual sort order)
   title: string
   slug: string        (URL-friendly per tenant)
   content: string     (Markdown body)
@@ -376,8 +378,9 @@ agentwiki/
   parentId?: string   (FK → folders, self-referencing)
   name: string
   slug: string
-  position: int       (sort order)
-  description?: string (folder context for search enrichment) [NEW]
+  position: int       (legacy sort order)
+  positionIndex: string (fractional indexing for manual sort order)
+  description?: string (folder context for search enrichment)
   createdBy: string   (FK → users)
   createdAt: timestamp
   updatedAt: timestamp
@@ -460,6 +463,19 @@ agentwiki/
 }
 ```
 
+### user_preferences
+```ts
+{
+  id: string          (PK)
+  userId: string      (FK → users)
+  tenantId: string    (FK → tenants)
+  key: string         (preference key, e.g., "sidebarSortMode")
+  value: string       (preference value, max 2000 chars)
+  createdAt: timestamp
+  updatedAt: timestamp
+}
+```
+
 ## API Routes Summary
 
 ### Auth (`/api/auth`)
@@ -520,6 +536,13 @@ agentwiki/
 - `PUT /settings` — Update provider, model, temperature
 - `DELETE /settings` — Clear AI settings
 - `GET /usage` — Usage dashboard (tokens, cost by provider)
+
+### Reorder (`/api/reorder`)
+- `PATCH` — Update document/folder position (DnD reordering with fractional indexing)
+
+### Preferences (`/api/preferences`)
+- `GET` — Get all user preferences (key-value pairs)
+- `PUT /:key` — Set/update a preference value
 
 ### Internal API (`/api/internal`)
 - `POST /extraction-result` — Callback from VPS extraction service (shared secret auth)
@@ -589,6 +612,8 @@ agentwiki/
 | Linting | ESLint | 9.0.0 | Code linting |
 | Formatting | Prettier | 3.5.0 | Code formatting |
 | Testing | Vitest | 3.0.0 | Test runner |
+| Drag & Drop | @dnd-kit/core + @dnd-kit/sortable | 6.3.1 / 10.0.0 | Sortable lists |
+| Fractional Index | fractional-indexing | 3.2.0 | DnD position indexing |
 
 ## Build & Deploy Commands
 

@@ -54,6 +54,10 @@ export function Editor({ documentId, tabId }: EditorProps) {
 
   const editor = useCreateBlockNote({
     uploadFile: async (file: File) => {
+      if (!file.type.startsWith('image/')) {
+        throw new Error('Only image files are supported')
+      }
+
       const formData = new FormData()
       formData.append('file', file)
       const res = await fetch(`${import.meta.env.VITE_API_URL ?? ''}/api/uploads`, {
@@ -61,9 +65,15 @@ export function Editor({ documentId, tabId }: EditorProps) {
         body: formData,
         credentials: 'include',
       })
-      if (!res.ok) throw new Error('Upload failed')
-      const data = await res.json() as { fileKey: string }
-      return `/api/files/${data.fileKey}`
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => null)
+        throw new Error(err?.error ?? `Upload failed (${res.status})`)
+      }
+
+      const data = await res.json() as { url?: string }
+      if (!data.url) throw new Error('Upload response missing URL')
+      return data.url
     },
   })
 

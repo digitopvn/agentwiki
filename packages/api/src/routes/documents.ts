@@ -45,6 +45,8 @@ docs.get('/', requirePermission('doc:read'), async (c) => {
     category: c.req.query('category'),
     tag: c.req.query('tag'),
     search: c.req.query('search'),
+    sort: c.req.query('sort'),
+    order: c.req.query('order'),
   }
 
   const { data, total } = await listDocuments(c.env, tenantId, params, filters)
