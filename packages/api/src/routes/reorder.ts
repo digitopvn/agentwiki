@@ -17,8 +17,13 @@ reorderRouter.use('*', authGuard)
 reorderRouter.patch('/', requirePermission('doc:update'), async (c) => {
   const body = reorderItemSchema.parse(await c.req.json())
   const { tenantId } = c.get('auth')
-  const result = await reorderItem(c.env, tenantId, body)
-  return c.json(result)
+  try {
+    const result = await reorderItem(c.env, tenantId, body)
+    return c.json(result)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Could not compute new position — try again'
+    return c.json({ error: message }, 422)
+  }
 })
 
 export { reorderRouter }

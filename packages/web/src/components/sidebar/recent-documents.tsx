@@ -32,14 +32,15 @@ export function RecentDocuments({ onDocumentOpen }: RecentDocumentsProps) {
   const setPref = useSetPreference()
   const expanded = prefs?.sidebar_recent_collapsed !== 'true'
 
-  const { data } = useDocuments({ limit: 10, sort: 'updatedAt', order: 'desc' })
+  const { data, isLoading } = useDocuments({ limit: 10, sort: 'updatedAt', order: 'desc' })
   const { theme, openTab, setActiveTab } = useAppStore()
   const navigate = useNavigate()
 
   const isDark = theme === 'dark'
   const docs = data?.data ?? []
 
-  if (docs.length === 0) return null
+  // Only hide when confirmed empty, not while loading
+  if (!isLoading && docs.length === 0) return null
 
   const toggleExpanded = () => {
     setPref.mutate({

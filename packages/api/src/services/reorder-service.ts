@@ -55,7 +55,17 @@ export async function reorderItem(env: Env, tenantId: string, input: ReorderInpu
 
     const newPosition = generateKeyBetween(afterPosition, beforePosition)
 
-    // Also update parentId if moving between containers
+    // Verify folder belongs to the specified parent before reordering
+    const parentCondCheck = input.parentId ? eq(folders.parentId, input.parentId) : isNull(folders.parentId)
+    const existing = await db
+      .select({ id: folders.id })
+      .from(folders)
+      .where(and(eq(folders.id, input.id), eq(folders.tenantId, tenantId), parentCondCheck))
+      .limit(1)
+    if (!existing.length) {
+      throw new Error('Folder does not belong to the specified parent')
+    }
+
     await db
       .update(folders)
       .set({ positionIndex: newPosition, parentId: input.parentId, updatedAt: new Date() })
@@ -95,6 +105,17 @@ export async function reorderItem(env: Env, tenantId: string, input: ReorderInpu
   }
 
   const newPosition = generateKeyBetween(afterPosition, beforePosition)
+
+  // Verify document belongs to the specified folder before reordering
+  const folderCondCheck = input.parentId ? eq(documents.folderId, input.parentId) : isNull(documents.folderId)
+  const existingDoc = await db
+    .select({ id: documents.id })
+    .from(documents)
+    .where(and(eq(documents.id, input.id), eq(documents.tenantId, tenantId), folderCondCheck, isNull(documents.deletedAt)))
+    .limit(1)
+  if (!existingDoc.length) {
+    throw new Error('Document does not belong to the specified folder')
+  }
 
   await db
     .update(documents)
