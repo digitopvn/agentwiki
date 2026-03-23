@@ -173,13 +173,17 @@ AgentWiki is an enterprise knowledge management platform serving humans and AI a
 ### Phase 7: Graph & Hardening 🔄 IN PROGRESS
 
 **Timeline**: Mar 2026 - Mar 2026
-**Status**: 95% Complete
+**Status**: 97% Complete
 
 **Deliverables**:
 - [x] Document graph endpoint (nodes + edges)
 - [x] Cytoscape.js integration (pending: UI component)
 - [x] Relationship analysis
 - [x] Wikilink visualization prep
+- [x] Sidebar DnD sorting (Issue #29: Explorer Sidebar Positions, Sorting & Recent Modifications)
+- [x] Sort controls (Manual, By Name, By Date Modified)
+- [x] User preferences persistence (key-value store)
+- [x] Recent modifications section
 - [ ] Interactive graph UI component
 - [ ] Graph-based recommendations
 - [ ] Enhanced error handling
@@ -253,6 +257,8 @@ AgentWiki is an enterprise knowledge management platform serving humans and AI a
 | MCP server | ✅ | 100% | 25 tools, 6 resources, 4 prompts |
 | CLI tool | ✅ | 100% | All major commands |
 | API completeness | ✅ | 100% | RESTful, type-safe |
+| Sidebar sorting | ✅ | 100% | DnD, manual/name/date modes |
+| User preferences | ✅ | 100% | Persistent KV store |
 
 ### Quality & Operations
 | Aspect | Status | Progress | Notes |

@@ -36,6 +36,20 @@
       "when": 1774178764927,
       "tag": "0004_far_slipstream",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1774189278305,
+      "tag": "0005_explorer_positions",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1774418504000,
+      "tag": "0006_drop_folders_position",
+      "breakpoints": true
     }
   ]
 }

@@ -57,12 +57,14 @@ Comprehensive architecture documentation covering layers, data flow, deployment 
 
 ### 1. Presentation Layer (Frontend)
 
-**Technology**: React 19, Vite, TailwindCSS v4, BlockNote
+**Technology**: React 19, Vite, TailwindCSS v4, BlockNote, @dnd-kit (DnD), fractional-indexing
 
 **Responsibilities**:
 - User authentication UI (OAuth login page)
 - Document editor (BlockNote WYSIWYG)
-- Folder tree navigation
+- Folder tree navigation (with drag-and-drop sorting)
+- Sort controls: Manual (DnD), By Name, By Date Modified
+- Recent modifications section
 - Search interface (Cmd+K command palette)
 - Settings & API key management
 - Document sharing & publishing
@@ -112,7 +114,7 @@ Route Handler
 Response (JSON)
 ```
 
-**Key Routes** (9 route groups, ~20 endpoints):
+**Key Routes** (11 route groups, ~23 endpoints):
 - `/api/auth` — OAuth, JWT refresh, logout
 - `/api/documents` — Full CRUD + versions
 - `/api/folders` — Tree operations
@@ -122,6 +124,8 @@ Response (JSON)
 - `/api/keys` — API key management
 - `/api/tags` — Tag enumeration
 - `/api/graph` — Document graph export
+- `/api/reorder` — DnD position updates (fractional indexing)
+- `/api/preferences` — User preferences (key-value)
 
 ### 3. MCP Server Layer (Agent Integration)
 

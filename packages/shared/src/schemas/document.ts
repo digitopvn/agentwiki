@@ -31,6 +31,18 @@ export const reorderFolderSchema = z.object({
   position: z.number().int().min(0),
 })
 
+export const reorderItemSchema = z.object({
+  type: z.enum(['folder', 'document']),
+  id: z.string(),
+  parentId: z.string().nullable(),
+  afterId: z.string().optional(),
+  beforeId: z.string().optional(),
+})
+
+export const setPreferenceSchema = z.object({
+  value: z.string().max(2000),
+})
+
 export const searchDocumentsSchema = z.object({
   query: z.string().min(1).max(500),
   category: z.string().optional(),
