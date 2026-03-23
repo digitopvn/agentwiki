@@ -3,6 +3,7 @@
 import { embedDocument } from '../services/embedding-service'
 import { generateSummaryWithProvider } from '../ai/ai-service'
 import { indexDocumentTrigrams } from '../services/trigram-service'
+import { indexDocumentFTS5, backfillFTS5Index } from '../services/fts5-search-service'
 import { pruneOldAnalytics } from '../services/analytics-service'
 import { computeSimilarities } from '../services/similarity-service'
 import { inferEdgeTypesForDoc } from '../services/graph-ai-service'
@@ -10,6 +11,7 @@ import { drizzle } from 'drizzle-orm/d1'
 import { eq } from 'drizzle-orm'
 import { documents, uploads, fileExtractions } from '../db/schema'
 import { chunkMarkdown } from '../utils/chunker'
+import { computeHash } from '../utils/hash'
 import type { Env } from '../env'
 
 interface QueueMessage {
@@ -60,6 +62,12 @@ async function processMessage(msg: QueueMessage, env: Env) {
       break
     case 'infer-edge-types':
       if (msg.documentId) await inferEdgeTypesForDoc(env, msg.documentId, msg.tenantId)
+      break
+    case 'index-fts5':
+      if (msg.documentId) await indexFTS5Job(env, msg.documentId, msg.tenantId)
+      break
+    case 'backfill-fts5':
+      await backfillFTS5Index(env)
       break
     default:
       console.warn(`Unknown queue message type: ${msg.type}`)
@@ -118,18 +126,32 @@ async function generateSummary(env: Env, documentId: string, tenantId: string) {
   await indexDocumentTrigrams(env, documentId, tenantId)
 }
 
-/** Generate embeddings for a document (includes category in vector metadata) */
+/** Generate embeddings for a document — skips if content unchanged (hash check) */
 async function embedDocumentJob(env: Env, documentId: string, tenantId: string) {
   const db = drizzle(env.DB)
   const doc = await db
-    .select({ content: documents.content, category: documents.category })
+    .select({
+      content: documents.content,
+      category: documents.category,
+      contentHash: documents.contentHash,
+    })
     .from(documents)
     .where(eq(documents.id, documentId))
     .limit(1)
 
   if (!doc.length || !doc[0].content) return
 
+  // Content hash check — skip re-embedding if content unchanged
+  const hash = await computeHash(doc[0].content)
+  if (doc[0].contentHash === hash) {
+    console.log(`Skip re-embed: content unchanged for ${documentId}`)
+    return
+  }
+
   await embedDocument(env, documentId, doc[0].content, tenantId, doc[0].category ?? undefined)
+
+  // Store hash after successful embedding
+  await db.update(documents).set({ contentHash: hash }).where(eq(documents.id, documentId))
 
   // Trigger similarity computation after embedding completes
   await env.QUEUE.send({ type: 'compute-similarities', documentId, tenantId })
@@ -234,4 +256,22 @@ async function summarizeUploadJob(env: Env, uploadId: string, tenantId: string) 
   if (result.response) {
     await db.update(uploads).set({ summary: result.response.trim() }).where(eq(uploads.id, uploadId))
   }
+}
+
+/** Index a document into FTS5 virtual table for BM25 search */
+async function indexFTS5Job(env: Env, documentId: string, tenantId: string) {
+  const db = drizzle(env.DB)
+  const rows = await db
+    .select({
+      title: documents.title,
+      summary: documents.summary,
+      content: documents.content,
+    })
+    .from(documents)
+    .where(eq(documents.id, documentId))
+    .limit(1)
+
+  if (!rows.length) return
+  const doc = rows[0]
+  await indexDocumentFTS5(env, documentId, tenantId, doc.title, doc.summary ?? '', doc.content)
 }

@@ -6,8 +6,10 @@ import { documents, documentTags } from '../db/schema'
 import { embedQuery } from './embedding-service'
 import { trigramSearch } from './trigram-service'
 import { storageKeywordSearch, storageSemanticSearch } from './storage-search-service'
-import { reciprocalRankFusion, type RankedResult } from '../utils/rrf'
+import { reciprocalRankFusion, type RankedResult, type RRFListOptions } from '../utils/rrf'
 import { extractSnippet } from '../utils/extract-snippet'
+import { buildFolderContext } from '../utils/folder-context'
+import { expandQuery, type ExpandedQuery } from './query-expansion-service'
 import type { Env } from '../env'
 import type { SearchFilters, SearchFacets, FacetBucket } from '@agentwiki/shared'
 
@@ -21,48 +23,97 @@ interface SearchOptions {
   category?: string
   filters?: SearchFilters
   source?: SearchSource
+  debug?: boolean
+  expand?: boolean // query expansion (default: false for UI, true for MCP)
+}
+
+/** Debug info returned when debug=true */
+export interface SearchDebugInfo {
+  timings: { keyword_ms: number; semantic_ms: number; parallel_ms?: number; fusion_ms: number; total_ms: number }
+  counts: { keyword_candidates: number; semantic_candidates: number; fused_total: number; returned: number }
+  cache: { hit: boolean; key: string }
+  expansion?: { original: string; expansions: string[]; cached: boolean; latency_ms: number }
+}
+
+export interface HybridSearchResult {
+  results: RankedResult[]
+  debug?: SearchDebugInfo
 }
 
 /** Execute hybrid search with optional faceted filtering and source selection */
-export async function searchDocuments(env: Env, options: SearchOptions) {
-  const { tenantId, query, type = 'hybrid', limit = 10, filters, source = 'docs' } = options
-  // Merge top-level category with filters for backward compat
+export async function searchDocuments(env: Env, options: SearchOptions): Promise<HybridSearchResult> {
+  const {
+    tenantId, query, type = 'hybrid', limit = 10,
+    filters, source = 'docs', debug = false, expand = false,
+  } = options
   const category = filters?.category ?? options.category
-  const results: RankedResult[][] = []
+  const t0 = Date.now()
 
-  // Document search (docs or all)
-  if (source === 'docs' || source === 'all') {
-    if (type === 'hybrid' || type === 'keyword') {
-      const keywordResults = await trigramSearch(env, tenantId, query, limit * 2, category)
-      results.push(keywordResults)
-    }
-    if (type === 'hybrid' || type === 'semantic') {
-      const semanticResults = await semanticSearch(env, tenantId, query, limit * 2, filters)
-      results.push(semanticResults)
-    }
+  // KV cache check — skip when debugging
+  const cacheKey = buildSearchCacheKey(tenantId, query, type, limit, source, filters)
+  if (!debug) {
+    try {
+      const cached = await env.KV.get(cacheKey, 'json')
+      if (cached) return { results: cached as RankedResult[] }
+    } catch { /* cache miss */ }
   }
 
-  // Storage search (storage or all)
+  // ── PARALLEL: expansion + original keyword + original semantic ──
+  const shouldExpand = expand && type === 'hybrid'
+
+  const [expansionResult, keywordResults, semanticResults] = await Promise.all([
+    shouldExpand
+      ? expandQuery(env, tenantId, query)
+      : Promise.resolve<ExpandedQuery>({ original: query, expansions: [], cached: false, latencyMs: 0 }),
+    (source === 'docs' || source === 'all') && (type === 'hybrid' || type === 'keyword')
+      ? trigramSearch(env, tenantId, query, limit * 2, category)
+      : Promise.resolve<RankedResult[]>([]),
+    (source === 'docs' || source === 'all') && (type === 'hybrid' || type === 'semantic')
+      ? semanticSearch(env, tenantId, query, limit * 2, filters)
+      : Promise.resolve<RankedResult[]>([]),
+  ])
+  const tParallel = Date.now()
+
+  const rrfInputs: RRFListOptions[] = []
+
+  // Original results — signal-weighted
+  if (keywordResults.length) rrfInputs.push({ list: keywordResults, signal: 'keyword' })
+  if (semanticResults.length) rrfInputs.push({ list: semanticResults, signal: 'semantic' })
+
+  // Storage search (default signal)
   if (source === 'storage' || source === 'all') {
-    if (type === 'hybrid' || type === 'keyword') {
-      const storageKw = await storageKeywordSearch(env, tenantId, query, limit * 2)
-      results.push(storageKw)
-    }
-    if (type === 'hybrid' || type === 'semantic') {
-      const storageSem = await storageSemanticSearch(env, tenantId, query, limit * 2)
-      results.push(storageSem)
+    const [storageKw, storageSem] = await Promise.all([
+      (type === 'hybrid' || type === 'keyword')
+        ? storageKeywordSearch(env, tenantId, query, limit * 2) : Promise.resolve([]),
+      (type === 'hybrid' || type === 'semantic')
+        ? storageSemanticSearch(env, tenantId, query, limit * 2) : Promise.resolve([]),
+    ])
+    if (storageKw.length) rrfInputs.push({ list: storageKw, signal: 'default' })
+    if (storageSem.length) rrfInputs.push({ list: storageSem, signal: 'default' })
+  }
+
+  // Expanded query results — run in parallel, add as default-weight
+  if (expansionResult.expansions.length) {
+    const expandedSearches = expansionResult.expansions.flatMap((term) => [
+      trigramSearch(env, tenantId, term, limit, category),
+      semanticSearch(env, tenantId, term, limit, filters),
+    ])
+    const expandedResults = await Promise.all(expandedSearches)
+    for (const list of expandedResults) {
+      if (list.length) rrfInputs.push({ list, signal: 'default' })
     }
   }
 
-  // Fuse results
-  let fused = results.length > 1 ? reciprocalRankFusion(...results) : results[0] ?? []
+  // Fuse with position-aware signal weighting
+  const tFuse0 = Date.now()
+  let fused = rrfInputs.length > 1 ? reciprocalRankFusion(...rrfInputs) : rrfInputs[0]?.list ?? []
+  const tFuse1 = Date.now()
 
-  // Post-filter by tags and date range (only applies to doc results, not upload results)
+  // Post-filter by tags and date range
   if (filters?.tags?.length || filters?.dateFrom || filters?.dateTo) {
     if (source === 'docs') {
       fused = await postFilterResults(env, fused, tenantId, filters)
     } else if (source === 'all') {
-      // Separate upload results (have no slug), filter only doc results, then recombine
       const uploadResults = fused.filter((r) => !r.slug)
       const docResults = fused.filter((r) => r.slug)
       const filteredDocs = await postFilterResults(env, docResults, tenantId, filters)
@@ -70,7 +121,93 @@ export async function searchDocuments(env: Env, options: SearchOptions) {
     }
   }
 
-  return fused.slice(0, limit)
+  let finalResults = fused.slice(0, limit)
+
+  // Enrich with folder context (batch-fetch folderIds, resolve contexts)
+  finalResults = await enrichWithFolderContext(env, finalResults)
+
+  // Cache results (5-min TTL) — skip when debugging
+  if (!debug) {
+    try {
+      await env.KV.put(cacheKey, JSON.stringify(finalResults), { expirationTtl: 300 })
+    } catch { /* non-critical */ }
+  }
+
+  const result: HybridSearchResult = { results: finalResults }
+
+  if (debug) {
+    result.debug = {
+      timings: {
+        keyword_ms: 0,          // individual timing unavailable in parallel mode
+        semantic_ms: 0,         // individual timing unavailable in parallel mode
+        parallel_ms: tParallel - t0, // combined keyword + semantic + expansion
+        fusion_ms: tFuse1 - tFuse0,
+        total_ms: Date.now() - t0,
+      },
+      counts: {
+        keyword_candidates: keywordResults.length,
+        semantic_candidates: semanticResults.length,
+        fused_total: fused.length,
+        returned: finalResults.length,
+      },
+      cache: { hit: false, key: cacheKey },
+      expansion: shouldExpand ? {
+        original: expansionResult.original,
+        expansions: expansionResult.expansions,
+        cached: expansionResult.cached,
+        latency_ms: expansionResult.latencyMs,
+      } : undefined,
+    }
+  }
+
+  return result
+}
+
+/** Enrich search results with folder hierarchy context */
+async function enrichWithFolderContext(env: Env, results: RankedResult[]): Promise<RankedResult[]> {
+  if (!results.length) return results
+
+  const db = drizzle(env.DB)
+  const docIds = results.map((r) => r.id)
+
+  // Batch-fetch folderIds for all result documents
+  const docs = await db
+    .select({ id: documents.id, folderId: documents.folderId })
+    .from(documents)
+    .where(inArray(documents.id, docIds))
+
+  const folderIdMap = new Map(docs.map((d) => [d.id, d.folderId]))
+
+  // Resolve folder contexts (with KV caching per folder)
+  const uniqueFolderIds = [...new Set(docs.map((d) => d.folderId).filter(Boolean))] as string[]
+  const contextMap = new Map<string, string | null>()
+
+  await Promise.all(
+    uniqueFolderIds.map(async (fid) => {
+      const ctx = await buildFolderContext(env, fid)
+      contextMap.set(fid, ctx)
+    }),
+  )
+
+  return results.map((r) => {
+    const folderId = folderIdMap.get(r.id)
+    const context = folderId ? contextMap.get(folderId) ?? null : null
+    return { ...r, context }
+  })
+}
+
+/** Build deterministic KV cache key for search results */
+function buildSearchCacheKey(
+  tenantId: string,
+  query: string,
+  type: string,
+  limit: number,
+  source: string,
+  filters?: SearchFilters,
+): string {
+  const normalized = query.toLowerCase().trim()
+  const filterStr = filters ? JSON.stringify(filters) : ''
+  return `search:${tenantId}:${type}:${source}:${limit}:${normalized}:${filterStr}`
 }
 
 /** Get facet counts for the current tenant (categories, tags, date ranges) */

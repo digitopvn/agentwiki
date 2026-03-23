@@ -37,6 +37,7 @@ export async function embedDocument(env: Env, docId: string, content: string, te
           doc_id: docId,
           chunk_index: batch[j].index,
           heading: batch[j].heading ?? '',
+          heading_chain: batch[j].headingChain ?? '',
           category: category ?? '',
         },
       })

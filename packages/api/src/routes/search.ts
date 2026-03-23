@@ -38,9 +38,12 @@ searchRouter.get(
       dateTo: c.req.query('dateTo') || undefined,
     }
 
+    const debug = c.req.query('debug') === 'true'
+    const expand = c.req.query('expand') === 'true' // UI default: off, opt-in
+
     // Run search + facets in parallel when requested
-    const [results, facets] = await Promise.all([
-      searchDocuments(c.env, { tenantId, query, type, limit, filters, source }),
+    const [searchResult, facets] = await Promise.all([
+      searchDocuments(c.env, { tenantId, query, type, limit, filters, source, debug, expand }),
       includeFacets ? getFacetCounts(c.env, tenantId) : undefined,
     ])
 
@@ -48,12 +51,19 @@ searchRouter.get(
     const searchId = crypto.randomUUID()
     c.executionCtx.waitUntil(
       Promise.all([
-        recordSearchHistory(c.env, tenantId, query, results.length),
-        recordSearch(c.env, searchId, tenantId, query, type, results.length),
+        recordSearchHistory(c.env, tenantId, query, searchResult.results.length),
+        recordSearch(c.env, searchId, tenantId, query, type, searchResult.results.length),
       ]),
     )
 
-    return c.json({ results, facets, query, type, searchId })
+    return c.json({
+      results: searchResult.results,
+      facets,
+      query,
+      type,
+      searchId,
+      ...(debug ? { debug: searchResult.debug } : {}),
+    })
   },
 )
 

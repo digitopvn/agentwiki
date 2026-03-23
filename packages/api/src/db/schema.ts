@@ -81,6 +81,7 @@ export const documents = sqliteTable('documents', {
   summary: text('summary'), // AI-generated
   category: text('category'),
   accessLevel: text('access_level').notNull().default('private'),
+  contentHash: text('content_hash'), // SHA-256 hash for embedding skip (Phase 1)
   createdBy: text('created_by').notNull().references(() => users.id),
   updatedBy: text('updated_by'),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
@@ -138,6 +139,7 @@ export const folders = sqliteTable('folders', {
   parentId: text('parent_id'),
   name: text('name').notNull(),
   slug: text('slug').notNull(),
+  description: text('description'), // optional context for AI agents (Phase 3)
   position: integer('position').notNull().default(0),
   createdBy: text('created_by').notNull().references(() => users.id),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),

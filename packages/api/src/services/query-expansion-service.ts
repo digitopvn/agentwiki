@@ -1,0 +1,89 @@
+/**
+ * AI-powered query expansion — generates synonyms/alternatives for search queries.
+ * Uses tenant's configured AI provider. Results cached in KV (1h TTL).
+ *
+ * Designed for PARALLEL execution with original search (Promise.all).
+ */
+
+import { getActiveProvider } from '../ai/ai-service'
+import type { Env } from '../env'
+
+export interface ExpandedQuery {
+  original: string
+  expansions: string[]
+  cached: boolean
+  latencyMs: number
+}
+
+const EXPANSION_PROMPT = `Generate 2-3 alternative search terms for the query below.
+Return ONLY a JSON array of strings. No explanation, no markdown.
+Example: ["term1", "term2", "term3"]
+Requirements:
+- Include synonyms, related concepts, and common abbreviations
+- Keep each term concise (1-4 words)
+- Terms must be semantically related to the original query
+Query: `
+
+/**
+ * Expand a search query using tenant's configured AI provider.
+ * Returns empty expansions on failure (graceful degradation).
+ */
+export async function expandQuery(
+  env: Env,
+  tenantId: string,
+  query: string,
+): Promise<ExpandedQuery> {
+  const t0 = Date.now()
+
+  // Skip: very short queries, quoted exact matches
+  if (query.length < 3 || query.startsWith('"')) {
+    return { original: query, expansions: [], cached: false, latencyMs: 0 }
+  }
+
+  // KV cache check
+  const cacheKey = `qexp:${tenantId}:${query.toLowerCase().trim()}`
+  try {
+    const cached = await env.KV.get(cacheKey, 'json') as string[] | null
+    if (cached) {
+      return { original: query, expansions: cached, cached: true, latencyMs: Date.now() - t0 }
+    }
+  } catch { /* cache miss */ }
+
+  try {
+    const active = await getActiveProvider(env, tenantId)
+    if (!active) {
+      return { original: query, expansions: [], cached: false, latencyMs: Date.now() - t0 }
+    }
+
+    const response = await active.provider.generateText(active.apiKey, {
+      model: active.model,
+      messages: [
+        { role: 'system', content: EXPANSION_PROMPT },
+        { role: 'user', content: query },
+      ],
+      maxTokens: 100,
+    })
+
+    const raw = response.content?.trim() ?? '[]'
+    const parsed = JSON.parse(raw)
+
+    // Validate: must be array of strings
+    if (!Array.isArray(parsed)) {
+      return { original: query, expansions: [], cached: false, latencyMs: Date.now() - t0 }
+    }
+
+    const validated = parsed
+      .filter((e: unknown): e is string => typeof e === 'string' && e.length > 0 && e.length < 100)
+      .slice(0, 3)
+
+    // Cache for 1 hour
+    try {
+      await env.KV.put(cacheKey, JSON.stringify(validated), { expirationTtl: 3600 })
+    } catch { /* cache write failure is non-critical */ }
+
+    return { original: query, expansions: validated, cached: false, latencyMs: Date.now() - t0 }
+  } catch (err) {
+    console.error('Query expansion failed:', err)
+    return { original: query, expansions: [], cached: false, latencyMs: Date.now() - t0 }
+  }
+}
