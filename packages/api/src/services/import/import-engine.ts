@@ -2,7 +2,7 @@
 
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
-import { importJobs, documentLinks, documents } from '../../db/schema'
+import { importJobs, documentLinks, documents as documentsTable } from '../../db/schema'
 import { createDocument } from '../document-service'
 import { createFolder } from '../folder-service'
 import { generateId } from '../../utils/crypto'
@@ -134,7 +134,7 @@ export async function runImport(
     try {
       const rewritten = rewriteWikilinks(doc.content, mappings.slugMap)
       if (rewritten !== doc.content) {
-        await db.update(documents).set({ content: rewritten }).where(eq(documents.id, docId))
+        await db.update(documentsTable).set({ content: rewritten }).where(eq(documentsTable.id, docId))
       }
     } catch {
       // Non-fatal: wikilink rewriting failure doesn't block import
