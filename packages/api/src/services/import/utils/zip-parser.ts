@@ -39,9 +39,16 @@ export interface ZipEntry {
 const MAX_FILE_SIZE = 20 * 1024 * 1024
 /** Total decompressed size limit (256MB) to stay within Workers memory budget */
 const MAX_TOTAL_SIZE = 256 * 1024 * 1024
+/** Max compressed ZIP size for decompression (50MB) — limits peak memory during unzipSync */
+const MAX_COMPRESSED_SIZE = 50 * 1024 * 1024
 
 /** Parse a ZIP file and return all valid entries */
 export function parseZip(zipData: ArrayBuffer): ZipEntry[] {
+  // Guard: reject oversized compressed input before decompression to limit peak memory
+  if (zipData.byteLength > MAX_COMPRESSED_SIZE) {
+    throw new Error(`ZIP file too large (${(zipData.byteLength / 1024 / 1024).toFixed(1)}MB). Max compressed size is ${MAX_COMPRESSED_SIZE / 1024 / 1024}MB.`)
+  }
+
   const unzipped = unzipSync(new Uint8Array(zipData))
   const entries: ZipEntry[] = []
   let totalSize = 0

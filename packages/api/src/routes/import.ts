@@ -42,7 +42,7 @@ importRouter.post('/', authGuard, requirePermission('doc:create'), async (c) => 
   const parsed = startImportSchema.safeParse({ source, targetFolderId })
   if (!parsed.success) return c.json({ error: 'Source must be obsidian or notion' }, 400)
 
-  if (file.size > 100 * 1024 * 1024) return c.json({ error: 'Max file size is 100MB' }, 400)
+  if (file.size > 50 * 1024 * 1024) return c.json({ error: 'Max file size is 50MB' }, 400)
   if (!file.name.endsWith('.zip')) return c.json({ error: 'ZIP file required' }, 400)
 
   const { tenantId, userId } = c.get('auth')
@@ -207,8 +207,9 @@ importRouter.get('/:id', authGuard, async (c) => {
 
   // Auto-recover stuck jobs: if processing for > 30 min, mark as failed
   const record = job[0]
-  if (record.status === 'processing' && record.createdAt) {
-    const elapsed = Date.now() - new Date(record.createdAt).getTime()
+  const processingStart = record.startedAt ?? record.createdAt
+  if (record.status === 'processing' && processingStart) {
+    const elapsed = Date.now() - new Date(processingStart).getTime()
     if (elapsed > STUCK_JOB_TIMEOUT_MS) {
       await db.update(importJobs).set({
         status: 'failed',

@@ -32,9 +32,10 @@ export async function runImport(
     attachmentMap: new Map(),
   }
 
-  // Update job status to processing
+  // Update job status to processing with startedAt timestamp
   await db.update(importJobs).set({
     status: 'processing',
+    startedAt: new Date(),
     totalDocs: documents.length,
     totalAttachments: documents.reduce((sum, d) => sum + d.attachments.length, 0),
   }).where(eq(importJobs.id, jobId))
@@ -194,17 +195,32 @@ export async function runImport(
   return summary
 }
 
-/** Sequence counter for progress events — ensures SSE clients detect every event */
+/** In-memory seq cache — seeded from KV on first write to survive Worker restarts */
 const progressSeqMap = new Map<string, number>()
 
 /** Write progress event to KV for SSE streaming with sequence counter */
 async function emitProgress(env: Env, jobId: string, event: ImportProgressEvent): Promise<void> {
   try {
+    // On first call for this job (cold start or retry), seed seq from KV
+    if (!progressSeqMap.has(jobId)) {
+      const existing = await env.KV.get(`import:${jobId}`)
+      if (existing) {
+        try {
+          const parsed = JSON.parse(existing)
+          progressSeqMap.set(jobId, parsed.seq ?? 0)
+        } catch {
+          progressSeqMap.set(jobId, 0)
+        }
+      } else {
+        progressSeqMap.set(jobId, 0)
+      }
+    }
+
     const seq = (progressSeqMap.get(jobId) ?? 0) + 1
     progressSeqMap.set(jobId, seq)
     const eventWithSeq = { ...event, seq }
     await env.KV.put(`import:${jobId}`, JSON.stringify(eventWithSeq), { expirationTtl: 3600 })
-    // Clean up seq map when import completes
+
     if (event.type === 'complete' || event.type === 'error') {
       progressSeqMap.delete(jobId)
     }

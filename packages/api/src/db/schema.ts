@@ -287,6 +287,7 @@ export const importJobs = sqliteTable('import_jobs', {
   fileKey: text('file_key'), // R2 temp ZIP key
   larkConfig: text('lark_config', { mode: 'json' }).$type<{ token: string; spaceId?: string }>(),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  startedAt: integer('started_at', { mode: 'timestamp_ms' }),
   completedAt: integer('completed_at', { mode: 'timestamp_ms' }),
 }, (table) => [
   index('idx_import_jobs_tenant').on(table.tenantId),
