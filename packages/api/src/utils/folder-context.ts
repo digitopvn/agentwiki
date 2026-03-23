@@ -1,8 +1,5 @@
 /** Build folder hierarchy context for AI agent consumption */
 
-import { eq } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/d1'
-import { folders } from '../db/schema'
 import type { Env } from '../env'
 
 /**
@@ -23,29 +20,22 @@ export async function buildFolderContext(
     if (cached) return cached
   } catch { /* cache miss */ }
 
-  const db = drizzle(env.DB)
-  const chain: Array<{ name: string; description: string | null }> = []
+  // Single recursive CTE instead of N+1 queries per ancestor level
+  const result = await env.DB.prepare(`
+    WITH RECURSIVE ancestors(id, name, description, parent_id, depth) AS (
+      SELECT id, name, description, parent_id, 0 FROM folders WHERE id = ?
+      UNION ALL
+      SELECT f.id, f.name, f.description, f.parent_id, a.depth + 1
+      FROM folders f INNER JOIN ancestors a ON f.id = a.parent_id
+      WHERE a.depth < 10
+    )
+    SELECT name, description FROM ancestors ORDER BY depth DESC
+  `).bind(folderId).all()
 
-  let currentId: string | null = folderId
-  let depth = 0
-  const maxDepth = 10 // safety limit
-
-  while (currentId && depth < maxDepth) {
-    const [folder] = await db
-      .select({
-        name: folders.name,
-        description: folders.description,
-        parentId: folders.parentId,
-      })
-      .from(folders)
-      .where(eq(folders.id, currentId))
-      .limit(1)
-
-    if (!folder) break
-    chain.unshift({ name: folder.name, description: folder.description })
-    currentId = folder.parentId
-    depth++
-  }
+  const chain = (result.results ?? []).map((r) => ({
+    name: r.name as string,
+    description: (r.description as string) ?? null,
+  }))
 
   if (!chain.length) return null
 
@@ -62,9 +52,26 @@ export async function buildFolderContext(
   return context
 }
 
-/** Invalidate folder context cache for a folder and all descendants */
+/**
+ * Invalidate folder context cache for a folder AND all its descendants.
+ * When a parent folder's name/description changes, all child context strings become stale
+ * since each context includes the full ancestor chain.
+ */
 export async function invalidateFolderContext(env: Env, folderId: string): Promise<void> {
   try {
-    await env.KV.delete(`folder-ctx:${folderId}`)
-  } catch { /* best effort */ }
+    // Find all descendant folders via recursive CTE (single D1 query)
+    const descendants = await env.DB.prepare(`
+      WITH RECURSIVE tree(id) AS (
+        SELECT id FROM folders WHERE id = ?
+        UNION ALL
+        SELECT f.id FROM folders f INNER JOIN tree t ON f.parent_id = t.id
+      )
+      SELECT id FROM tree
+    `).bind(folderId).all()
+
+    const ids = (descendants.results ?? []).map((r) => r.id as string)
+
+    // Batch-delete all KV entries (best effort)
+    await Promise.all(ids.map((id) => env.KV.delete(`folder-ctx:${id}`).catch(() => {})))
+  } catch { /* best effort — cache expires in 10 min anyway */ }
 }

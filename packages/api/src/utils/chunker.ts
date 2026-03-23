@@ -38,14 +38,15 @@ interface Section {
 function parseSections(content: string): { sections: Section[]; headingStack: string[] } {
   const lines = content.split('\n')
   const sections: Section[] = []
-  const headingStack: string[] = [] // [h1, h2, h3]
+  const headingStack: string[] = [] // [h1, h2, h3, h4, h5, h6]
   let buffer = ''
   let currentHeading: string | null = null
   let inCodeBlock = false
 
   for (const line of lines) {
-    // Track fenced code blocks
-    if (line.trimStart().startsWith('```')) {
+    // Track fenced code blocks (backtick ``` and tilde ~~~ per CommonMark)
+    const trimmedLine = line.trimStart()
+    if (trimmedLine.startsWith('```') || trimmedLine.startsWith('~~~')) {
       inCodeBlock = !inCodeBlock
       buffer += line + '\n'
       continue
@@ -57,8 +58,8 @@ function parseSections(content: string): { sections: Section[]; headingStack: st
       continue
     }
 
-    // Check for heading
-    const headingMatch = line.match(/^(#{1,3})\s+(.+)$/)
+    // Check for heading (h1-h6)
+    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/)
     if (headingMatch) {
       // Flush buffer before new heading
       if (buffer.trim()) {

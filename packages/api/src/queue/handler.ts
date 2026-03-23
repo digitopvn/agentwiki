@@ -24,6 +24,7 @@ interface QueueMessage {
   uploadId?: string
   jobId?: string
   tenantId: string
+  offset?: number // for backfill continuation
 }
 
 /** Queue consumer entry point */
@@ -71,9 +72,14 @@ async function processMessage(msg: QueueMessage, env: Env) {
     case 'index-fts5':
       if (msg.documentId) await indexFTS5Job(env, msg.documentId, msg.tenantId)
       break
-    case 'backfill-fts5':
-      await backfillFTS5Index(env)
+    case 'backfill-fts5': {
+      const result = await backfillFTS5Index(env, msg.offset ?? 0)
+      // Re-enqueue if more documents to process
+      if (result.nextOffset !== null) {
+        await env.QUEUE.send({ type: 'backfill-fts5', tenantId: msg.tenantId, offset: result.nextOffset })
+      }
       break
+    }
     case 'import-job':
       if (msg.jobId) await importJobHandler(env, msg.jobId, msg.tenantId)
       break
@@ -266,7 +272,7 @@ async function summarizeUploadJob(env: Env, uploadId: string, tenantId: string) 
   }
 }
 
-/** Index a document into FTS5 virtual table for BM25 search */
+/** Index a document into FTS5 virtual table for BM25 search (with content hash skip) */
 async function indexFTS5Job(env: Env, documentId: string, tenantId: string) {
   const db = drizzle(env.DB)
   const rows = await db
@@ -274,6 +280,7 @@ async function indexFTS5Job(env: Env, documentId: string, tenantId: string) {
       title: documents.title,
       summary: documents.summary,
       content: documents.content,
+      contentHash: documents.contentHash,
     })
     .from(documents)
     .where(eq(documents.id, documentId))
@@ -281,6 +288,11 @@ async function indexFTS5Job(env: Env, documentId: string, tenantId: string) {
 
   if (!rows.length) return
   const doc = rows[0]
+
+  // Skip re-indexing if content hasn't changed (same optimization as embedDocumentJob)
+  const newHash = await computeHash(doc.content)
+  if (doc.contentHash && doc.contentHash === newHash) return
+
   await indexDocumentFTS5(env, documentId, tenantId, doc.title, doc.summary ?? '', doc.content)
 }
 

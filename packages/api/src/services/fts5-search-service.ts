@@ -127,16 +127,20 @@ export async function removeDocumentFTS5(
 }
 
 /**
- * Backfill all documents into FTS5 index.
- * One-time migration or re-index after schema change.
+ * Backfill documents into FTS5 index.
+ * Uses D1 batch API for atomicity and has a max-per-job limit
+ * to stay within Cloudflare's 30s CPU time. Re-enqueue with offset for continuation.
  */
-export async function backfillFTS5Index(env: Env): Promise<{ indexed: number }> {
-  const batchSize = 100
-  let offset = 0
+export async function backfillFTS5Index(
+  env: Env,
+  startOffset = 0,
+  maxDocsPerJob = 500,
+): Promise<{ indexed: number; nextOffset: number | null }> {
+  const batchSize = 50
+  let offset = startOffset
   let totalIndexed = 0
 
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
+  while (totalIndexed < maxDocsPerJob) {
     const batch = await env.DB.prepare(`
       SELECT id, tenant_id, title, COALESCE(summary, '') as summary, content
       FROM documents
@@ -145,22 +149,28 @@ export async function backfillFTS5Index(env: Env): Promise<{ indexed: number }> 
       LIMIT ? OFFSET ?
     `).bind(batchSize, offset).all()
 
-    if (!batch.results?.length) break
+    if (!batch.results?.length) {
+      return { indexed: totalIndexed, nextOffset: null } // all done
+    }
 
-    for (const doc of batch.results) {
-      // FTS5 virtual tables don't support INSERT OR REPLACE — use DELETE + INSERT
-      await env.DB.prepare('DELETE FROM documents_fts WHERE doc_id = ?').bind(doc.id).run()
-      await env.DB.prepare(`
+    // Use D1 batch API — atomic per batch, single round-trip
+    const statements = batch.results.flatMap((doc) => [
+      env.DB.prepare('DELETE FROM documents_fts WHERE doc_id = ?').bind(doc.id),
+      env.DB.prepare(`
         INSERT INTO documents_fts(doc_id, tenant_id, title, summary, content)
         VALUES (?, ?, ?, ?, ?)
-      `).bind(doc.id, doc.tenant_id, doc.title, doc.summary, doc.content).run()
-    }
+      `).bind(doc.id, doc.tenant_id, doc.title, doc.summary, doc.content),
+    ])
+    await env.DB.batch(statements)
 
     totalIndexed += batch.results.length
     offset += batchSize
 
-    if (batch.results.length < batchSize) break
+    if (batch.results.length < batchSize) {
+      return { indexed: totalIndexed, nextOffset: null } // reached end
+    }
   }
 
-  return { indexed: totalIndexed }
+  // Hit max-per-job limit — return offset for re-enqueue continuation
+  return { indexed: totalIndexed, nextOffset: offset }
 }

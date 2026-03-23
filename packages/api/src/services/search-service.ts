@@ -9,6 +9,7 @@ import { storageKeywordSearch, storageSemanticSearch } from './storage-search-se
 import { reciprocalRankFusion, type RankedResult, type RRFListOptions } from '../utils/rrf'
 import { extractSnippet } from '../utils/extract-snippet'
 import { buildFolderContext } from '../utils/folder-context'
+import { computeHash } from '../utils/hash'
 import { expandQuery, type ExpandedQuery } from './query-expansion-service'
 import type { Env } from '../env'
 import type { SearchFilters, SearchFacets, FacetBucket } from '@agentwiki/shared'
@@ -50,7 +51,7 @@ export async function searchDocuments(env: Env, options: SearchOptions): Promise
   const t0 = Date.now()
 
   // KV cache check — skip when debugging
-  const cacheKey = buildSearchCacheKey(tenantId, query, type, limit, source, filters)
+  const cacheKey = await buildSearchCacheKey(tenantId, query, type, limit, source, filters)
   if (!debug) {
     try {
       const cached = await env.KV.get(cacheKey, 'json')
@@ -196,18 +197,29 @@ async function enrichWithFolderContext(env: Env, results: RankedResult[]): Promi
   })
 }
 
-/** Build deterministic KV cache key for search results */
-function buildSearchCacheKey(
+/**
+ * Build deterministic KV cache key for search results.
+ * KV keys have a 512-byte limit — hash filters when they'd exceed it.
+ */
+async function buildSearchCacheKey(
   tenantId: string,
   query: string,
   type: string,
   limit: number,
   source: string,
   filters?: SearchFilters,
-): string {
+): Promise<string> {
   const normalized = query.toLowerCase().trim()
-  const filterStr = filters ? JSON.stringify(filters) : ''
-  return `search:${tenantId}:${type}:${source}:${limit}:${normalized}:${filterStr}`
+  const filterStr = filters ? JSON.stringify(filters, Object.keys(filters).sort()) : ''
+  const base = `search:${tenantId}:${type}:${source}:${limit}:${normalized}`
+
+  // KV key max: 512 bytes. If key would be too long, hash the variable parts.
+  if (base.length + filterStr.length + 1 > 480) {
+    const hashed = await computeHash(`${normalized}:${filterStr}`)
+    return `search:${tenantId}:${type}:${source}:${limit}:${hashed.slice(0, 32)}`
+  }
+
+  return filterStr ? `${base}:${filterStr}` : base
 }
 
 /** Get facet counts for the current tenant (categories, tags, date ranges) */

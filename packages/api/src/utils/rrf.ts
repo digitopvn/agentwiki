@@ -33,7 +33,7 @@ export function reciprocalRankFusion(
   ...inputs: (RankedResult[] | RRFListOptions)[]
 ): RankedResult[] {
   const k = 60
-  const scores = new Map<string, { result: RankedResult; score: number }>()
+  const scores = new Map<string, { result: RankedResult; score: number; bestContribution: number }>()
 
   for (const input of inputs) {
     const { list, signal } = isRRFListOptions(input)
@@ -56,12 +56,14 @@ export function reciprocalRankFusion(
       const existing = scores.get(item.id)
       if (existing) {
         existing.score += rrfScore
-        // Keep the result with the better snippet
-        if (item.snippet.length > existing.result.snippet.length) {
+        // Prefer snippet from the source with the highest individual RRF contribution
+        // (better rank = more relevant snippet), not the longest snippet
+        if (rrfScore > existing.bestContribution) {
           existing.result = item
+          existing.bestContribution = rrfScore
         }
       } else {
-        scores.set(item.id, { result: item, score: rrfScore })
+        scores.set(item.id, { result: item, score: rrfScore, bestContribution: rrfScore })
       }
     }
   }
