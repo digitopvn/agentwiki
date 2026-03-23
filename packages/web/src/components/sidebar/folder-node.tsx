@@ -17,6 +17,7 @@ import { useMarkdownImport, partitionMarkdownFiles } from '../../hooks/use-markd
 
 interface FolderTreeNode {
   id: string
+  parentId: string | null
   name: string
   positionIndex?: string
   updatedAt?: Date | string
