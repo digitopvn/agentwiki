@@ -44,9 +44,9 @@ export function FolderTree({
   sortDirection = 'asc',
   onDocumentOpen,
 }: FolderTreeProps) {
-  const { data: folderData, isLoading: foldersLoading, isError: foldersError } = useFolderTree()
+  const { data: folderData, isLoading: foldersLoading, isError: foldersError, refetch: refetchFolders } = useFolderTree()
   // limit: 100 = API max; virtual scroll needed for >100 root docs
-  const { data: docData, isLoading: docsLoading, isError: docsError } = useDocuments({ folderId: 'null', sort: 'position', order: 'asc', limit: 100 })
+  const { data: docData, isLoading: docsLoading, isError: docsError, refetch: refetchDocs } = useDocuments({ folderId: 'null', sort: 'position', order: 'asc', limit: 100 })
   const { theme, openTab, setActiveTab } = useAppStore()
   const updateDocument = useUpdateDocument()
   const reorderItem = useReorderItem()
@@ -121,14 +121,14 @@ export function FolderTree({
     )
   }
 
-  if (foldersError && docsError) {
+  if (foldersError || docsError) {
     return (
       <div className="px-3 py-4 text-center">
         <p className={cn('text-xs', isDark ? 'text-red-400' : 'text-red-500')}>
-          Failed to load documents
+          Failed to load sidebar content
         </p>
         <button
-          onClick={() => window.location.reload()}
+          onClick={() => { refetchFolders(); refetchDocs() }}
           className={cn(
             'mt-2 rounded-md px-3 py-1 text-xs',
             isDark ? 'bg-surface-3 text-neutral-300 hover:bg-surface-2' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200',

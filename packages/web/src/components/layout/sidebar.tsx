@@ -1,7 +1,8 @@
 /** Left sidebar panel: folder tree, browse, search, theme toggle, user menu */
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { Search, Plus, Sun, Moon, PanelLeftClose, PanelLeft, FolderPlus, Filter, Settings, User, X, HardDrive, Network } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAppStore } from '../../stores/app-store'
@@ -30,7 +31,13 @@ export function Sidebar() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const isMobile = useIsMobile()
+  const queryClient = useQueryClient()
   const { sortMode, sortDirection, setSortPref } = useSidebarSort()
+
+  const handleErrorReset = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['folders'] })
+    queryClient.invalidateQueries({ queryKey: ['documents'] })
+  }, [queryClient])
 
   const isDark = theme === 'dark'
 
@@ -251,7 +258,7 @@ export function Sidebar() {
             )}
           </div>
         ) : (
-          <ErrorBoundary>
+          <ErrorBoundary onReset={handleErrorReset}>
             <FolderTree
               searchQuery={search}
               sortMode={sortMode}
