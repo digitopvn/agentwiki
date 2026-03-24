@@ -133,7 +133,8 @@ export async function removeDocumentFTS5(
 }
 
 /**
- * Backfill documents into FTS5 index.
+ * Backfill documents into FTS5 index — GLOBAL operation across all tenants.
+ * The queue message's tenantId is unused; this indexes every non-deleted document.
  * Uses D1 batch API for atomicity and has a max-per-job limit
  * to stay within Cloudflare's 30s CPU time. Re-enqueue with offset for continuation.
  */

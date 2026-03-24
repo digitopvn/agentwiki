@@ -27,6 +27,7 @@ interface SearchOptions {
   source?: SearchSource
   debug?: boolean
   expand?: boolean // query expansion (default: false for UI, true for MCP)
+  keywordSource?: 'trigram' | 'fts5' // override USE_FTS5 env var per-request (for eval benchmarking)
 }
 
 /** Debug info returned when debug=true */
@@ -46,13 +47,16 @@ export interface HybridSearchResult {
 export async function searchDocuments(env: Env, options: SearchOptions): Promise<HybridSearchResult> {
   const {
     tenantId, query, type = 'hybrid', limit = 10,
-    filters, source = 'docs', debug = false, expand = false,
+    filters, source = 'docs', debug = false, expand = false, keywordSource,
   } = options
   const category = filters?.category ?? options.category
   const t0 = Date.now()
 
+  // Resolve shouldExpand early for cache key accuracy (only hybrid runs expansion)
+  const shouldExpand = expand && type === 'hybrid'
+
   // KV cache check — skip when debugging
-  const cacheKey = await buildSearchCacheKey(tenantId, query, type, limit, source, expand, filters)
+  const cacheKey = await buildSearchCacheKey(tenantId, query, type, limit, source, shouldExpand, filters)
   if (!debug) {
     try {
       const cached = await env.KV.get(cacheKey, 'json')
@@ -61,9 +65,8 @@ export async function searchDocuments(env: Env, options: SearchOptions): Promise
   }
 
   // ── PARALLEL: expansion + original keyword + original semantic ──
-  const shouldExpand = expand && type === 'hybrid'
-  // Feature flag: USE_FTS5=true switches keyword source from trigram to FTS5/BM25
-  const useFts5 = env.USE_FTS5 === 'true'
+  // Feature flag: per-request keywordSource overrides USE_FTS5 env var (for eval benchmarking)
+  const useFts5 = keywordSource ? keywordSource === 'fts5' : env.USE_FTS5 === 'true'
   const keywordSearch = useFts5 ? fts5Search : trigramSearch
 
   const [expansionResult, keywordResults, semanticResults] = await Promise.all([

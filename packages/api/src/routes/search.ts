@@ -41,6 +41,8 @@ searchRouter.get(
 
     const debug = c.req.query('debug') === 'true'
     const expand = c.req.query('expand') === 'true' // UI default: off, opt-in
+    const rawKwSource = c.req.query('keyword-source')
+    const keywordSource = rawKwSource === 'fts5' || rawKwSource === 'trigram' ? rawKwSource : undefined
 
     // Enforce stricter rate limit for expand=true (AI cost surface: 10 req/min)
     // NOTE: KV get+put is non-atomic — concurrent requests can race past the limit.
@@ -61,7 +63,7 @@ searchRouter.get(
 
     // Run search + facets in parallel when requested
     const [searchResult, facets] = await Promise.all([
-      searchDocuments(c.env, { tenantId, query, type, limit, filters, source, debug, expand }),
+      searchDocuments(c.env, { tenantId, query, type, limit, filters, source, debug, expand, keywordSource }),
       includeFacets ? getFacetCounts(c.env, tenantId) : undefined,
     ])
 

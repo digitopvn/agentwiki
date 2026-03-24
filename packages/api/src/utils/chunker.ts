@@ -42,19 +42,26 @@ function parseSections(content: string): { sections: Section[]; headingStack: st
   let buffer = ''
   let currentHeading: string | null = null
   let inCodeBlock = false
-  let fenceChar = '' // tracks which character (` or ~) opened the code block
+  let fenceChar = ''  // which character (` or ~) opened the code block
+  let fenceLen = 0    // how many repeats in the opener (3, 4, 5, ...)
 
   for (const line of lines) {
-    // Track fenced code blocks — CommonMark requires closing fence matches opener
+    // Track fenced code blocks — CommonMark: closing fence must match opener char AND length
     const trimmedLine = line.trimStart()
-    if (!inCodeBlock && (trimmedLine.startsWith('```') || trimmedLine.startsWith('~~~'))) {
-      inCodeBlock = true
-      fenceChar = trimmedLine[0]
-      buffer += line + '\n'
-      continue
-    } else if (inCodeBlock && trimmedLine.startsWith(fenceChar.repeat(3))) {
+    if (!inCodeBlock) {
+      const fenceMatch = trimmedLine.match(/^(`{3,}|~{3,})/)
+      if (fenceMatch) {
+        inCodeBlock = true
+        fenceChar = fenceMatch[1][0]
+        fenceLen = fenceMatch[1].length
+        buffer += line + '\n'
+        continue
+      }
+    } else if (trimmedLine.startsWith(fenceChar.repeat(fenceLen)) && trimmedLine.trim().length <= fenceLen + 10) {
+      // Closing fence: same char, at least same length, no significant trailing content
       inCodeBlock = false
       fenceChar = ''
+      fenceLen = 0
       buffer += line + '\n'
       continue
     }
