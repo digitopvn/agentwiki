@@ -24,18 +24,23 @@ uploadsRouter.post('/', authGuard, requirePermission('doc:create'), async (c) =>
   if (!file) return c.json({ error: 'No file provided' }, 400)
   if (file.size > MAX_FILE_SIZE) return c.json({ error: 'File too large (max 100MB)' }, 400)
 
-  const result = await uploadFile(
-    c.env,
-    tenantId,
-    userId,
-    file.name,
-    file.type,
-    await file.arrayBuffer(),
-    documentId ?? undefined,
-    c.executionCtx,
-  )
-
-  return c.json(result, 201)
+  try {
+    const result = await uploadFile(
+      c.env,
+      tenantId,
+      userId,
+      file.name,
+      file.type,
+      await file.arrayBuffer(),
+      documentId ?? undefined,
+      c.executionCtx,
+    )
+    return c.json(result, 201)
+  } catch (err) {
+    console.error('Upload route error:', err)
+    const message = err instanceof Error ? err.message : 'Upload failed'
+    return c.json({ error: message }, 500)
+  }
 })
 
 // List uploads
