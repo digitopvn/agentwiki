@@ -105,16 +105,14 @@ export async function indexDocumentFTS5(
   content: string,
 ): Promise<void> {
   try {
-    // Delete existing entry first (FTS5 doesn't support UPSERT)
-    await env.DB.prepare(
-      'DELETE FROM documents_fts WHERE doc_id = ?',
-    ).bind(documentId).run()
-
-    // Insert new entry
-    await env.DB.prepare(`
-      INSERT INTO documents_fts(doc_id, tenant_id, title, summary, content)
-      VALUES (?, ?, ?, ?, ?)
-    `).bind(documentId, tenantId, title, summary ?? '', content).run()
+    // Atomic DELETE + INSERT via D1 batch (FTS5 doesn't support UPSERT)
+    await env.DB.batch([
+      env.DB.prepare('DELETE FROM documents_fts WHERE doc_id = ?').bind(documentId),
+      env.DB.prepare(`
+        INSERT INTO documents_fts(doc_id, tenant_id, title, summary, content)
+        VALUES (?, ?, ?, ?, ?)
+      `).bind(documentId, tenantId, title, summary ?? '', content),
+    ])
   } catch (err) {
     console.error(`FTS5 index error for ${documentId}:`, err)
   }

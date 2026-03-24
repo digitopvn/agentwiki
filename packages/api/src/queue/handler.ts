@@ -289,7 +289,9 @@ async function indexFTS5Job(env: Env, documentId: string, tenantId: string) {
   if (!rows.length) return
   const doc = rows[0]
 
-  // Skip re-indexing if content hasn't changed (same optimization as embedDocumentJob)
+  // Skip re-indexing if content hasn't changed (same optimization as embedDocumentJob).
+  // NOTE: contentHash is populated by embedDocumentJob, not indexFTS5Job. If embedding
+  // hasn't run yet, contentHash is null and this guard won't fire (benign: just redundant work).
   const newHash = await computeHash(doc.content)
   if (doc.contentHash && doc.contentHash === newHash) return
 

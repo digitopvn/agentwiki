@@ -78,7 +78,7 @@ function parseSections(content: string): { sections: Section[]; headingStack: st
       }
 
       // Update heading stack
-      const level = headingMatch[1].length // 1, 2, or 3
+      const level = headingMatch[1].length // 1–6
       const headingText = headingMatch[0].trim()
       updateHeadingStack(headingStack, level, headingText)
 
