@@ -142,7 +142,7 @@ export async function backfillFTS5Index(
   startOffset = 0,
   maxDocsPerJob = 500,
 ): Promise<{ indexed: number; nextOffset: number | null }> {
-  const batchSize = 50
+  const batchSize = 50 // D1 batch limit is 100 statements; keep ≤50 (50 × 2 = 100)
   let offset = startOffset
   let totalIndexed = 0
 

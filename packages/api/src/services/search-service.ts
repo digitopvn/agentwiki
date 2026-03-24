@@ -32,7 +32,7 @@ interface SearchOptions {
 /** Debug info returned when debug=true */
 export interface SearchDebugInfo {
   timings: { keyword_ms: number; semantic_ms: number; parallel_ms?: number; fusion_ms: number; total_ms: number }
-  counts: { keyword_candidates: number; semantic_candidates: number; fused_total: number; returned: number }
+  counts: { keyword_candidates: number; semantic_candidates: number; expansion_candidates: number; fused_total: number; returned: number }
   cache: { hit: boolean; key: string }
   expansion?: { original: string; expansions: string[]; cached: boolean; latency_ms: number }
 }
@@ -52,7 +52,7 @@ export async function searchDocuments(env: Env, options: SearchOptions): Promise
   const t0 = Date.now()
 
   // KV cache check — skip when debugging
-  const cacheKey = await buildSearchCacheKey(tenantId, query, type, limit, source, filters)
+  const cacheKey = await buildSearchCacheKey(tenantId, query, type, limit, source, expand, filters)
   if (!debug) {
     try {
       const cached = await env.KV.get(cacheKey, 'json')
@@ -98,6 +98,7 @@ export async function searchDocuments(env: Env, options: SearchOptions): Promise
   }
 
   // Expanded query results — run in parallel, add as default-weight
+  let expansionCandidates = 0
   if (expansionResult.expansions.length) {
     const expandedSearches = expansionResult.expansions.flatMap((term) => [
       keywordSearch(env, tenantId, term, limit, category),
@@ -105,6 +106,7 @@ export async function searchDocuments(env: Env, options: SearchOptions): Promise
     ])
     const expandedResults = await Promise.all(expandedSearches)
     for (const list of expandedResults) {
+      expansionCandidates += list.length
       if (list.length) rrfInputs.push({ list, signal: 'default' })
     }
   }
@@ -152,6 +154,7 @@ export async function searchDocuments(env: Env, options: SearchOptions): Promise
       counts: {
         keyword_candidates: keywordResults.length,
         semantic_candidates: semanticResults.length,
+        expansion_candidates: expansionCandidates,
         fused_total: fused.length,
         returned: finalResults.length,
       },
@@ -211,15 +214,17 @@ async function buildSearchCacheKey(
   type: string,
   limit: number,
   source: string,
+  expand: boolean,
   filters?: SearchFilters,
 ): Promise<string> {
   const normalized = query.toLowerCase().trim()
+  const expandSuffix = expand ? ':expand' : ''
   const filterStr = filters ? JSON.stringify(filters, Object.keys(filters).sort()) : ''
-  const base = `search:${tenantId}:${type}:${source}:${limit}:${normalized}`
+  const base = `search:${tenantId}:${type}:${source}:${limit}:${normalized}${expandSuffix}`
 
   // KV key max: 512 bytes. If key would be too long, hash the variable parts.
   if (base.length + filterStr.length + 1 > 480) {
-    const hashed = await computeHash(`${normalized}:${filterStr}`)
+    const hashed = await computeHash(`${normalized}${expandSuffix}:${filterStr}`)
     return `search:${tenantId}:${type}:${source}:${limit}:${hashed.slice(0, 32)}`
   }
 

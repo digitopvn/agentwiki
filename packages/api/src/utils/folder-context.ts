@@ -61,10 +61,11 @@ export async function invalidateFolderContext(env: Env, folderId: string): Promi
   try {
     // Find all descendant folders via recursive CTE (single D1 query)
     const descendants = await env.DB.prepare(`
-      WITH RECURSIVE tree(id) AS (
-        SELECT id FROM folders WHERE id = ?
+      WITH RECURSIVE tree(id, depth) AS (
+        SELECT id, 0 FROM folders WHERE id = ?
         UNION ALL
-        SELECT f.id FROM folders f INNER JOIN tree t ON f.parent_id = t.id
+        SELECT f.id, t.depth + 1 FROM folders f INNER JOIN tree t ON f.parent_id = t.id
+        WHERE t.depth < 50
       )
       SELECT id FROM tree
     `).bind(folderId).all()
