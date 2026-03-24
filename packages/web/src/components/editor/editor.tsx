@@ -100,12 +100,16 @@ export function Editor({ documentId, tabId }: EditorProps) {
         editor.insertBlocks(blocks, cursorBlock, 'after')
       } catch {
         // Fallback: insert as plain text paragraph at cursor
-        const cursorBlock = editor.getTextCursorPosition().block
-        editor.insertBlocks(
-          [{ type: 'paragraph', content: text }],
-          cursorBlock,
-          'after',
-        )
+        try {
+          const cursorBlock = editor.getTextCursorPosition().block
+          editor.insertBlocks(
+            [{ type: 'paragraph', content: [{ type: 'text', text, styles: {} }] }],
+            cursorBlock,
+            'after',
+          )
+        } catch {
+          // Editor may be unfocused — silently ignore
+        }
       }
     }
 
