@@ -23,29 +23,46 @@ export async function uploadFile(
   const fileKey = `${tenantId}/media/${id}/${safeFilename}`
 
   // Upload to R2
-  await env.R2.put(fileKey, body, {
-    httpMetadata: { contentType },
-    customMetadata: { tenantId, uploadedBy: userId },
-  })
+  try {
+    await env.R2.put(fileKey, body, {
+      httpMetadata: { contentType },
+      customMetadata: { tenantId, uploadedBy: userId },
+    })
+  } catch (err) {
+    console.error('R2 upload failed:', err)
+    throw new Error(`Failed to upload file to storage: ${err instanceof Error ? err.message : 'unknown error'}`)
+  }
 
-  // Get object size
-  const head = await env.R2.head(fileKey)
-  const sizeBytes = head?.size ?? 0
+  // Get object size (non-critical)
+  let sizeBytes = 0
+  try {
+    const head = await env.R2.head(fileKey)
+    sizeBytes = head?.size ?? 0
+  } catch {
+    // proceed with size 0
+  }
 
   // Store metadata in D1
-  const db = drizzle(env.DB)
-  await db.insert(uploads).values({
-    id,
-    tenantId,
-    documentId: documentId ?? null,
-    fileKey,
-    filename: safeFilename,
-    contentType,
-    sizeBytes,
-    uploadedBy: userId,
-    extractionStatus: 'pending',
-    createdAt: new Date(),
-  })
+  try {
+    const db = drizzle(env.DB)
+    await db.insert(uploads).values({
+      id,
+      tenantId,
+      documentId: documentId ?? null,
+      fileKey,
+      filename: safeFilename,
+      contentType,
+      sizeBytes,
+      uploadedBy: userId,
+      extractionStatus: 'pending',
+      createdAt: new Date(),
+    })
+  } catch (err) {
+    // Cleanup R2 object if DB insert fails
+    try { await env.R2.delete(fileKey) } catch { /* ignore cleanup error */ }
+    console.error('DB insert failed for upload:', err)
+    throw new Error(`Failed to save upload metadata: ${err instanceof Error ? err.message : 'unknown error'}`)
+  }
 
   // Dispatch extraction job async (fire-and-forget)
   const extractionPromise = dispatchExtractionJob(env, { id, tenantId, fileKey, contentType, filename: safeFilename })

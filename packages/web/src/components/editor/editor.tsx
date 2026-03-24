@@ -77,6 +77,36 @@ export function Editor({ documentId, tabId }: EditorProps) {
     },
   })
 
+  const editorContainerRef = useRef<HTMLDivElement>(null)
+
+  // Intercept paste events to handle markdown with code blocks
+  useEffect(() => {
+    const container = editorContainerRef.current
+    if (!container) return
+
+    const handlePaste = async (e: ClipboardEvent) => {
+      const text = e.clipboardData?.getData('text/plain') ?? ''
+      if (!text.includes('```')) return
+
+      e.preventDefault()
+      e.stopPropagation()
+      try {
+        const blocks = await editor.tryParseMarkdownToBlocks(text)
+        editor.replaceBlocks(editor.document, blocks)
+      } catch {
+        // Fallback: insert as plain text if markdown parsing fails
+        editor.insertBlocks(
+          [{ type: 'paragraph', content: text }],
+          editor.document[editor.document.length - 1],
+          'after',
+        )
+      }
+    }
+
+    container.addEventListener('paste', handlePaste, true)
+    return () => container.removeEventListener('paste', handlePaste, true)
+  }, [editor])
+
   // Load initial content once doc is fetched
   useEffect(() => {
     if (!doc || initializedRef.current) return
@@ -221,7 +251,7 @@ export function Editor({ documentId, tabId }: EditorProps) {
       )}
 
       {/* BlockNote editor with AI slash commands and selection toolbar */}
-      <div className="flex-1 overflow-y-auto px-1 md:px-4">
+      <div ref={editorContainerRef} className="flex-1 overflow-y-auto px-1 md:px-4">
         <BlockNoteView
           editor={editor}
           onChange={handleChange}
