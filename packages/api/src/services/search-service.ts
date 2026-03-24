@@ -33,7 +33,7 @@ interface SearchOptions {
 /** Debug info returned when debug=true */
 export interface SearchDebugInfo {
   timings: { keyword_ms: number; semantic_ms: number; parallel_ms?: number; fusion_ms: number; total_ms: number }
-  counts: { keyword_candidates: number; semantic_candidates: number; expansion_candidates: number; fused_total: number; returned: number }
+  counts: { keyword_candidates: number; semantic_candidates: number; expansion_candidates: number; fused_total: number; filtered_total: number; returned: number }
   cache: { hit: boolean; key: string }
   expansion?: { original: string; expansions: string[]; cached: boolean; latency_ms: number }
 }
@@ -118,6 +118,7 @@ export async function searchDocuments(env: Env, options: SearchOptions): Promise
   const tFuse0 = Date.now()
   let fused = rrfInputs.length > 1 ? reciprocalRankFusion(...rrfInputs) : rrfInputs[0]?.list ?? []
   const tFuse1 = Date.now()
+  const fusedTotal = fused.length // capture pre-filter count for debug
 
   // Post-filter by tags and date range
   if (filters?.tags?.length || filters?.dateFrom || filters?.dateTo) {
@@ -134,7 +135,7 @@ export async function searchDocuments(env: Env, options: SearchOptions): Promise
   let finalResults = fused.slice(0, limit)
 
   // Enrich with folder context (batch-fetch folderIds, resolve contexts)
-  finalResults = await enrichWithFolderContext(env, finalResults)
+  finalResults = await enrichWithFolderContext(env, tenantId, finalResults)
 
   // Cache results (5-min TTL) — skip when debugging
   if (!debug) {
@@ -158,7 +159,8 @@ export async function searchDocuments(env: Env, options: SearchOptions): Promise
         keyword_candidates: keywordResults.length,
         semantic_candidates: semanticResults.length,
         expansion_candidates: expansionCandidates,
-        fused_total: fused.length,
+        fused_total: fusedTotal,
+        filtered_total: fused.length,
         returned: finalResults.length,
       },
       cache: { hit: false, key: cacheKey },
@@ -175,17 +177,17 @@ export async function searchDocuments(env: Env, options: SearchOptions): Promise
 }
 
 /** Enrich search results with folder hierarchy context */
-async function enrichWithFolderContext(env: Env, results: RankedResult[]): Promise<RankedResult[]> {
+async function enrichWithFolderContext(env: Env, tenantId: string, results: RankedResult[]): Promise<RankedResult[]> {
   if (!results.length) return results
 
   const db = drizzle(env.DB)
   const docIds = results.map((r) => r.id)
 
-  // Batch-fetch folderIds for all result documents
+  // Batch-fetch folderIds — defensive tenant isolation consistent with rest of codebase
   const docs = await db
     .select({ id: documents.id, folderId: documents.folderId })
     .from(documents)
-    .where(inArray(documents.id, docIds))
+    .where(and(inArray(documents.id, docIds), eq(documents.tenantId, tenantId), isNull(documents.deletedAt)))
 
   const folderIdMap = new Map(docs.map((d) => [d.id, d.folderId]))
 
@@ -229,7 +231,7 @@ async function buildSearchCacheKey(
 
   // KV key max: 512 bytes. If key would be too long, hash the variable parts.
   if (base.length + filterStr.length + 1 > 480) {
-    const hashed = await computeHash(`${normalized}${expandSuffix}:${filterStr}`)
+    const hashed = await computeHash(`${normalized}${expandSuffix}${kwSuffix}:${filterStr}`)
     return `search:${tenantId}:${type}:${source}:${limit}:${hashed.slice(0, 32)}`
   }
 
