@@ -1,20 +1,23 @@
 # AgentWiki: Codebase Summary
 
-Auto-generated from `repomix-output.xml`. Last updated: 2026-03-22.
+Auto-generated from `repomix-output.xml`. Last updated: 2026-03-23.
 
 ## Overview
 
-AgentWiki is a **monorepo** containing five packages orchestrated by Turborepo and pnpm. Total: ~7,200 LOC of TypeScript, 15 database tables, 8 Cloudflare bindings.
+AgentWiki is a **monorepo** containing five packages orchestrated by Turborepo and pnpm. Total: ~8,500 LOC of TypeScript (implementation) + ~650 LOC (search eval), 15 database tables, 8 Cloudflare bindings. Latest: QMD-inspired search improvements (Phase 5.5) with position-aware RRF, parallel query expansion, and search eval harness.
 
 ### Package Statistics
 
 | Package | LOC | Files | Purpose |
 |---------|-----|-------|---------|
-| `@agentwiki/api` | 2,832 | 32 | Hono backend on Cloudflare Workers |
+| `@agentwiki/api` | ~3,300 | 40 | Hono backend on Cloudflare Workers |
 | `@agentwiki/mcp` | 1,420 | 16 | Model Context Protocol server (AI agents) |
 | `@agentwiki/web` | 1,880 | 23 | React 19 frontend on Cloudflare Pages |
 | `@agentwiki/cli` | 318 | 2 | Commander.js CLI tool |
 | `@agentwiki/shared` | 227 | 6 | Types, schemas, constants |
+| **Total Implementation** | **~8,500** | **~90** | **All packages** |
+| `tests/search-eval/` | 658 | 6 | Search quality metrics & eval harness (NEW) |
+| `plans/reports/` | ~1,945 | 4 | QMD research & implementation reports |
 
 ## Directory Structure
 
@@ -27,8 +30,8 @@ agentwiki/
 │   ├── api/
 │   │   ├── src/
 │   │   │   ├── db/
-│   │   │   │   ├── schema.ts       — Drizzle table definitions (15 tables)
-│   │   │   │   └── migrations/     — Auto-generated SQL migrations
+│   │   │   │   ├── schema.ts       — Drizzle table definitions (15 tables, +contentHash on documents, +description on folders)
+│   │   │   │   └── migrations/     — Auto-generated SQL migrations (includes 0005_add_fts5_and_content_hash.sql)
 │   │   │   ├── middleware/
 │   │   │   │   ├── auth-guard.ts   — JWT/API key validation
 │   │   │   │   ├── internal-auth.ts — Shared secret auth for internal endpoints
@@ -63,9 +66,11 @@ agentwiki/
 │   │   │   │   ├── document-service.ts — Document business logic
 │   │   │   │   ├── folder-service.ts — Folder tree operations
 │   │   │   │   ├── upload-service.ts — R2 presigned URLs
-│   │   │   │   ├── search-service.ts — Hybrid search (docs + storage, source param)
+│   │   │   │   ├── search-service.ts — Hybrid search (docs + storage, source param, position-aware RRF, parallel expansion, folder context)
 │   │   │   │   ├── storage-search-service.ts — Keyword & semantic search on uploads (SP3)
-│   │   │   │   ├── embedding-service.ts — Vectorize integration
+│   │   │   │   ├── embedding-service.ts — Vectorize integration, smart chunking, content hash skip
+│   │   │   │   ├── fts5-search-service.ts — FTS5/BM25 search (NEW, ready for evaluation)
+│   │   │   │   ├── query-expansion-service.ts — AI query expansion (NEW, parallel via Promise.all)
 │   │   │   │   ├── share-service.ts — Share link tokens
 │   │   │   │   ├── publish-service.ts — Public page generation
 │   │   │   │   ├── extraction-service.ts — VPS result callback handler
@@ -73,15 +78,17 @@ agentwiki/
 │   │   │   │   ├── extraction-retry-service.ts — Stuck job retry logic
 │   │   │   │   └── import-service.ts — Multi-source import (Obsidian, Notion, LarkSuite adapters)
 │   │   │   ├── queue/
-│   │   │   │   └── handler.ts      — Queue consumer (embeddings, summaries)
+│   │   │   │   └── handler.ts      — Queue consumer (embeddings, summaries, FTS5 indexing, content hash skip)
 │   │   │   ├── utils/
 │   │   │   │   ├── crypto.ts       — JWT, token hashing, key generation
 │   │   │   │   ├── encryption.ts   — Provider key encryption/decryption
 │   │   │   │   ├── audit.ts        — Audit log writing
 │   │   │   │   ├── slug.ts         — URL-safe slug generation
 │   │   │   │   ├── pagination.ts   — Cursor-based pagination
-│   │   │   │   ├── chunker.ts      — Text chunking for embeddings
-│   │   │   │   ├── rrf.ts          — Reciprocal Rank Fusion
+│   │   │   │   ├── chunker.ts      — Smart markdown chunking (heading chains, code protection, overlap guard)
+│   │   │   │   ├── rrf.ts          — Position-aware Reciprocal Rank Fusion with signal weighting
+│   │   │   │   ├── hash.ts         — SHA-256 content hash (NEW)
+│   │   │   │   ├── folder-context.ts — Folder hierarchy + description enrichment (NEW)
 │   │   │   │   └── wikilink-extractor.ts — Parse [[WikiLinks]]
 │   │   │   ├── env.ts              — Cloudflare bindings type defs
 │   │   │   └── index.ts            — Hono app setup (77 lines)
@@ -188,16 +195,31 @@ agentwiki/
 │       ├── tsconfig.json
 │       └── package.json
 ├── docs/                            — Documentation (this file)
+├── tests/
+│   └── search-eval/                 — Search quality evaluation harness (NEW)
+│       ├── metrics.ts               — MRR@5, Precision@3, Recall@10, NDCG@10
+│       ├── types.ts                 — EvalQuery, EvalReport types
+│       ├── run-eval.ts              — CLI harness (bootstrap, compare, per-type)
+│       ├── eval-queries.json        — 13 template queries across 5 types
+│       ├── metrics.test.ts          — 21 unit tests (all passing)
+│       └── README.md                — Eval usage documentation
 ├── plans/                           — Implementation plans & research
-│   └── 260318-1655-agentwiki-knowledge-platform/
-│       ├── phase-01-project-setup.md
-│       ├── phase-02-auth-multi-tenant.md
-│       ├── phase-03-core-api-database.md
-│       ├── phase-04-web-ui-editor.md
-│       ├── phase-05-storage-search-ai.md
-│       ├── phase-06-sharing-publishing-cli.md
-│       ├── phase-07-graph-hardening.md
-│       └── plan.md
+│   ├── 260318-1655-agentwiki-knowledge-platform/
+│   │   ├── phase-01-project-setup.md
+│   │   ├── phase-02-auth-multi-tenant.md
+│   │   ├── phase-03-core-api-database.md
+│   │   ├── phase-04-web-ui-editor.md
+│   │   ├── phase-05-storage-search-ai.md
+│   │   ├── phase-06-sharing-publishing-cli.md
+│   │   ├── phase-07-graph-hardening.md
+│   │   └── plan.md
+│   └── 260322-1646-qmd-search-improvements/
+│       ├── plan.md
+│       ├── phase-01-eval-baseline.md
+│       ├── phase-02-fts5-evaluation.md
+│       ├── phase-03-position-aware-rrf.md
+│       ├── phase-04-smart-chunking.md
+│       └── phase-05-folder-context-expansion.md
 ├── .github/workflows/ci.yml         — CI pipeline
 ├── .gitignore                       — Standard ignores + .claude/
 ├── .prettierrc                      — Prettier config (single quotes, 2 spaces)
@@ -305,6 +327,7 @@ agentwiki/
   summary?: string    (AI-generated)
   category?: string
   accessLevel: string ("private" | "shared" | "public")
+  contentHash?: string (SHA-256, for skip-on-re-embed optimization) [NEW]
   createdBy: string   (FK → users)
   updatedBy?: string  (FK → users)
   createdAt: timestamp
@@ -357,6 +380,7 @@ agentwiki/
   slug: string
   position: int       (legacy sort order)
   positionIndex: string (fractional indexing for manual sort order)
+  description?: string (folder context for search enrichment)
   createdBy: string   (FK → users)
   createdAt: timestamp
   updatedAt: timestamp
@@ -488,7 +512,7 @@ agentwiki/
 - `GET` — Serve file from R2 (supports auth, public, and download token access)
 
 ### Search (`/api/search`)
-- `GET ?q=query&type=hybrid|keyword|semantic&source=docs|storage|all` — Search documents and/or uploads (SP3)
+- `GET ?q=query&type=hybrid|keyword|semantic&source=docs|storage|all[&debug=true][&expand=true]` — Hybrid search with position-aware RRF, folder context, parallel query expansion, debug mode
 
 ### Share (`/api/share`)
 - `GET /public/:token` — Access shared document (public)
@@ -599,7 +623,9 @@ pnpm dev              # Run all dev servers
 pnpm type-check       # TypeScript validation
 pnpm lint             # ESLint all packages
 pnpm format           # Prettier format
-pnpm test             # Run all tests
+pnpm test             # Run all tests (includes search-eval metrics)
+npx tsx tests/search-eval/run-eval.ts --bootstrap    # Bootstrap eval dataset
+npx tsx tests/search-eval/run-eval.ts --compare      # Compare search implementations
 ```
 
 ### Production

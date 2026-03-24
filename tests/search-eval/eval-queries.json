@@ -1,0 +1,97 @@
+{
+  "$schema": "./types.ts",
+  "description": "Search evaluation queries — populate with real document slugs from your environment. Run: npx tsx tests/search-eval/run-eval.ts --bootstrap to auto-generate golden set from current search results.",
+  "queries": [
+    {
+      "id": "exact-01",
+      "type": "exact",
+      "query": "getting started",
+      "expectedSlugs": [],
+      "notes": "Exact title match — should rank #1"
+    },
+    {
+      "id": "exact-02",
+      "type": "exact",
+      "query": "API authentication",
+      "expectedSlugs": [],
+      "notes": "Exact topic match in title"
+    },
+    {
+      "id": "exact-03",
+      "type": "exact",
+      "query": "deployment guide",
+      "expectedSlugs": [],
+      "notes": "Common documentation title"
+    },
+    {
+      "id": "semantic-01",
+      "type": "semantic",
+      "query": "how to prevent API abuse",
+      "expectedSlugs": [],
+      "notes": "Should find rate limiting docs without exact keyword"
+    },
+    {
+      "id": "semantic-02",
+      "type": "semantic",
+      "query": "managing user access",
+      "expectedSlugs": [],
+      "notes": "Should find auth/RBAC docs"
+    },
+    {
+      "id": "semantic-03",
+      "type": "semantic",
+      "query": "store files in the cloud",
+      "expectedSlugs": [],
+      "notes": "Should find storage/upload docs"
+    },
+    {
+      "id": "fuzzy-01",
+      "type": "fuzzy",
+      "query": "authentcation",
+      "expectedSlugs": [],
+      "notes": "Typo: authentcation → authentication"
+    },
+    {
+      "id": "fuzzy-02",
+      "type": "fuzzy",
+      "query": "deploymnt",
+      "expectedSlugs": [],
+      "notes": "Typo: deploymnt → deployment"
+    },
+    {
+      "id": "fuzzy-03",
+      "type": "fuzzy",
+      "query": "config",
+      "expectedSlugs": [],
+      "notes": "Abbreviation: config → configuration"
+    },
+    {
+      "id": "multi-01",
+      "type": "multi-concept",
+      "query": "rate limiting in microservices",
+      "expectedSlugs": [],
+      "notes": "Combines two concepts"
+    },
+    {
+      "id": "multi-02",
+      "type": "multi-concept",
+      "query": "database migration best practices",
+      "expectedSlugs": [],
+      "notes": "Multi-concept search"
+    },
+    {
+      "id": "negative-01",
+      "type": "negative",
+      "query": "xyznonexistent12345",
+      "expectedSlugs": [],
+      "notes": "Gibberish — should return 0 results"
+    },
+    {
+      "id": "negative-02",
+      "type": "negative",
+      "query": "quantum physics entanglement",
+      "expectedSlugs": [],
+      "notes": "Irrelevant domain — should return 0 or very low relevance"
+    }
+  ]
+}
