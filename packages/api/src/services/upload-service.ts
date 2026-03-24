@@ -30,7 +30,7 @@ export async function uploadFile(
     })
   } catch (err) {
     console.error('R2 upload failed:', err)
-    throw new Error(`Failed to upload file to storage: ${err instanceof Error ? err.message : 'unknown error'}`)
+    throw new Error('Failed to upload file to storage')
   }
 
   // Get object size (non-critical)
@@ -61,7 +61,7 @@ export async function uploadFile(
     // Cleanup R2 object if DB insert fails
     try { await env.R2.delete(fileKey) } catch { /* ignore cleanup error */ }
     console.error('DB insert failed for upload:', err)
-    throw new Error(`Failed to save upload metadata: ${err instanceof Error ? err.message : 'unknown error'}`)
+    throw new Error('Failed to save upload metadata')
   }
 
   // Dispatch extraction job async (fire-and-forget)

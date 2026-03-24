@@ -79,25 +79,31 @@ export function Editor({ documentId, tabId }: EditorProps) {
 
   const editorContainerRef = useRef<HTMLDivElement>(null)
 
-  // Intercept paste events to handle markdown with code blocks
+  // Intercept paste events to handle markdown with code blocks (insert at cursor, not replace)
   useEffect(() => {
     const container = editorContainerRef.current
     if (!container) return
 
+    // Match actual code fence blocks: ```<lang>\n...\n```
+    const codeFencePattern = /```\w*\n[\s\S]*?\n```/
+
     const handlePaste = async (e: ClipboardEvent) => {
       const text = e.clipboardData?.getData('text/plain') ?? ''
-      if (!text.includes('```')) return
+      if (!codeFencePattern.test(text)) return
 
       e.preventDefault()
       e.stopPropagation()
       try {
         const blocks = await editor.tryParseMarkdownToBlocks(text)
-        editor.replaceBlocks(editor.document, blocks)
+        // Insert at current cursor position instead of replacing entire document
+        const cursorBlock = editor.getTextCursorPosition().block
+        editor.insertBlocks(blocks, cursorBlock, 'after')
       } catch {
-        // Fallback: insert as plain text if markdown parsing fails
+        // Fallback: insert as plain text paragraph at cursor
+        const cursorBlock = editor.getTextCursorPosition().block
         editor.insertBlocks(
           [{ type: 'paragraph', content: text }],
-          editor.document[editor.document.length - 1],
+          cursorBlock,
           'after',
         )
       }
