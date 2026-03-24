@@ -5,6 +5,7 @@ import { drizzle } from 'drizzle-orm/d1'
 import { documents, documentTags } from '../db/schema'
 import { embedQuery } from './embedding-service'
 import { trigramSearch } from './trigram-service'
+import { fts5Search } from './fts5-search-service'
 import { storageKeywordSearch, storageSemanticSearch } from './storage-search-service'
 import { reciprocalRankFusion, type RankedResult, type RRFListOptions } from '../utils/rrf'
 import { extractSnippet } from '../utils/extract-snippet'
@@ -61,13 +62,16 @@ export async function searchDocuments(env: Env, options: SearchOptions): Promise
 
   // ── PARALLEL: expansion + original keyword + original semantic ──
   const shouldExpand = expand && type === 'hybrid'
+  // Feature flag: USE_FTS5=true switches keyword source from trigram to FTS5/BM25
+  const useFts5 = env.USE_FTS5 === 'true'
+  const keywordSearch = useFts5 ? fts5Search : trigramSearch
 
   const [expansionResult, keywordResults, semanticResults] = await Promise.all([
     shouldExpand
       ? expandQuery(env, tenantId, query)
       : Promise.resolve<ExpandedQuery>({ original: query, expansions: [], cached: false, latencyMs: 0 }),
     (source === 'docs' || source === 'all') && (type === 'hybrid' || type === 'keyword')
-      ? trigramSearch(env, tenantId, query, limit * 2, category)
+      ? keywordSearch(env, tenantId, query, limit * 2, category)
       : Promise.resolve<RankedResult[]>([]),
     (source === 'docs' || source === 'all') && (type === 'hybrid' || type === 'semantic')
       ? semanticSearch(env, tenantId, query, limit * 2, filters)
@@ -96,7 +100,7 @@ export async function searchDocuments(env: Env, options: SearchOptions): Promise
   // Expanded query results — run in parallel, add as default-weight
   if (expansionResult.expansions.length) {
     const expandedSearches = expansionResult.expansions.flatMap((term) => [
-      trigramSearch(env, tenantId, term, limit, category),
+      keywordSearch(env, tenantId, term, limit, category),
       semanticSearch(env, tenantId, term, limit, filters),
     ])
     const expandedResults = await Promise.all(expandedSearches)

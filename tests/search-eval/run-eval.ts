@@ -11,6 +11,7 @@
  *   --label=<name>      Label for this eval run (default: "baseline")
  *   --output=<path>     Output file path (default: tests/search-eval/results/<label>.json)
  *   --bootstrap         Run queries and save results as golden set (populates expectedSlugs)
+ *   --overwrite         Allow bootstrap to overwrite an existing golden set
  *   --compare=<path>    Compare results against a previous run
  *   --keyword-source=<trigram|fts5>  Force keyword search source (for Phase 0.5 benchmark)
  *   --type=<type>       Only run queries of this type (exact, semantic, fuzzy, multi-concept, negative)
@@ -180,10 +181,19 @@ function aggregate(results: EvalQueryResult[], label: string, env: string): Eval
 }
 
 // ── Bootstrap golden set ──
-async function bootstrap(baseUrl: string, token: string, queriesPath: string) {
-  console.log('🔄 Bootstrap mode: running queries to populate golden set...\n')
+async function bootstrap(baseUrl: string, token: string, queriesPath: string, overwrite = false) {
   const raw = JSON.parse(readFileSync(queriesPath, 'utf-8'))
   const queries: EvalQuery[] = raw.queries
+
+  // Safety: refuse to overwrite manually curated golden set unless --overwrite is passed
+  const hasCurated = queries.some((q) => q.expectedSlugs?.length)
+  if (hasCurated && !overwrite) {
+    console.error('⚠️  eval-queries.json already has expectedSlugs populated.')
+    console.error('   Use --overwrite to replace the existing golden set.')
+    process.exit(1)
+  }
+
+  console.log('🔄 Bootstrap mode: running queries to populate golden set...\n')
 
   for (const q of queries) {
     try {
@@ -272,7 +282,7 @@ async function main() {
 
   // Bootstrap mode — populate golden set
   if (args.bootstrap) {
-    await bootstrap(baseUrl, token, queriesPath)
+    await bootstrap(baseUrl, token, queriesPath, !!args.overwrite)
     return
   }
 

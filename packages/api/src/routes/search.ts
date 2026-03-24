@@ -43,6 +43,8 @@ searchRouter.get(
     const expand = c.req.query('expand') === 'true' // UI default: off, opt-in
 
     // Enforce stricter rate limit for expand=true (AI cost surface: 10 req/min)
+    // NOTE: KV get+put is non-atomic — concurrent requests can race past the limit.
+    // Acceptable at 10 req/min; if limit is tightened, consider a Durable Object counter.
     if (expand) {
       const ip = c.req.header('CF-Connecting-IP') ?? 'unknown'
       const userId = c.get('auth').userId ?? ip

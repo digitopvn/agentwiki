@@ -42,12 +42,19 @@ function parseSections(content: string): { sections: Section[]; headingStack: st
   let buffer = ''
   let currentHeading: string | null = null
   let inCodeBlock = false
+  let fenceChar = '' // tracks which character (` or ~) opened the code block
 
   for (const line of lines) {
-    // Track fenced code blocks (backtick ``` and tilde ~~~ per CommonMark)
+    // Track fenced code blocks — CommonMark requires closing fence matches opener
     const trimmedLine = line.trimStart()
-    if (trimmedLine.startsWith('```') || trimmedLine.startsWith('~~~')) {
-      inCodeBlock = !inCodeBlock
+    if (!inCodeBlock && (trimmedLine.startsWith('```') || trimmedLine.startsWith('~~~'))) {
+      inCodeBlock = true
+      fenceChar = trimmedLine[0]
+      buffer += line + '\n'
+      continue
+    } else if (inCodeBlock && trimmedLine.startsWith(fenceChar.repeat(3))) {
+      inCodeBlock = false
+      fenceChar = ''
       buffer += line + '\n'
       continue
     }
@@ -151,8 +158,9 @@ function pushChunks(
   }
 }
 
-/** Check if text is predominantly code blocks */
+/** Check if text is predominantly code blocks (backtick or tilde fences) */
 function isCodeBlockHeavy(text: string): boolean {
-  const codeBlockCount = (text.match(/```/g) || []).length
-  return codeBlockCount >= 2 // at least one complete code block
+  const backtickCount = (text.match(/```/g) || []).length
+  const tildeCount = (text.match(/~~~/g) || []).length
+  return (backtickCount + tildeCount) >= 2 // at least one complete code block
 }

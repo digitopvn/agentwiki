@@ -15,6 +15,14 @@ import type { RankedResult } from '../utils/rrf'
 /**
  * BM25-ranked full-text search using D1 FTS5.
  * Drop-in replacement for trigramSearch() with same return type.
+ *
+ * SCALABILITY NOTE: tenant_id is UNINDEXED in the FTS5 virtual table, meaning
+ * the WHERE clause `f.tenant_id = ?` is a post-filter applied AFTER FTS5 retrieves
+ * all MATCH results across all tenants. At scale (many tenants, large corpus),
+ * this causes unnecessary cross-tenant scanning. Mitigations to consider:
+ * - Per-tenant FTS5 tables (only viable for bounded tenant count)
+ * - Prefix-token partitioning (prepend tenant_id to tokenized content)
+ * - Accept scan cost at current scale (D1 handles small-to-medium corpora well)
  */
 export async function fts5Search(
   env: Env,
