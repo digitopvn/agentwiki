@@ -56,7 +56,7 @@ export async function searchDocuments(env: Env, options: SearchOptions): Promise
   const shouldExpand = expand && type === 'hybrid'
 
   // KV cache check — skip when debugging
-  const cacheKey = await buildSearchCacheKey(tenantId, query, type, limit, source, shouldExpand, filters)
+  const cacheKey = await buildSearchCacheKey(tenantId, query, type, limit, source, shouldExpand, keywordSource, filters)
   if (!debug) {
     try {
       const cached = await env.KV.get(cacheKey, 'json')
@@ -218,12 +218,14 @@ async function buildSearchCacheKey(
   limit: number,
   source: string,
   expand: boolean,
+  keywordSource?: 'trigram' | 'fts5',
   filters?: SearchFilters,
 ): Promise<string> {
   const normalized = query.toLowerCase().trim()
   const expandSuffix = expand ? ':expand' : ''
+  const kwSuffix = keywordSource ? `:kw:${keywordSource}` : ''
   const filterStr = filters ? JSON.stringify(filters, Object.keys(filters).sort()) : ''
-  const base = `search:${tenantId}:${type}:${source}:${limit}:${normalized}${expandSuffix}`
+  const base = `search:${tenantId}:${type}:${source}:${limit}:${normalized}${expandSuffix}${kwSuffix}`
 
   // KV key max: 512 bytes. If key would be too long, hash the variable parts.
   if (base.length + filterStr.length + 1 > 480) {

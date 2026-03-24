@@ -298,7 +298,8 @@ async function main() {
   console.log(`🔍 Running ${queries.length} eval queries against ${baseUrl}...\n`)
 
   // Search params (for Phase 0.5 keyword source benchmarking)
-  const searchParams: Record<string, string> = {}
+  // Always bypass KV cache during eval runs for accurate fresh-query measurements
+  const searchParams: Record<string, string> = { debug: 'true' }
   if (args['keyword-source']) {
     searchParams['keyword-source'] = args['keyword-source'] as string
   }

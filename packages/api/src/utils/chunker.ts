@@ -57,13 +57,16 @@ function parseSections(content: string): { sections: Section[]; headingStack: st
         buffer += line + '\n'
         continue
       }
-    } else if (trimmedLine.startsWith(fenceChar.repeat(fenceLen)) && trimmedLine.trim().length <= fenceLen + 10) {
-      // Closing fence: same char, at least same length, no significant trailing content
-      inCodeBlock = false
-      fenceChar = ''
-      fenceLen = 0
-      buffer += line + '\n'
-      continue
+    } else {
+      // CommonMark: closing fence = same char, at least same length, only optional trailing spaces
+      const fenceClose = trimmedLine.match(/^(`{3,}|~{3,})\s*$/)
+      if (fenceClose && fenceClose[1][0] === fenceChar && fenceClose[1].length >= fenceLen) {
+        inCodeBlock = false
+        fenceChar = ''
+        fenceLen = 0
+        buffer += line + '\n'
+        continue
+      }
     }
 
     // Don't split on headings inside code blocks
