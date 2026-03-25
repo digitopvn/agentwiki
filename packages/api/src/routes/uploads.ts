@@ -17,25 +17,37 @@ const uploadsRouter = new Hono<AuthEnv>()
 // Upload file (multipart form data)
 uploadsRouter.post('/', authGuard, requirePermission('doc:create'), async (c) => {
   const { tenantId, userId } = c.get('auth')
-  const formData = await c.req.formData()
+
+  let formData: FormData
+  try {
+    formData = await c.req.formData()
+  } catch (err) {
+    console.error('Failed to parse multipart form data:', err)
+    return c.json({ error: 'Invalid multipart form data' }, 400)
+  }
+
   const file = formData.get('file') as File | null
   const documentId = formData.get('documentId') as string | null
 
   if (!file) return c.json({ error: 'No file provided' }, 400)
   if (file.size > MAX_FILE_SIZE) return c.json({ error: 'File too large (max 100MB)' }, 400)
 
-  const result = await uploadFile(
-    c.env,
-    tenantId,
-    userId,
-    file.name,
-    file.type,
-    await file.arrayBuffer(),
-    documentId ?? undefined,
-    c.executionCtx,
-  )
-
-  return c.json(result, 201)
+  try {
+    const result = await uploadFile(
+      c.env,
+      tenantId,
+      userId,
+      file.name,
+      file.type,
+      await file.arrayBuffer(),
+      documentId ?? undefined,
+      c.executionCtx,
+    )
+    return c.json(result, 201)
+  } catch (err) {
+    console.error(`Upload failed for file "${file.name}" (${file.type}, ${file.size}B):`, err)
+    return c.json({ error: 'Upload failed' }, 500)
+  }
 })
 
 // List uploads
