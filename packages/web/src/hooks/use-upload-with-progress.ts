@@ -5,50 +5,79 @@ import { useQueryClient } from '@tanstack/react-query'
 import { API_BASE } from '../lib/api-client'
 import { useAppStore } from '../stores/app-store'
 
+/** Try to refresh the access token via cookie-based refresh endpoint */
+async function tryRefreshToken(): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
+/** Send XHR upload with progress tracking. Returns status code. */
+function sendXhr(
+  url: string,
+  formData: FormData,
+  onProgress: (pct: number) => void,
+): Promise<number> {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest()
+
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable) {
+        onProgress(Math.round((e.loaded / e.total) * 100))
+      }
+    })
+
+    xhr.addEventListener('load', () => resolve(xhr.status))
+    xhr.addEventListener('error', () => resolve(0)) // 0 = network error
+
+    xhr.open('POST', url)
+    xhr.withCredentials = true
+    xhr.send(formData)
+  })
+}
+
 /** Returns an upload function that tracks progress in the global upload queue */
 export function useUploadWithProgress() {
   const { addToUploadQueue, updateUploadProgress, updateUploadStatus, removeFromUploadQueue } = useAppStore()
   const queryClient = useQueryClient()
 
   return useCallback(async (file: File) => {
-    // Pre-generate ID to avoid race condition with concurrent uploads
     const queueId = `upload-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     addToUploadQueue([{ id: queueId, file }])
     updateUploadStatus(queueId, 'uploading')
 
-    return new Promise<void>((resolve) => {
-      const xhr = new XMLHttpRequest()
-      const formData = new FormData()
-      formData.append('file', file)
+    const formData = new FormData()
+    formData.append('file', file)
+    const url = `${API_BASE}/api/uploads`
+    const onProgress = (pct: number) => updateUploadProgress(queueId, pct)
 
-      // Track upload progress
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable) {
-          const pct = Math.round((e.loaded / e.total) * 100)
-          updateUploadProgress(queueId, pct)
-        }
-      })
+    let status = await sendXhr(url, formData, onProgress)
 
-      xhr.addEventListener('load', () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          updateUploadStatus(queueId, 'complete')
-          queryClient.invalidateQueries({ queryKey: ['uploads'] })
-          // Auto-remove from queue after 3s
-          setTimeout(() => removeFromUploadQueue(queueId), 3000)
-        } else {
-          updateUploadStatus(queueId, 'error', `Upload failed (${xhr.status})`)
-        }
-        resolve()
-      })
+    // Auto-refresh token on 401 and retry once
+    if (status === 401) {
+      const refreshed = await tryRefreshToken()
+      if (refreshed) {
+        updateUploadProgress(queueId, 0)
+        const retryFormData = new FormData()
+        retryFormData.append('file', file)
+        status = await sendXhr(url, retryFormData, onProgress)
+      }
+    }
 
-      xhr.addEventListener('error', () => {
-        updateUploadStatus(queueId, 'error', 'Network error')
-        resolve()
-      })
-
-      xhr.open('POST', `${API_BASE}/api/uploads`)
-      xhr.withCredentials = true
-      xhr.send(formData)
-    })
+    if (status >= 200 && status < 300) {
+      updateUploadStatus(queueId, 'complete')
+      queryClient.invalidateQueries({ queryKey: ['uploads'] })
+      setTimeout(() => removeFromUploadQueue(queueId), 3000)
+    } else if (status === 0) {
+      updateUploadStatus(queueId, 'error', 'Network error')
+    } else {
+      updateUploadStatus(queueId, 'error', `Upload failed (${status})`)
+    }
   }, [addToUploadQueue, updateUploadProgress, updateUploadStatus, removeFromUploadQueue, queryClient])
 }

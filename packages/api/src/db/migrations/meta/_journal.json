@@ -64,6 +64,13 @@
       "when": 1774533904000,
       "tag": "0008_add_import_started_at",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1774407000000,
+      "tag": "0009_add_missing_upload_columns",
+      "breakpoints": true
     }
   ]
 }

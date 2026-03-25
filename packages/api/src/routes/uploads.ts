@@ -17,7 +17,15 @@ const uploadsRouter = new Hono<AuthEnv>()
 // Upload file (multipart form data)
 uploadsRouter.post('/', authGuard, requirePermission('doc:create'), async (c) => {
   const { tenantId, userId } = c.get('auth')
-  const formData = await c.req.formData()
+
+  let formData: FormData
+  try {
+    formData = await c.req.formData()
+  } catch (err) {
+    console.error('Failed to parse multipart form data:', err)
+    return c.json({ error: 'Invalid multipart form data' }, 400)
+  }
+
   const file = formData.get('file') as File | null
   const documentId = formData.get('documentId') as string | null
 
@@ -37,7 +45,7 @@ uploadsRouter.post('/', authGuard, requirePermission('doc:create'), async (c) =>
     )
     return c.json(result, 201)
   } catch (err) {
-    console.error('Upload route error:', err)
+    console.error(`Upload failed for file "${file.name}" (${file.type}, ${file.size}B):`, err)
     const message = err instanceof Error ? err.message : 'Upload failed'
     return c.json({ error: message }, 500)
   }
