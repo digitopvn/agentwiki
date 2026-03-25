@@ -13,6 +13,7 @@ export const PERMISSIONS: Record<Role, string[]> = {
 export const RATE_LIMITS = {
   api: { limit: 100, windowSec: 60 },
   search: { limit: 50, windowSec: 60 },
+  searchExpand: { limit: 10, windowSec: 60 }, // stricter limit when expand=true (AI cost surface)
   suggest: { limit: 100, windowSec: 60 },
   web: { limit: 1000, windowSec: 60 },
 } as const

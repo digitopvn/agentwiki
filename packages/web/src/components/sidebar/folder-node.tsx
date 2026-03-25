@@ -42,7 +42,9 @@ export function FolderNode({
   sortDirection = 'asc',
   isSortable = true,
 }: FolderNodeProps) {
-  const [expanded, setExpanded] = useState(false)
+  const expanded = useAppStore((s) => s.expandedFolderIds.includes(folder.id))
+  const toggleFolderExpanded = useAppStore((s) => s.toggleFolderExpanded)
+  const setFolderExpanded = useAppStore((s) => s.setFolderExpanded)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [docMenu, setDocMenu] = useState<{
     doc: { id: string; title: string; slug: string; folderId?: string | null }
@@ -101,7 +103,7 @@ export function FolderNode({
     const { markdown } = partitionMarkdownFiles(files)
     if (markdown.length === 0) return
 
-    setExpanded(true)
+    setFolderExpanded(folder.id, true)
     await importMarkdownFiles(markdown, folder.id)
   }, [folder.id, importMarkdownFiles])
 
@@ -140,7 +142,7 @@ export function FolderNode({
 
   const handleCreateSubfolder = async (name: string) => {
     await createFolder.mutateAsync({ name, parentId: folder.id })
-    setExpanded(true)
+    setFolderExpanded(folder.id, true)
   }
 
   const handleNewDoc = async () => {
@@ -150,7 +152,7 @@ export function FolderNode({
     openTab({ id: tabId, documentId: doc.id, title: doc.title })
     setActiveTab(tabId)
     navigate(`/doc/${doc.slug}`)
-    setExpanded(true)
+    setFolderExpanded(folder.id, true)
   }
 
   const handleOpenDoc = (doc: { id: string; title: string; slug: string }) => {
@@ -219,7 +221,7 @@ export function FolderNode({
             : 'text-neutral-700 hover:bg-neutral-100',
         )}
         style={{ paddingLeft }}
-        onClick={() => setExpanded((v) => !v)}
+        onClick={() => toggleFolderExpanded(folder.id)}
         onContextMenu={(e) => {
           e.preventDefault()
           setContextMenu({ x: e.clientX, y: e.clientY })

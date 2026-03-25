@@ -10,6 +10,18 @@ All notable changes to AgentWiki are documented here, organized by version.
 ### Added
 
 #### Features
+- **QMD-Inspired Search Pipeline Improvements** (Issue #38)
+  - Position-aware RRF with signal weighting (keyword/semantic/default)
+  - KV search caching (5-min TTL)
+  - FTS5/BM25 search service (ready for evaluation; not yet wired as primary)
+  - Parallel AI query expansion via tenant provider (Promise.all for latency optimization)
+  - Folder context enrichment in search results (hierarchy, description)
+  - Smart markdown chunking (2000→1200 chars, heading chains, code block protection)
+  - Content hash skip (SHA-256) for re-embedding optimization
+  - Search debug mode (`?debug=true`) with timing, cache status, expansion metadata
+  - Search eval harness: MRR@5, Precision@3, Recall@10, NDCG@10 metrics
+  - 5 phases delivered: eval baseline, FTS5 evaluation, position-aware RRF, smart chunking, folder context & parallel expansion
+
 - **Dual-Layer Knowledge Graph** (Issue #34)
   - 6 typed edge types: relates-to, depends-on, extends, references, contradicts, implements
   - Enhanced wikilink syntax: `[[target|type:depends-on]]` (backward compatible)
@@ -163,6 +175,7 @@ Items under consideration for future versions:
 
 | Date | Editor | Change |
 |------|--------|--------|
+| 2026-03-23 | Team | Added QMD-Inspired Search Pipeline Improvements (Issue #38) |
 | 2026-03-22 | Team | Added Dual-Layer Knowledge Graph feature (Issue #34) |
 | 2026-03-22 | Team | Added changeset for auto-save, mobile sidebar, and markdown import features (Issues #32, #37, #21) |
 | 2026-03-18 | Team | Initial changelog created |

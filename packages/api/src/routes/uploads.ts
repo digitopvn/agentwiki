@@ -46,7 +46,8 @@ uploadsRouter.post('/', authGuard, requirePermission('doc:create'), async (c) =>
     return c.json(result, 201)
   } catch (err) {
     console.error(`Upload failed for file "${file.name}" (${file.type}, ${file.size}B):`, err)
-    return c.json({ error: 'Upload failed' }, 500)
+    const message = err instanceof Error ? err.message : 'Upload failed'
+    return c.json({ error: message }, 500)
   }
 })
 
