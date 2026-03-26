@@ -16,13 +16,13 @@ export const authGuard = createMiddleware<AuthEnv>(async (c, next) => {
   const authHeader = c.req.header('Authorization')
   let token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
 
-  // 2. Check API key
+  // 2. Check API key — userId resolved via createdBy from KV cache/DB (no extra roundtrip)
   if (token && token.startsWith(API_KEY_PREFIX)) {
     const result = await validateApiKey(c.env, token)
     if (!result) return c.json({ error: 'Invalid API key' }, 401)
 
     c.set('auth', {
-      userId: result.id,
+      userId: result.createdBy ?? result.id, // createdBy from KV cache; fallback to key ID for legacy cache entries
       tenantId: result.tenantId,
       role: 'agent',
       isApiKey: true,
@@ -59,7 +59,7 @@ export const optionalAuth = createMiddleware<AuthEnv>(async (c, next) => {
     if (token.startsWith(API_KEY_PREFIX)) {
       const result = await validateApiKey(c.env, token)
       if (result) {
-        c.set('auth', { userId: result.id, tenantId: result.tenantId, role: 'agent', isApiKey: true })
+        c.set('auth', { userId: result.createdBy ?? result.id, tenantId: result.tenantId, role: 'agent', isApiKey: true })
       }
     } else {
       const payload = await verifyJwt(token, c.env.JWT_SECRET)

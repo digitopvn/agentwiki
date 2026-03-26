@@ -18,7 +18,7 @@ program
   .command('login')
   .description('Configure API key for authentication')
   .option('--api-key <key>', 'API key (starts with aw_)')
-  .option('--url <url>', 'API base URL', 'https://app.agentwiki.cc')
+  .option('--url <url>', 'API base URL', 'https://api.agentwiki.cc')
   .action(async (opts) => {
     if (opts.apiKey) {
       saveCredentials({ apiKey: opts.apiKey, apiUrl: opts.url })
@@ -33,7 +33,7 @@ program
       }
     } else {
       console.log('Usage: agentwiki login --api-key aw_xxxxx')
-      console.log('Get your API key at https://agentwiki.cc/settings/api-keys')
+      console.log('Get your API key at https://app.agentwiki.cc/settings/api-keys')
     }
   })
 

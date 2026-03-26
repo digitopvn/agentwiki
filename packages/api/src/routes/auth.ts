@@ -15,7 +15,6 @@ import {
   updateUserProfile,
 } from '../services/auth-service'
 import { sendWelcomeEmail } from '../services/email-service'
-import { verifyJwt } from '../utils/crypto'
 import { logAudit } from '../utils/audit'
 import { TOKEN_TTL } from '@agentwiki/shared'
 import { authGuard } from '../middleware/auth-guard'
@@ -182,21 +181,17 @@ auth.post('/logout', async (c) => {
 
 // --- Current user info ---
 
-auth.get('/me', async (c) => {
-  const token = getCookie(c, 'access_token') ?? c.req.header('Authorization')?.slice(7)
-  if (!token) return c.json({ error: 'Not authenticated' }, 401)
-
-  const payload = await verifyJwt(token, c.env.JWT_SECRET)
-  if (!payload) return c.json({ error: 'Invalid token' }, 401)
+auth.get('/me', authGuard, async (c) => {
+  const { userId, tenantId, role } = c.get('auth')
 
   const db = drizzle(c.env.DB)
-  const user = await db.select().from(users).where(eq(users.id, payload.sub)).limit(1)
+  const user = await db.select().from(users).where(eq(users.id, userId)).limit(1)
   if (!user.length) return c.json({ error: 'User not found' }, 404)
 
   return c.json({
     user: { id: user[0].id, email: user[0].email, name: user[0].name, avatarUrl: user[0].avatarUrl },
-    tenantId: payload.tid,
-    role: payload.role,
+    tenantId,
+    role,
   })
 })
 
