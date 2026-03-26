@@ -47,6 +47,7 @@ export function ShortcutsTab({ isDark }: { isDark: boolean }) {
   const [shortcuts, setShortcuts] = useState<ActiveShortcut[]>(() => getActiveShortcuts())
   const [editingId, setEditingId] = useState<string | null>(null)
   const [pendingCombo, setPendingCombo] = useState<string>('')
+  const [conflictMsg, setConflictMsg] = useState<string | null>(null)
 
   const handleCapture = useCallback((combo: string) => {
     if (!combo) {
@@ -61,7 +62,13 @@ export function ShortcutsTab({ isDark }: { isDark: boolean }) {
 
   function saveBinding(id: string) {
     if (!pendingCombo) return
-    setCustomShortcut(id, pendingCombo)
+    const conflict = setCustomShortcut(id, pendingCombo)
+    if (conflict) {
+      const label = shortcuts.find((s) => s.id === conflict)?.label ?? conflict
+      setConflictMsg(`"${formatKeyCombo(pendingCombo)}" is already used by "${label}". Choose a different key.`)
+      return
+    }
+    setConflictMsg(null)
     setShortcuts(getActiveShortcuts())
     setEditingId(null)
     setPendingCombo('')
@@ -70,6 +77,7 @@ export function ShortcutsTab({ isDark }: { isDark: boolean }) {
   function cancelEdit() {
     setEditingId(null)
     setPendingCombo('')
+    setConflictMsg(null)
   }
 
   function handleReset(id: string) {
@@ -103,6 +111,10 @@ export function ShortcutsTab({ isDark }: { isDark: boolean }) {
           </button>
         )}
       </div>
+
+      {conflictMsg && (
+        <p className="text-xs text-red-400">{conflictMsg}</p>
+      )}
 
       <div className={cn('rounded-lg border overflow-hidden', isDark ? 'border-white/[0.06]' : 'border-neutral-200')}>
         {shortcuts.map((s, idx) => {

@@ -13,7 +13,6 @@ interface ApiKey {
   scopes: string[]
   lastUsedAt: string | null
   expiresAt: string | null
-  revokedAt: string | null
   createdAt: string
 }
 
@@ -82,7 +81,7 @@ export function ApiKeysTab({ isDark }: { isDark: boolean }) {
     createKey.mutate(body)
   }
 
-  const keys = (data?.keys ?? []).filter((k) => !k.revokedAt)
+  const keys = data?.keys ?? []
 
   const inputCls = cn(
     'w-full rounded border px-2.5 py-1.5 text-base outline-none md:text-xs',

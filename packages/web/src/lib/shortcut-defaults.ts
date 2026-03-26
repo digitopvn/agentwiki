@@ -19,6 +19,8 @@ export const DEFAULT_SHORTCUTS: ShortcutConfig[] = [
   { id: 'close-modal', label: 'Close modals', defaultKeys: 'escape' },
 ]
 
+// TODO: Shortcuts are stored in localStorage — they don't sync across devices.
+// When multi-device session support is added, migrate to server-side storage.
 const STORAGE_KEY = 'agentwiki:shortcuts'
 
 /** Get user's custom shortcut overrides from localStorage */
@@ -31,11 +33,17 @@ export function getCustomShortcuts(): Record<string, string> {
   }
 }
 
-/** Save a custom shortcut binding */
-export function setCustomShortcut(id: string, keys: string) {
+/** Save a custom shortcut binding. Returns conflicting shortcut id if duplicate found, or null on success. */
+export function setCustomShortcut(id: string, keys: string): string | null {
+  // Check for conflicts across all active bindings
+  const all = getActiveShortcuts()
+  const conflict = all.find((s) => s.id !== id && s.activeKeys === keys)
+  if (conflict) return conflict.id
+
   const custom = getCustomShortcuts()
   custom[id] = keys
   localStorage.setItem(STORAGE_KEY, JSON.stringify(custom))
+  return null
 }
 
 /** Remove a custom shortcut (revert to default) */
@@ -69,7 +77,9 @@ export function getActiveShortcuts(): (ShortcutConfig & { activeKeys: string; is
 
 /** Format a key combo for display: 'ctrl+shift+[' → 'Ctrl + Shift + [' (or Cmd on Mac) */
 export function formatKeyCombo(combo: string): string {
-  const isMac = navigator.platform?.includes('Mac') || navigator.userAgent?.includes('Mac')
+  const isMac = (navigator as unknown as { userAgentData?: { platform?: string } }).userAgentData?.platform?.includes('Mac')
+    ?? navigator.platform?.includes('Mac')
+    ?? navigator.userAgent?.includes('Mac')
   return combo
     .split('+')
     .map((part) => {

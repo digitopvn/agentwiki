@@ -24,3 +24,10 @@ export const inviteUserSchema = z.object({
 export const updateMemberRoleSchema = z.object({
   role: z.enum(ROLES),
 })
+
+export const upsertStorageSettingsSchema = z.object({
+  accountId: z.string().min(1).max(200),
+  accessKey: z.string().min(1).max(500),
+  secretKey: z.string().min(1).max(500),
+  bucketName: z.string().min(1).max(200),
+})

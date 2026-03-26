@@ -115,7 +115,7 @@ export async function revokeApiKey(env: Env, keyId: string, tenantId: string) {
   return result
 }
 
-/** List API keys for a tenant (no secrets exposed) */
+/** List active (non-revoked) API keys for a tenant (no secrets exposed) */
 export async function listApiKeys(env: Env, tenantId: string) {
   const db = drizzle(env.DB)
   return db
@@ -126,9 +126,8 @@ export async function listApiKeys(env: Env, tenantId: string) {
       scopes: apiKeys.scopes,
       lastUsedAt: apiKeys.lastUsedAt,
       expiresAt: apiKeys.expiresAt,
-      revokedAt: apiKeys.revokedAt,
       createdAt: apiKeys.createdAt,
     })
     .from(apiKeys)
-    .where(eq(apiKeys.tenantId, tenantId))
+    .where(and(eq(apiKeys.tenantId, tenantId), isNull(apiKeys.revokedAt)))
 }

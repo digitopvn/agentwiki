@@ -147,7 +147,9 @@ export function MembersTab({ isDark }: { isDark: boolean }) {
               key={m.id}
               member={m}
               isDark={isDark}
-              onRoleChange={(role) => updateRole.mutate({ id: m.id, role })}
+              onRoleChange={(role) => {
+                if (window.confirm(`Change ${m.userName}'s role to "${role}"?`)) updateRole.mutate({ id: m.id, role })
+              }}
               onRemove={() => {
                 if (window.confirm(`Remove ${m.userName} from the workspace?`)) remove.mutate(m.id)
               }}

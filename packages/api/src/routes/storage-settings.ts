@@ -4,6 +4,7 @@ import { Hono } from 'hono'
 import { authGuard } from '../middleware/auth-guard'
 import { requireAdmin } from '../middleware/require-permission'
 import * as storageService from '../services/storage-config-service'
+import { upsertStorageSettingsSchema } from '@agentwiki/shared'
 import type { Env } from '../env'
 import type { AuthContext } from '@agentwiki/shared'
 
@@ -22,25 +23,18 @@ storageSettingsRouter.get('/settings', requireAdmin, async (c) => {
 /** PUT /api/storage/settings — upsert storage config (admin only) */
 storageSettingsRouter.put('/settings', requireAdmin, async (c) => {
   const { tenantId } = c.get('auth')
-  const body = (await c.req.json()) as {
-    accountId: string
-    accessKey: string
-    secretKey: string
-    bucketName: string
-  }
+  const parsed = upsertStorageSettingsSchema.safeParse(await c.req.json())
+  if (!parsed.success) return c.json({ error: 'Invalid request', details: parsed.error.issues }, 400)
+  const body = parsed.data
 
-  if (!body.accountId || !body.bucketName) {
-    return c.json({ error: 'accountId and bucketName are required' }, 400)
-  }
-
-  // On initial creation, access keys are mandatory
+  // On initial creation, access keys are mandatory (not the __unchanged__ sentinel)
   const existing = await storageService.getStorageConfig(c.env, tenantId)
-  if (!existing && (!body.accessKey || !body.secretKey || body.accessKey === '__unchanged__' || body.secretKey === '__unchanged__')) {
+  if (!existing && (body.accessKey === '__unchanged__' || body.secretKey === '__unchanged__')) {
     return c.json({ error: 'Access key and secret key are required for initial setup' }, 400)
   }
 
   try {
-    await storageService.upsertStorageConfig(c.env, tenantId, body)
+    await storageService.upsertStorageConfig(c.env, tenantId, body, existing?.id ?? null)
     return c.json({ success: true })
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : 'Failed to save' }, 500)

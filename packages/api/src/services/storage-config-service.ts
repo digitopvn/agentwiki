@@ -34,16 +34,21 @@ export async function getStorageConfig(env: Env, tenantId: string): Promise<Stor
   }
 }
 
-/** Upsert storage configuration (encrypts credentials) */
+/** Upsert storage configuration (encrypts credentials).
+ *  Pass existingId to skip the extra DB lookup when the caller already checked. */
 export async function upsertStorageConfig(
   env: Env,
   tenantId: string,
   data: { accountId: string; accessKey: string; secretKey: string; bucketName: string },
+  existingId?: string | null,
 ) {
   const db = drizzle(env.DB)
   const now = new Date()
 
-  const existing = await db.select().from(storageSettings).where(eq(storageSettings.tenantId, tenantId)).limit(1)
+  // Reuse caller's knowledge when available, otherwise query
+  const existing = existingId !== undefined
+    ? (existingId ? [{ id: existingId }] : [])
+    : await db.select({ id: storageSettings.id }).from(storageSettings).where(eq(storageSettings.tenantId, tenantId)).limit(1)
 
   if (existing.length) {
     const updateData: Record<string, unknown> = {
@@ -99,7 +104,7 @@ export async function testStorageConnection(
     // S3-compatible ListObjectsV2 request with AWS Signature V4 via aws4fetch
     const { AwsClient } = await import('aws4fetch')
     const aws = new AwsClient({ accessKeyId: accessKey, secretAccessKey: secretKey })
-    const endpoint = `https://${config.accountId}.r2.cloudflarestorage.com`
+    const endpoint = config.endpointUrl ?? `https://${config.accountId}.r2.cloudflarestorage.com`
 
     // Use list-type=2&max-keys=1 as a lightweight connectivity check
     const response = await aws.fetch(`${endpoint}/${config.bucketName}?list-type=2&max-keys=1`, {

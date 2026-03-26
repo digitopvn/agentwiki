@@ -34,7 +34,7 @@ memberRoutes.post('/invite', requirePermission('tenant:manage'), async (c) => {
   // Look up user by email
   const userRows = await db.select().from(users).where(eq(users.email, body.email)).limit(1)
   if (!userRows.length) {
-    return c.json({ error: 'User not found. They must sign up first.' }, 404)
+    return c.json({ error: 'Could not invite this user. They may need to sign up first.' }, 422)
   }
   const user = userRows[0]
 
@@ -80,10 +80,25 @@ memberRoutes.patch('/:id', requirePermission('tenant:manage'), async (c) => {
   if (!parsed.success) return c.json({ error: 'Valid role is required' }, 400)
   const body = parsed.data
 
-  // Verify membership belongs to this tenant before mutating
-  const members = await listMembers(c.env, tenantId)
-  const match = members.find((m) => m.id === membershipId)
-  if (!match) return c.json({ error: 'Member not found' }, 404)
+  // Direct targeted query — avoids loading full member list
+  const db = drizzle(c.env.DB)
+  const match = await db
+    .select({ id: tenantMemberships.id, role: tenantMemberships.role })
+    .from(tenantMemberships)
+    .where(and(eq(tenantMemberships.id, membershipId), eq(tenantMemberships.tenantId, tenantId)))
+    .limit(1)
+  if (!match.length) return c.json({ error: 'Member not found' }, 404)
+
+  // Prevent demoting the last admin
+  if (match[0].role === 'admin' && body.role !== 'admin') {
+    const adminCount = await db
+      .select({ id: tenantMemberships.id })
+      .from(tenantMemberships)
+      .where(and(eq(tenantMemberships.tenantId, tenantId), eq(tenantMemberships.role, 'admin')))
+    if (adminCount.length <= 1) {
+      return c.json({ error: 'Cannot change role — this is the only admin' }, 409)
+    }
+  }
 
   const updated = await updateMemberRole(c.env, membershipId, body.role)
   return c.json({ member: updated })
@@ -94,10 +109,25 @@ memberRoutes.delete('/:id', requirePermission('tenant:manage'), async (c) => {
   const { tenantId } = c.get('auth')
   const membershipId = c.req.param('id')
 
-  // Verify membership belongs to this tenant before deleting
-  const members = await listMembers(c.env, tenantId)
-  const match = members.find((m) => m.id === membershipId)
-  if (!match) return c.json({ error: 'Member not found' }, 404)
+  // Direct targeted query — avoids loading full member list
+  const db = drizzle(c.env.DB)
+  const match = await db
+    .select({ id: tenantMemberships.id, role: tenantMemberships.role })
+    .from(tenantMemberships)
+    .where(and(eq(tenantMemberships.id, membershipId), eq(tenantMemberships.tenantId, tenantId)))
+    .limit(1)
+  if (!match.length) return c.json({ error: 'Member not found' }, 404)
+
+  // Prevent removing the last admin
+  if (match[0].role === 'admin') {
+    const adminCount = await db
+      .select({ id: tenantMemberships.id })
+      .from(tenantMemberships)
+      .where(and(eq(tenantMemberships.tenantId, tenantId), eq(tenantMemberships.role, 'admin')))
+    if (adminCount.length <= 1) {
+      return c.json({ error: 'Cannot remove the only admin from the workspace' }, 409)
+    }
+  }
 
   await removeMember(c.env, membershipId)
   return c.json({ ok: true })

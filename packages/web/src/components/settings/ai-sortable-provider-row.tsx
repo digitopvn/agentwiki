@@ -74,9 +74,9 @@ export function SortableProviderRow({
 
         <span className={cn(
           'rounded-full px-2 py-0.5 text-[10px]',
-          setting.isEnabled ? 'bg-green-500/10 text-green-400' : 'bg-neutral-500/10 text-neutral-400',
+          enabled ? 'bg-green-500/10 text-green-400' : 'bg-neutral-500/10 text-neutral-400',
         )}>
-          {setting.isEnabled ? 'Active' : 'Disabled'}
+          {enabled ? 'Active' : 'Disabled'}
         </span>
 
         <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-mono', isDark ? 'bg-surface-2 text-neutral-400' : 'bg-neutral-100 text-neutral-500')}>
