@@ -2,6 +2,9 @@
 
 import { createMiddleware } from 'hono/factory'
 import { getCookie } from 'hono/cookie'
+import { eq } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/d1'
+import { apiKeys } from '../db/schema'
 import { verifyJwt } from '../utils/crypto'
 import { validateApiKey } from '../services/api-key-service'
 import { API_KEY_PREFIX } from '@agentwiki/shared'
@@ -10,19 +13,27 @@ import type { AuthContext } from '@agentwiki/shared'
 
 type AuthEnv = { Bindings: Env; Variables: { auth: AuthContext } }
 
+/** Resolve the real user ID for an API key (key row ID → createdBy user ID) */
+async function resolveApiKeyUserId(env: Env, keyId: string): Promise<string> {
+  const db = drizzle(env.DB)
+  const row = await db.select({ createdBy: apiKeys.createdBy }).from(apiKeys).where(eq(apiKeys.id, keyId)).limit(1)
+  return row.length ? row[0].createdBy : keyId
+}
+
 /** Require authentication — JWT (cookie/header) or API key */
 export const authGuard = createMiddleware<AuthEnv>(async (c, next) => {
   // 1. Check Authorization header
   const authHeader = c.req.header('Authorization')
   let token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
 
-  // 2. Check API key
+  // 2. Check API key — resolve real user ID via createdBy
   if (token && token.startsWith(API_KEY_PREFIX)) {
     const result = await validateApiKey(c.env, token)
     if (!result) return c.json({ error: 'Invalid API key' }, 401)
 
+    const userId = await resolveApiKeyUserId(c.env, result.id)
     c.set('auth', {
-      userId: result.id,
+      userId,
       tenantId: result.tenantId,
       role: 'agent',
       isApiKey: true,
@@ -59,7 +70,8 @@ export const optionalAuth = createMiddleware<AuthEnv>(async (c, next) => {
     if (token.startsWith(API_KEY_PREFIX)) {
       const result = await validateApiKey(c.env, token)
       if (result) {
-        c.set('auth', { userId: result.id, tenantId: result.tenantId, role: 'agent', isApiKey: true })
+        const userId = await resolveApiKeyUserId(c.env, result.id)
+        c.set('auth', { userId, tenantId: result.tenantId, role: 'agent', isApiKey: true })
       }
     } else {
       const payload = await verifyJwt(token, c.env.JWT_SECRET)
