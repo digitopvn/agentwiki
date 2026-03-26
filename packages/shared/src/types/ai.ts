@@ -70,6 +70,7 @@ export interface AIProviderSetting {
   apiKey: string
   defaultModel: string
   isEnabled: boolean
+  priority: number  // lower = higher priority for fallback
 }
 
 /** AI usage record for tracking token consumption */

@@ -34,9 +34,9 @@ export const API_KEY_PREFIX = 'aw_'
 
 /** Supported AI providers with available models */
 export const AI_PROVIDERS = {
-  openai: { name: 'OpenAI', models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'] },
-  anthropic: { name: 'Anthropic', models: ['claude-sonnet-4-20250514', 'claude-haiku-4-5-20251001'] },
-  google: { name: 'Google Gemini', models: ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro'] },
+  openai: { name: 'OpenAI', models: ['gpt-4o', 'gpt-4o-mini', 'o3-mini', 'gpt-4-turbo'] },
+  anthropic: { name: 'Anthropic', models: ['claude-sonnet-4-6', 'claude-haiku-4-5-20251001', 'claude-opus-4-6'] },
+  google: { name: 'Google Gemini', models: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'] },
   openrouter: { name: 'OpenRouter', models: ['auto'] },
   minimax: { name: 'MiniMax', models: ['MiniMax-M1', 'MiniMax-T1'] },
   alibaba: { name: 'Alibaba', models: ['qwen-turbo', 'qwen-plus', 'qwen-max'] },

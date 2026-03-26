@@ -1,6 +1,6 @@
 # AgentWiki: Codebase Summary
 
-Auto-generated from `repomix-output.xml`. Last updated: 2026-03-23.
+Auto-generated from `repomix-output.xml`. Last updated: 2026-03-26.
 
 ## Overview
 
@@ -147,17 +147,22 @@ agentwiki/
 │   │   │   │   │   ├── tag-editor.tsx       — Tag management UI
 │   │   │   │   │   └── version-history.tsx  — Version timeline
 │   │   │   │   ├── settings/
-│   │   │   │   │   └── ai-settings-tab.tsx  — AI provider + usage dashboard
+│   │   │   │   │   ├── ai-settings-tab.tsx  — AI provider + usage dashboard (sortable drag-reorder, updated models)
+│   │   │   │   │   ├── members-tab.tsx      — Team member CRUD with email invites
+│   │   │   │   │   ├── api-keys-tab.tsx     — API key create/revoke with one-time key display
+│   │   │   │   │   ├── storage-config-card.tsx — File grid + custom R2 credentials config
+│   │   │   │   │   └── shortcuts-tab.tsx    — Keyboard shortcut view & rebinding
 │   │   │   │   └── command-palette/
 │   │   │   │       └── command-palette.tsx  — Cmd+K search (cmdk)
 │   │   │   ├── hooks/
-│   │   │   │   ├── use-auth.ts      — Auth state (user, login, logout)
-│   │   │   │   ├── use-documents.ts — Document list & cache (React Query)
-│   │   │   │   ├── use-folders.ts   — Folder tree (React Query)
-│   │   │   │   ├── use-uploads.ts   — Upload list & deletion (React Query)
+│   │   │   │   ├── use-auth.ts             — Auth state (user, login, logout)
+│   │   │   │   ├── use-documents.ts        — Document list & cache (React Query)
+│   │   │   │   ├── use-folders.ts          — Folder tree (React Query)
+│   │   │   │   ├── use-uploads.ts          — Upload list & deletion (React Query)
 │   │   │   │   ├── use-upload-with-progress.ts — XHR upload with progress tracking
-│   │   │   │   ├── use-ai.ts        — AI generation & streaming
-│   │   │   │   └── use-ai-settings.ts — AI settings & provider config
+│   │   │   │   ├── use-ai.ts               — AI generation & streaming
+│   │   │   │   ├── use-ai-settings.ts      — AI settings & provider config (sortable reorder)
+│   │   │   │   └── use-storage-settings.ts — Storage config CRUD (custom R2 creds)
 │   │   │   ├── stores/
 │   │   │   │   └── app-store.ts     — Zustand (tabs, panel collapse, theme, storage drawer, upload queue)
 │   │   │   ├── lib/
@@ -444,6 +449,7 @@ agentwiki/
   temperature: number (0.0 - 1.0)
   maxTokens: int
   enabledFeatures: json (["slash_commands", "selection_toolbar", "auto_summarize"])
+  priority: int       (fallback chain order: 1 = primary, 2 = first fallback, etc.) [NEW]
   createdAt: timestamp
   updatedAt: timestamp
 }
@@ -460,6 +466,22 @@ agentwiki/
   costUSD: decimal    (estimated cost)
   action: string      ("generate" | "transform" | "suggest")
   createdAt: timestamp
+}
+```
+
+### storage_settings [NEW]
+```ts
+{
+  id: string              (PK)
+  tenantId: string        (FK → tenants, unique)
+  accountId: string       (Cloudflare account ID)
+  encryptedAccessKey: string (encrypted S3-compatible access key)
+  encryptedSecretKey: string (encrypted S3-compatible secret key)
+  bucketName: string      (R2 bucket name)
+  endpointUrl?: string    (optional custom S3 endpoint)
+  isVerified: int         (0 = not tested, 1 = connection verified)
+  createdAt: timestamp
+  updatedAt: timestamp
 }
 ```
 
@@ -520,6 +542,12 @@ agentwiki/
 - `DELETE /links/:id` — Delete share link
 - `POST /publish/:id` — Publish as web page
 
+### Members (`/api/members`)
+- `GET` — List tenant members
+- `POST /invite` — Invite user by email with role assignment
+- `PATCH /:id` — Update member role
+- `DELETE /:id` — Remove member from tenant
+
 ### API Keys (`/api/keys`)
 - `GET` — List keys
 - `POST` — Create key
@@ -532,10 +560,17 @@ agentwiki/
 - `POST /generate` — Generate text (slash commands, selection toolbar)
 - `POST /transform` — Transform selected text (rewrite, expand, summarize)
 - `POST /suggest` — Smart suggestions (next paragraph, continuations)
-- `GET /settings` — Get tenant's AI configuration
-- `PUT /settings` — Update provider, model, temperature
+- `GET /settings` — Get tenant's AI configuration (includes provider priority order)
+- `PUT /settings` — Update provider, model, temperature, priority
+- `PATCH /settings/order` — Reorder providers by priority (affects fallback chain)
 - `DELETE /settings` — Clear AI settings
 - `GET /usage` — Usage dashboard (tokens, cost by provider)
+
+### Storage Settings (`/api/storage/settings`)
+- `GET` — Get custom R2 credentials config (masked, admin-only)
+- `PUT` — Configure custom R2 bucket (Account ID, Access Key, Secret, Bucket name, admin-only)
+- `DELETE` — Remove custom config, fall back to default bucket
+- `POST /test` — Test S2-compatible connection with provided credentials
 
 ### Reorder (`/api/reorder`)
 - `PATCH` — Update document/folder position (DnD reordering with fractional indexing)
@@ -612,8 +647,9 @@ agentwiki/
 | Linting | ESLint | 9.0.0 | Code linting |
 | Formatting | Prettier | 3.5.0 | Code formatting |
 | Testing | Vitest | 3.0.0 | Test runner |
-| Drag & Drop | @dnd-kit/core + @dnd-kit/sortable | 6.3.1 / 10.0.0 | Sortable lists |
+| Drag & Drop | @dnd-kit/core + @dnd-kit/sortable + @dnd-kit/utilities | 6.3.1 / 10.0.0 / 3.2.2 | Sortable lists |
 | Fractional Index | fractional-indexing | 3.2.0 | DnD position indexing |
+| S3 Auth | aws4fetch | - | AWS S3 request signing for custom R2 buckets |
 
 ## Build & Deploy Commands
 

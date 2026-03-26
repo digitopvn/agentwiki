@@ -17,6 +17,7 @@ import { internalRouter } from './routes/internal'
 import { reorderRouter } from './routes/reorder'
 import { preferencesRouter } from './routes/preferences'
 import { importRouter } from './routes/import'
+import { storageSettingsRouter } from './routes/storage-settings'
 import { rateLimiter } from './middleware/rate-limiter'
 import { handleQueueBatch } from './queue/handler'
 import { retryStuckExtractions } from './services/extraction-retry-service'
@@ -62,6 +63,7 @@ app.route('/api/ai', aiRouter)
 app.route('/api/reorder', reorderRouter)
 app.route('/api/preferences', preferencesRouter)
 app.route('/api/import', importRouter)
+app.route('/api/storage', storageSettingsRouter)
 app.route('/api/internal', internalRouter)
 
 // Security headers
