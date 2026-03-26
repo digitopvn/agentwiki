@@ -3,13 +3,26 @@
 All notable changes to AgentWiki are documented here, organized by version.
 
 **Current Version**: 0.1.0 (MVP)
-**Last Updated**: 2026-03-22
+**Last Updated**: 2026-03-26
 
 ## [0.1.0] — MVP Release (In Progress)
 
 ### Added
 
 #### Features
+- **Settings Page Tabs Overhaul** (Issue #57) [NEW]
+  - Settings URL deeplinking: direct navigation via `/settings?tab=<id>` with refresh persistence
+  - Members tab: full CRUD with email-based invite (POST /api/members/invite endpoint)
+  - API Keys tab: one-time key display with copy-to-clipboard, key metadata (created, last used, expiry)
+  - AI tab: updated provider model lists (OpenAI, Anthropic, Google, OpenRouter, MiniMax, Alibaba); sortable drag-reorder provider priority for fallback chain
+  - Storage tab: configurable custom R2 credentials (Account ID, Access Keys, Bucket Name, Test Connection)
+  - Shortcuts tab: centralized shortcut definitions, rebindable via key capture UI, localStorage persistence
+  - New components: MembersTab, ApiKeysTab, StorageConfigCard, ShortcutsTab (extracted from settings.tsx)
+  - New hooks: useStorageSettings (R2 config CRUD)
+  - New backend routes: POST /api/members/invite, PATCH /api/ai/settings/order, GET/PUT/DELETE /api/storage/settings, POST /api/storage/test
+  - DB schema: ai_settings.priority column (fallback order), new storage_settings table (custom R2 config)
+  - New dependencies: @dnd-kit/core, @dnd-kit/sortable, @dnd-kit/utilities (sortable AI provider list), aws4fetch (S3-compatible bucket signing)
+
 - **QMD-Inspired Search Pipeline Improvements** (Issue #38)
   - Position-aware RRF with signal weighting (keyword/semantic/default)
   - KV search caching (5-min TTL)
@@ -175,6 +188,7 @@ Items under consideration for future versions:
 
 | Date | Editor | Change |
 |------|--------|--------|
+| 2026-03-26 | Team | Added Settings Page Tabs Overhaul (Issue #57) — deeplinking, members CRUD, API keys, AI priority reorder, storage config, shortcuts rebinding |
 | 2026-03-23 | Team | Added QMD-Inspired Search Pipeline Improvements (Issue #38) |
 | 2026-03-22 | Team | Added Dual-Layer Knowledge Graph feature (Issue #34) |
 | 2026-03-22 | Team | Added changeset for auto-save, mobile sidebar, and markdown import features (Issues #32, #37, #21) |
