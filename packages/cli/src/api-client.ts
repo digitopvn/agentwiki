@@ -20,7 +20,7 @@ export function getCredentials(): Credentials {
   if (!existsSync(CREDENTIALS_FILE)) {
     return { apiUrl: 'https://api.agentwiki.cc' }
   }
-  return JSON.parse(readFileSync(CREDENTIALS_FILE, 'utf-8'))
+  return { apiUrl: 'https://api.agentwiki.cc', ...JSON.parse(readFileSync(CREDENTIALS_FILE, 'utf-8')) }
 }
 
 /** Save credentials */
