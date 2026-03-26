@@ -40,7 +40,7 @@ export async function createApiKey(
   // Cache in KV for fast lookups
   await env.KV.put(
     `apikey:${keyPrefix}`,
-    JSON.stringify({ id, tenantId, scopes, keyHash, keySalt: salt }),
+    JSON.stringify({ id, tenantId, scopes, keyHash, keySalt: salt, createdBy }),
     { expirationTtl: 3600 },
   )
 
@@ -55,18 +55,22 @@ export async function validateApiKey(env: Env, key: string) {
 
   // Try KV cache first
   const cached = await env.KV.get(`apikey:${prefix}`, 'json') as {
-    id: string; tenantId: string; scopes: string[]; keyHash: string; keySalt: string
+    id: string; tenantId: string; scopes: string[]; keyHash: string; keySalt: string; createdBy?: string
   } | null
 
   if (cached) {
     const computedHash = await hashApiKey(key, cached.keySalt)
-    if (computedHash === cached.keyHash) {
+    if (computedHash !== cached.keyHash) return null
+
+    // Stale cache without createdBy — delete and fall through to DB for fresh entry
+    if (!cached.createdBy) {
+      await env.KV.delete(`apikey:${prefix}`)
+    } else {
       // Update last_used_at non-blocking
       const db = drizzle(env.DB)
       db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, cached.id)).run()
-      return { id: cached.id, tenantId: cached.tenantId, scopes: cached.scopes }
+      return { id: cached.id, tenantId: cached.tenantId, scopes: cached.scopes, createdBy: cached.createdBy }
     }
-    return null
   }
 
   // Fallback to DB
@@ -89,13 +93,13 @@ export async function validateApiKey(env: Env, key: string) {
   // Cache for next time
   await env.KV.put(
     `apikey:${prefix}`,
-    JSON.stringify({ id: record.id, tenantId: record.tenantId, scopes: record.scopes, keyHash: record.keyHash, keySalt: record.keySalt }),
+    JSON.stringify({ id: record.id, tenantId: record.tenantId, scopes: record.scopes, keyHash: record.keyHash, keySalt: record.keySalt, createdBy: record.createdBy }),
     { expirationTtl: 3600 },
   )
 
   await db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, record.id))
 
-  return { id: record.id, tenantId: record.tenantId, scopes: record.scopes as string[] }
+  return { id: record.id, tenantId: record.tenantId, scopes: record.scopes as string[], createdBy: record.createdBy }
 }
 
 /** Revoke an API key */
