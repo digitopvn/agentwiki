@@ -39,7 +39,7 @@ export async function getStorageConfig(env: Env, tenantId: string): Promise<Stor
 export async function upsertStorageConfig(
   env: Env,
   tenantId: string,
-  data: { accountId: string; accessKey: string; secretKey: string; bucketName: string },
+  data: { accountId: string; accessKey: string; secretKey: string; bucketName: string; endpointUrl?: string | null },
   existingId?: string | null,
 ) {
   const db = drizzle(env.DB)
@@ -54,6 +54,7 @@ export async function upsertStorageConfig(
     const updateData: Record<string, unknown> = {
       accountId: data.accountId,
       bucketName: data.bucketName,
+      endpointUrl: data.endpointUrl ?? null,
       isVerified: false,
       updatedAt: now,
     }
@@ -74,6 +75,7 @@ export async function upsertStorageConfig(
       encryptedAccessKey: encAccessKey,
       encryptedSecretKey: encSecretKey,
       bucketName: data.bucketName,
+      endpointUrl: data.endpointUrl ?? null,
       isVerified: false,
       createdAt: now,
       updatedAt: now,

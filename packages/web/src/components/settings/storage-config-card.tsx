@@ -35,12 +35,12 @@ export function StorageConfigCard({ isDark }: Props) {
   const config: StorageConfig | null | undefined = data?.config
 
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ accountId: '', accessKey: '', secretKey: '', bucketName: '' })
+  const [form, setForm] = useState({ accountId: '', accessKey: '', secretKey: '', bucketName: '', endpointUrl: '' })
   const [testResult, setTestResult] = useState<{ success: boolean; error?: string } | null>(null)
 
   const handleToggle = () => {
     if (!showForm && config) {
-      setForm({ accountId: config.accountId, bucketName: config.bucketName, accessKey: '', secretKey: '' })
+      setForm({ accountId: config.accountId, bucketName: config.bucketName, accessKey: '', secretKey: '', endpointUrl: config.endpointUrl ?? '' })
     }
     setShowForm((v) => !v)
     setTestResult(null)
@@ -57,6 +57,7 @@ export function StorageConfigCard({ isDark }: Props) {
       bucketName: form.bucketName,
       accessKey: form.accessKey || '__unchanged__',
       secretKey: form.secretKey || '__unchanged__',
+      endpointUrl: form.endpointUrl || null,
     }
     await updateConfig.mutateAsync(payload)
     setShowForm(false)
@@ -127,6 +128,15 @@ export function StorageConfigCard({ isDark }: Props) {
                 onChange={handleChange('bucketName')}
                 placeholder="my-bucket"
                 required
+              />
+            </div>
+            <div className="col-span-2">
+              <label className={labelClass(isDark)}>Endpoint URL (optional, for non-R2 S3-compatible storage)</label>
+              <input
+                className={inputClass(isDark)}
+                value={form.endpointUrl}
+                onChange={handleChange('endpointUrl')}
+                placeholder="https://s3.us-east-1.amazonaws.com"
               />
             </div>
             <div>

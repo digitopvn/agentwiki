@@ -83,7 +83,9 @@ export function SettingsPage() {
   )
 }
 
-/** Workspace settings tab (read-only, kept inline) */
+/** Workspace settings tab (read-only, kept inline)
+ *  TODO: Replace hardcoded workspace name and plan with data from a tenant/workspace API endpoint.
+ *  These values are currently static placeholders. */
 function WorkspaceTab({ isDark }: { isDark: boolean }) {
   return (
     <div className="space-y-4">
@@ -91,10 +93,12 @@ function WorkspaceTab({ isDark }: { isDark: boolean }) {
       <div className={cn('rounded-lg border p-4 space-y-3', isDark ? 'border-white/[0.06] bg-surface-1' : 'border-neutral-200 bg-white')}>
         <div>
           <label className={cn('text-xs font-medium', isDark ? 'text-neutral-400' : 'text-neutral-500')}>Workspace name</label>
+          {/* TODO: fetch from tenant API */}
           <p className={cn('text-sm mt-0.5', isDark ? 'text-neutral-200' : 'text-neutral-800')}>AgentWiki</p>
         </div>
         <div>
           <label className={cn('text-xs font-medium', isDark ? 'text-neutral-400' : 'text-neutral-500')}>Plan</label>
+          {/* TODO: fetch from billing/subscription API */}
           <p className={cn('text-sm mt-0.5', isDark ? 'text-neutral-200' : 'text-neutral-800')}>Free</p>
         </div>
       </div>

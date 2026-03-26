@@ -23,7 +23,7 @@ export function useStorageConfig() {
 export function useUpdateStorageConfig() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: { accountId: string; accessKey: string; secretKey: string; bucketName: string }) =>
+    mutationFn: (data: { accountId: string; accessKey: string; secretKey: string; bucketName: string; endpointUrl?: string | null }) =>
       apiClient.put('/api/storage/settings', data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['storage-settings'] }),
   })
