@@ -66,9 +66,8 @@ export async function validateApiKey(env: Env, key: string) {
     if (!cached.createdBy) {
       await env.KV.delete(`apikey:${prefix}`)
     } else {
-      // Update last_used_at non-blocking
-      const db = drizzle(env.DB)
-      db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, cached.id)).run()
+      // lastUsedAt updated on cache miss (DB path) — skip on cache hit to avoid
+      // unawaited promises being dropped by Cloudflare Workers runtime
       return { id: cached.id, tenantId: cached.tenantId, scopes: cached.scopes, createdBy: cached.createdBy }
     }
   }
