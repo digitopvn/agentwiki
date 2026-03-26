@@ -1,9 +1,14 @@
-/** Member management routes — list, update role, remove */
+/** Member management routes — list, invite, update role, remove */
 
 import { Hono } from 'hono'
+import { eq, and } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/d1'
 import { authGuard } from '../middleware/auth-guard'
 import { requirePermission } from '../middleware/require-permission'
 import { listMembers, updateMemberRole, removeMember } from '../services/member-service'
+import { users, tenantMemberships } from '../db/schema'
+import { generateId } from '../utils/crypto'
+import { inviteUserSchema, updateMemberRoleSchema } from '@agentwiki/shared'
 import type { Env } from '../env'
 import type { AuthContext } from '@agentwiki/shared'
 
@@ -19,13 +24,61 @@ memberRoutes.get('/', requirePermission('tenant:manage'), async (c) => {
   return c.json({ members })
 })
 
+// Invite a user by email to the tenant
+memberRoutes.post('/invite', requirePermission('tenant:manage'), async (c) => {
+  const auth = c.get('auth')
+  const { tenantId } = auth
+  const body = inviteUserSchema.parse(await c.req.json())
+  const db = drizzle(c.env.DB)
+
+  // Look up user by email
+  const userRows = await db.select().from(users).where(eq(users.email, body.email)).limit(1)
+  if (!userRows.length) {
+    return c.json({ error: 'User not found. They must sign up first.' }, 404)
+  }
+  const user = userRows[0]
+
+  // Check existing membership
+  const existing = await db
+    .select()
+    .from(tenantMemberships)
+    .where(and(eq(tenantMemberships.tenantId, tenantId), eq(tenantMemberships.userId, user.id)))
+    .limit(1)
+  if (existing.length) {
+    return c.json({ error: 'User is already a member of this workspace' }, 409)
+  }
+
+  // Create membership
+  const id = generateId()
+  await db.insert(tenantMemberships).values({
+    id,
+    tenantId,
+    userId: user.id,
+    role: body.role,
+    invitedBy: auth.userId,
+    joinedAt: new Date(),
+  })
+
+  // Return member data joined with user info
+  const member = {
+    id,
+    userId: user.id,
+    role: body.role,
+    joinedAt: new Date().toISOString(),
+    userName: user.name,
+    userEmail: user.email,
+    userAvatar: user.avatarUrl,
+  }
+  return c.json({ member }, 201)
+})
+
 // Update a member's role
 memberRoutes.patch('/:id', requirePermission('tenant:manage'), async (c) => {
   const { tenantId } = c.get('auth')
   const membershipId = c.req.param('id')
-  const body = await c.req.json() as { role?: string }
-
-  if (!body.role) return c.json({ error: 'role is required' }, 400)
+  const parsed = updateMemberRoleSchema.safeParse(await c.req.json())
+  if (!parsed.success) return c.json({ error: 'Valid role is required' }, 400)
+  const body = parsed.data
 
   // Verify membership belongs to this tenant before mutating
   const members = await listMembers(c.env, tenantId)

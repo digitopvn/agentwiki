@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { Upload, Trash2, FileIcon, Image, Download, Cloud, Info } from 'lucide-react'
 import { useUploads, useUploadFile, useDeleteUpload } from '../../hooks/use-uploads'
 import { cn } from '../../lib/utils'
+import { StorageConfigCard } from './storage-config-card'
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -58,7 +59,7 @@ export function StorageTab({ isDark }: { isDark: boolean }) {
         </div>
       </div>
 
-      {/* R2 Configuration info */}
+      {/* R2 default connection info */}
       <div className={cn('rounded-lg border p-4 space-y-2', isDark ? 'border-white/[0.06] bg-surface-1' : 'border-neutral-200 bg-white')}>
         <div className="flex items-center gap-2">
           <Cloud className="h-4 w-4 text-brand-400" />
@@ -90,6 +91,9 @@ export function StorageTab({ isDark }: { isDark: boolean }) {
           </p>
         </div>
       </div>
+
+      {/* Custom R2 configuration */}
+      <StorageConfigCard isDark={isDark} />
 
       {/* File grid */}
       <div className="grid grid-cols-3 gap-3">

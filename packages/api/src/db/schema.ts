@@ -170,6 +170,7 @@ export const aiSettings = sqliteTable('ai_settings', {
   encryptedApiKey: text('encrypted_api_key').notNull(),
   defaultModel: text('default_model').notNull(),
   isEnabled: integer('is_enabled', { mode: 'boolean' }).notNull().default(true),
+  priority: integer('priority').notNull().default(0),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
 })
@@ -185,6 +186,20 @@ export const aiUsage = sqliteTable('ai_usage', {
   inputTokens: integer('input_tokens').notNull().default(0),
   outputTokens: integer('output_tokens').notNull().default(0),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
+/** Custom R2 storage configuration per tenant (encrypted credentials) */
+export const storageSettings = sqliteTable('storage_settings', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id).unique(),
+  accountId: text('account_id').notNull(),
+  encryptedAccessKey: text('encrypted_access_key').notNull(),
+  encryptedSecretKey: text('encrypted_secret_key').notNull(),
+  bucketName: text('bucket_name').notNull(),
+  endpointUrl: text('endpoint_url'),
+  isVerified: integer('is_verified', { mode: 'boolean' }).notNull().default(false),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
 })
 
 /** File uploads (R2 metadata) */
