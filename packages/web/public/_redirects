@@ -1,1 +1,2 @@
 /api/files/* https://api.agentwiki.cc/api/files/:splat 302
+/api/* https://api.agentwiki.cc/api/:splat 302
