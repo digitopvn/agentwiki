@@ -9,18 +9,31 @@ export interface ExtractedLink {
   type: EdgeType | null // optional edge type annotation
 }
 
-const WIKILINK_REGEX = /\[\[([^\]]+)\]\]/g
 /** Matches |type:some-type at the end of wikilink inner text */
 const TYPE_ANNOTATION_REGEX = /\|type:([a-z-]+)$/
-/** Matches standard markdown links to internal docs: [text](/doc/slug-or-id) */
-const INTERNAL_LINK_REGEX = /\[([^\]]*)\]\(\/doc\/([^)]+)\)/g
+
+/** Safe decodeURIComponent — falls back to raw value on malformed percent sequences */
+function tryDecodeURI(value: string): string {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
+/** Extract surrounding ~80 chars of context around a match */
+function extractContext(content: string, matchIndex: number, matchLength: number): string {
+  const start = Math.max(0, matchIndex - 40)
+  const end = Math.min(content.length, matchIndex + matchLength + 40)
+  return content.slice(start, end).replace(/\n/g, ' ').trim()
+}
 
 /** Extract all [[wikilinks]] from markdown content */
 export function extractWikilinks(content: string): ExtractedLink[] {
   const links: ExtractedLink[] = []
-  let match: RegExpExecArray | null
 
-  while ((match = WIKILINK_REGEX.exec(content)) !== null) {
+  // Create regex inside function to avoid shared lastIndex state across calls
+  for (const match of content.matchAll(/\[\[([^\]]+)\]\]/g)) {
     let inner = match[1]
     let type: EdgeType | null = null
 
@@ -35,10 +48,7 @@ export function extractWikilinks(content: string): ExtractedLink[] {
     const pipeIndex = inner.indexOf('|')
     const target = pipeIndex >= 0 ? inner.slice(0, pipeIndex).trim() : inner.trim()
     const displayText = pipeIndex >= 0 ? inner.slice(pipeIndex + 1).trim() : null
-
-    const start = Math.max(0, match.index - 40)
-    const end = Math.min(content.length, match.index + match[0].length + 40)
-    const context = content.slice(start, end).replace(/\n/g, ' ').trim()
+    const context = extractContext(content, match.index!, match[0].length)
 
     links.push({ target, displayText, context, type })
   }
@@ -49,17 +59,14 @@ export function extractWikilinks(content: string): ExtractedLink[] {
 /** Extract standard markdown links pointing to internal docs: [text](/doc/slug) */
 export function extractInternalLinks(content: string): ExtractedLink[] {
   const links: ExtractedLink[] = []
-  let match: RegExpExecArray | null
 
-  while ((match = INTERNAL_LINK_REGEX.exec(content)) !== null) {
+  // Create regex inside function to avoid shared lastIndex state across calls
+  for (const match of content.matchAll(/\[([^\]]*)\]\(\/doc\/([^)]+)\)/g)) {
     const displayText = match[1] || null
     // Decode URL-encoded chars (%20 etc.) and strip query params/hash
     const rawTarget = match[2].trim().split(/[?#]/)[0]
-    const target = decodeURIComponent(rawTarget)
-
-    const start = Math.max(0, match.index - 40)
-    const end = Math.min(content.length, match.index + match[0].length + 40)
-    const context = content.slice(start, end).replace(/\n/g, ' ').trim()
+    const target = tryDecodeURI(rawTarget)
+    const context = extractContext(content, match.index!, match[0].length)
 
     links.push({ target, displayText, context, type: null })
   }
