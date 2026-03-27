@@ -60,13 +60,20 @@ export async function fts5Search(
 
     const result = await env.DB.prepare(sql).bind(...params).all()
 
-    return (result.results ?? []).map((row) => ({
+    const rows = (result.results ?? []).map((row) => ({
       id: row.id as string,
       title: row.title as string,
       slug: row.slug as string,
       snippet: extractSnippet((row.content as string) ?? '', query),
       score: Math.abs(row.score as number), // FTS5 rank is negative (lower = better)
       category: (row.category as string) ?? undefined,
+    }))
+
+    // Normalize BM25 scores to 0-1 range for keywordScore
+    const maxScore = rows.reduce((m, r) => Math.max(m, r.score), 1)
+    return rows.map((r) => ({
+      ...r,
+      keywordScore: r.score / maxScore,
     }))
   } catch (err) {
     console.error('FTS5 search error:', err)

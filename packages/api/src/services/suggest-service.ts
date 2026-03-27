@@ -57,6 +57,7 @@ export async function getSuggestions(
         source: 'title',
         documentId: row.id,
         slug: row.slug,
+        accuracy: 100,
       })
     }
   }
@@ -119,6 +120,7 @@ export async function getSuggestions(
           )
 
         const docMap = new Map(fuzzyDocs.map((d) => [d.id, d]))
+        const totalTrigrams = trigramKeys.length
         for (const row of fuzzyRows) {
           if (suggestions.length >= limit) break
           const doc = docMap.get(row.documentId)
@@ -131,6 +133,7 @@ export async function getSuggestions(
             source: 'fuzzy',
             documentId: doc.id,
             slug: doc.slug,
+            accuracy: Math.round((row.matchCount / totalTrigrams) * 100),
           })
         }
       }
