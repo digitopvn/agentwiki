@@ -278,7 +278,12 @@ function AccuracyBadge({ value, isDark }: { value: number; isDark: boolean }) {
           : 'text-neutral-400 bg-neutral-400/10'
 
   return (
-    <span className={cn('shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums', color)}>
+    <span
+      className={cn(
+        'shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums group-aria-selected:bg-white/20 group-aria-selected:text-white',
+        color,
+      )}
+    >
       {value}%
     </span>
   )
@@ -303,7 +308,7 @@ function CommandItem({
     <Command.Item
       onSelect={onSelect}
       className={cn(
-        'flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm aria-selected:bg-brand-600 aria-selected:text-white',
+        'group flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm aria-selected:bg-brand-600 aria-selected:text-white',
         isDark ? 'text-neutral-300 hover:bg-surface-3' : 'text-neutral-700 hover:bg-neutral-50',
       )}
     >
