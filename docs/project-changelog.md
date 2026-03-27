@@ -3,7 +3,7 @@
 All notable changes to AgentWiki are documented here, organized by version.
 
 **Current Version**: 0.1.0 (MVP)
-**Last Updated**: 2026-03-26
+**Last Updated**: 2026-03-27
 
 ## [0.1.0] — MVP Release (In Progress)
 
@@ -115,13 +115,16 @@ All notable changes to AgentWiki are documented here, organized by version.
 
 ### Changed
 
+- **Knowledge Graph edge extraction** now supports standard markdown links `[text](/doc/slug)` alongside wikilinks `[[target]]`
 - Editor auto-save behavior now separates fast JSON saves from slower markdown conversion
 - Mobile UI transitions now use CSS transforms instead of keyframe animations (improved performance)
 - Global drop zone now supports markdown file detection and document creation
 - MCP cross-package imports refactored from relative paths to `@agentwiki/api` package exports
+- Implicit similarity edges now enabled by default on graph visualization page
 
 ### Fixed
 
+- **Knowledge Graph edge extraction** now properly extracts internal links in standard markdown format
 - Reduced editor responsiveness lag on keystroke (Issue #32)
 - Fixed mobile sidebar animation stuttering on lower-end devices (Issue #37)
 
@@ -188,6 +191,7 @@ Items under consideration for future versions:
 
 | Date | Editor | Change |
 |------|--------|--------|
+| 2026-03-27 | Team | Fixed Knowledge Graph edge extraction to support standard markdown links alongside wikilinks; added admin backfill endpoint |
 | 2026-03-26 | Team | Added Settings Page Tabs Overhaul (Issue #57) — deeplinking, members CRUD, API keys, AI priority reorder, storage config, shortcuts rebinding |
 | 2026-03-23 | Team | Added QMD-Inspired Search Pipeline Improvements (Issue #38) |
 | 2026-03-22 | Team | Added Dual-Layer Knowledge Graph feature (Issue #34) |
