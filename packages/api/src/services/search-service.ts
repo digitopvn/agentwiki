@@ -116,7 +116,12 @@ export async function searchDocuments(env: Env, options: SearchOptions): Promise
 
   // Fuse with position-aware signal weighting
   const tFuse0 = Date.now()
-  let fused = rrfInputs.length > 1 ? reciprocalRankFusion(...rrfInputs) : rrfInputs[0]?.list ?? []
+  let fused = rrfInputs.length > 1
+    ? reciprocalRankFusion(...rrfInputs)
+    : (rrfInputs[0]?.list ?? []).map((r) => ({
+        ...r,
+        accuracy: Math.round(Math.max(r.keywordScore ?? 0, r.semanticScore ?? 0) * 100),
+      }))
   const tFuse1 = Date.now()
   const fusedTotal = fused.length // capture pre-filter count for debug
 
@@ -425,6 +430,7 @@ async function semanticSearch(
           slug: doc.slug,
           snippet: extractSnippet(doc.content, query),
           score: m.score,
+          semanticScore: m.score,
           category: doc.category ?? undefined,
         } satisfies RankedResult
       })

@@ -196,6 +196,7 @@ export function CommandPalette() {
                     icon={suggestIcon(item.source)}
                     label={item.text}
                     sublabel={item.source === 'fuzzy' ? 'fuzzy match' : item.source === 'history' ? 'recent search' : undefined}
+                    accuracy={item.accuracy}
                     onSelect={() => handleSuggestionClick(item)}
                     isDark={isDark}
                   />
@@ -218,6 +219,7 @@ export function CommandPalette() {
                     icon={<FileText className="h-3.5 w-3.5" />}
                     label={result.title}
                     sublabel={result.snippet ?? result.category ?? undefined}
+                    accuracy={result.accuracy}
                     onSelect={() => openDocument(result)}
                     isDark={isDark}
                   />
@@ -265,16 +267,35 @@ export function CommandPalette() {
   )
 }
 
+function AccuracyBadge({ value, isDark }: { value: number; isDark: boolean }) {
+  const color =
+    value >= 80
+      ? 'text-emerald-400 bg-emerald-500/10'
+      : value >= 50
+        ? 'text-amber-400 bg-amber-500/10'
+        : isDark
+          ? 'text-neutral-500 bg-neutral-500/10'
+          : 'text-neutral-400 bg-neutral-400/10'
+
+  return (
+    <span className={cn('shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums', color)}>
+      {value}%
+    </span>
+  )
+}
+
 function CommandItem({
   icon,
   label,
   sublabel,
+  accuracy,
   onSelect,
   isDark,
 }: {
   icon: React.ReactNode
   label: string
   sublabel?: string
+  accuracy?: number
   onSelect: () => void
   isDark: boolean
 }) {
@@ -293,6 +314,7 @@ function CommandItem({
           <span className={cn('ml-2 text-xs', isDark ? 'text-neutral-500' : 'text-neutral-400')}>{sublabel}</span>
         )}
       </div>
+      {accuracy != null && <AccuracyBadge value={accuracy} isDark={isDark} />}
     </Command.Item>
   )
 }

@@ -154,13 +154,15 @@ export async function trigramSearch(
       .map((match) => {
         const doc = docMap.get(match.documentId)
         if (!doc) return null
+        const overlapRatio = match.matchedTrigrams / trigramKeys.length
         return {
           id: doc.id,
           title: doc.title,
           slug: doc.slug,
           snippet: extractSnippet(doc.content, query),
-          score: match.matchedTrigrams / trigramKeys.length, // overlap ratio
+          score: overlapRatio,
           category: doc.category ?? undefined,
+          keywordScore: overlapRatio,
         } satisfies RankedResult
       })
       .filter((r): r is NonNullable<typeof r> => r !== null)

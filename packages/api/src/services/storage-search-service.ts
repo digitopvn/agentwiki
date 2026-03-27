@@ -41,6 +41,7 @@ export async function storageKeywordSearch(
     title: r.filename,
     slug: '',
     snippet: extractSnippet(r.extractedText, query),
+    keywordScore: 1.0, // LIKE is binary match
     resultType: 'upload' as const,
   }))
 }
@@ -102,6 +103,7 @@ export async function storageSemanticSearch(
           slug: '',
           snippet: extractSnippet(textMap.get(uploadId) ?? '', query),
           score: m.score,
+          semanticScore: m.score,
           resultType: 'upload' as const,
         } satisfies RankedResult & { resultType: string }
       })

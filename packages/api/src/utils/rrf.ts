@@ -8,6 +8,9 @@ export interface RankedResult {
   score?: number
   category?: string
   context?: string | null // folder hierarchy context (Phase 3)
+  keywordScore?: number   // trigram overlap ratio or normalized BM25 (0-1)
+  semanticScore?: number  // cosine similarity (0-1)
+  accuracy?: number       // max(keywordScore, semanticScore) * 100
 }
 
 export type SignalType = 'keyword' | 'semantic' | 'default'
@@ -56,21 +59,33 @@ export function reciprocalRankFusion(
       const existing = scores.get(item.id)
       if (existing) {
         existing.score += rrfScore
+        // Merge individual signal scores (take max of each)
+        if (item.keywordScore != null) {
+          existing.result.keywordScore = Math.max(existing.result.keywordScore ?? 0, item.keywordScore)
+        }
+        if (item.semanticScore != null) {
+          existing.result.semanticScore = Math.max(existing.result.semanticScore ?? 0, item.semanticScore)
+        }
         // Prefer snippet from the source with the highest individual RRF contribution
         // (better rank = more relevant snippet), not the longest snippet
         if (rrfScore > existing.bestContribution) {
-          existing.result = item
+          const { keywordScore, semanticScore } = existing.result
+          existing.result = { ...item, keywordScore, semanticScore }
           existing.bestContribution = rrfScore
         }
       } else {
-        scores.set(item.id, { result: item, score: rrfScore, bestContribution: rrfScore })
+        scores.set(item.id, { result: { ...item }, score: rrfScore, bestContribution: rrfScore })
       }
     }
   }
 
   return Array.from(scores.values())
     .sort((a, b) => b.score - a.score)
-    .map(({ result, score }) => ({ ...result, score }))
+    .map(({ result, score }) => ({
+      ...result,
+      score,
+      accuracy: Math.round(Math.max(result.keywordScore ?? 0, result.semanticScore ?? 0) * 100),
+    }))
 }
 
 /** Position-aware signal weight — adjusts keyword vs semantic contribution by rank */
