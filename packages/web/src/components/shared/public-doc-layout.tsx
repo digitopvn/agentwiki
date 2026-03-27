@@ -8,12 +8,13 @@ interface PublicDocLayoutProps {
   content: string
   category?: string
   label: string
+  errorMessage?: string
   isLoading: boolean
   error: boolean
 }
 
 /** Reusable layout wrapper for public/shared document pages */
-export function PublicDocLayout({ title, content, category, label, isLoading, error }: PublicDocLayoutProps) {
+export function PublicDocLayout({ title, content, category, label, errorMessage, isLoading, error }: PublicDocLayoutProps) {
   useEffect(() => {
     if (title) document.title = `${title} · AgentWiki`
     return () => { document.title = 'AgentWiki' }
@@ -30,7 +31,7 @@ export function PublicDocLayout({ title, content, category, label, isLoading, er
   if (error) {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-3 bg-surface-0">
-        <p className="text-sm text-neutral-400">This {label.toLowerCase()} is invalid or has expired.</p>
+        <p className="text-sm text-neutral-400">{errorMessage ?? `This ${label.toLowerCase()} is invalid or has expired.`}</p>
         <a href="/" className="text-xs text-brand-400 hover:underline">Go to AgentWiki</a>
       </div>
     )

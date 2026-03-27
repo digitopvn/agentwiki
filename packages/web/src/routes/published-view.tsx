@@ -32,6 +32,7 @@ export function PublishedView() {
       content={data?.document.content ?? ''}
       category={data?.document.category}
       label="Published document"
+      errorMessage="This document does not exist or is not published."
       isLoading={isLoading}
       error={!!error || !data}
     />
