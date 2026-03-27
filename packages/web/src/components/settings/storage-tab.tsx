@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { Upload, Trash2, FileIcon, Image, Download, Cloud, Info } from 'lucide-react'
 import { useUploads, useUploadFile, useDeleteUpload } from '../../hooks/use-uploads'
 import { cn } from '../../lib/utils'
+import { API_BASE } from '../../lib/api-client'
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -104,11 +105,11 @@ export function StorageTab({ isDark }: { isDark: boolean }) {
             {/* Preview area */}
             <div
               className="cursor-pointer"
-              onClick={() => isImage(file.contentType) && setPreview(`/api/files/${file.fileKey}`)}
+              onClick={() => isImage(file.contentType) && setPreview(`${API_BASE}/api/files/${file.fileKey}`)}
             >
               {isImage(file.contentType) ? (
                 <img
-                  src={`/api/files/${file.fileKey}`}
+                  src={`${API_BASE}/api/files/${file.fileKey}`}
                   alt={file.filename}
                   className="h-28 w-full object-cover"
                   loading="lazy"
@@ -129,7 +130,7 @@ export function StorageTab({ isDark }: { isDark: boolean }) {
             {/* Actions overlay */}
             <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               <a
-                href={`/api/files/${file.fileKey}`}
+                href={`${API_BASE}/api/files/${file.fileKey}`}
                 download={file.filename}
                 className="rounded-md bg-black/60 p-1 text-white hover:bg-black/80"
                 title="Download"
