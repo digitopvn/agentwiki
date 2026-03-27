@@ -38,7 +38,7 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
           // Lazy load images with error fallback
           img: ({ src, alt, ...props }) => (
             <img
-              src={src}
+              src={src ?? ''}
               alt={alt || ''}
               loading="lazy"
               onError={(e) => {

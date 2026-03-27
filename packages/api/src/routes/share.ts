@@ -67,7 +67,14 @@ shareRouter.get('/links/:documentId', authGuard, requirePermission('doc:read'), 
 })
 
 shareRouter.delete('/links/:id', authGuard, requirePermission('doc:share'), async (c) => {
-  await deleteShareLink(c.env, c.req.param('id'))
+  const { userId } = c.get('auth')
+  const result = await deleteShareLink(c.env, c.req.param('id'), userId)
+
+  if (!result.deleted) {
+    if (result.reason === 'not_found') return c.json({ error: 'Share link not found' }, 404)
+    return c.json({ error: 'Not authorized to delete this share link' }, 403)
+  }
+
   return c.json({ ok: true })
 })
 

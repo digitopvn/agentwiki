@@ -113,8 +113,20 @@ export async function listShareLinks(env: Env, documentId: string) {
     .where(eq(shareLinks.documentId, documentId))
 }
 
-/** Delete a share link */
-export async function deleteShareLink(env: Env, linkId: string) {
+/** Delete a share link with ownership verification */
+export async function deleteShareLink(env: Env, linkId: string, userId: string) {
   const db = drizzle(env.DB)
+
+  // Verify link belongs to requesting user
+  const link = await db
+    .select({ id: shareLinks.id, createdBy: shareLinks.createdBy })
+    .from(shareLinks)
+    .where(eq(shareLinks.id, linkId))
+    .limit(1)
+
+  if (!link.length) return { deleted: false, reason: 'not_found' as const }
+  if (link[0].createdBy !== userId) return { deleted: false, reason: 'forbidden' as const }
+
   await db.delete(shareLinks).where(eq(shareLinks.id, linkId))
+  return { deleted: true, reason: null }
 }
