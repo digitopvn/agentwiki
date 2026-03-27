@@ -514,6 +514,9 @@ export async function syncWikilinks(
   content: string,
   tenantId: string,
 ) {
+  // Guard: skip if content is empty (contentJson-only saves have no markdown yet)
+  if (!content?.trim()) return
+
   // Delete existing links from this source
   await db.delete(documentLinks).where(eq(documentLinks.sourceDocId, docId))
 

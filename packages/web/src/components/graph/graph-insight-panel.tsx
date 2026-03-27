@@ -32,8 +32,18 @@ export function GraphInsightPanel({ selectedNodes, onNavigate }: GraphInsightPan
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
       </button>
 
-      <div className={`${isOpen ? 'absolute inset-y-0 right-0 z-10' : 'hidden'} w-72 flex-col gap-4 overflow-y-auto border-l border-white/[0.06] bg-surface-1 p-4 md:relative md:flex`}>
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-400">Graph Insights</h3>
+      <div className={`${isOpen ? 'absolute inset-y-0 right-0 z-10 flex' : 'hidden'} w-72 flex-col gap-4 overflow-y-auto border-l border-white/[0.06] bg-surface-1 p-4 md:relative md:flex`}>
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-400">Graph Insights</h3>
+        {/* Close button — visible only on mobile when panel is open */}
+        <button
+          onClick={() => setIsOpen(false)}
+          className="flex h-6 w-6 items-center justify-center rounded text-neutral-500 hover:bg-surface-2 hover:text-neutral-300 md:hidden"
+          title="Close panel"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
 
       {/* Stats section */}
       {stats && (
