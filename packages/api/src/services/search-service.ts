@@ -120,7 +120,9 @@ export async function searchDocuments(env: Env, options: SearchOptions): Promise
     ? reciprocalRankFusion(...rrfInputs)
     : (rrfInputs[0]?.list ?? []).map((r) => ({
         ...r,
-        accuracy: Math.round(Math.max(r.keywordScore ?? 0, r.semanticScore ?? 0) * 100),
+        accuracy: r.keywordScore != null || r.semanticScore != null
+          ? Math.round(Math.max(r.keywordScore ?? 0, r.semanticScore ?? 0) * 100)
+          : undefined,
       }))
   const tFuse1 = Date.now()
   const fusedTotal = fused.length // capture pre-filter count for debug

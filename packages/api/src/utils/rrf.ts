@@ -84,7 +84,9 @@ export function reciprocalRankFusion(
     .map(({ result, score }) => ({
       ...result,
       score,
-      accuracy: Math.round(Math.max(result.keywordScore ?? 0, result.semanticScore ?? 0) * 100),
+      accuracy: result.keywordScore != null || result.semanticScore != null
+        ? Math.round(Math.max(result.keywordScore ?? 0, result.semanticScore ?? 0) * 100)
+        : undefined,
     }))
 }
 

@@ -70,7 +70,7 @@ export async function fts5Search(
     }))
 
     // Normalize BM25 scores to 0-1 range for keywordScore
-    const maxScore = Math.max(...rows.map((r) => r.score), 1)
+    const maxScore = rows.reduce((m, r) => Math.max(m, r.score), 1)
     return rows.map((r) => ({
       ...r,
       keywordScore: r.score / maxScore,
