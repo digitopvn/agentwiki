@@ -1,7 +1,7 @@
 /** Share + publish routes */
 
 import { Hono } from 'hono'
-import { createShareLink, getDocumentByShareToken, listShareLinks, deleteShareLink } from '../services/share-service'
+import { createShareLink, getDocumentByShareToken, getPublishedDocumentBySlug, listShareLinks, deleteShareLink } from '../services/share-service'
 import { publishDocument } from '../services/publish-service'
 import { authGuard } from '../middleware/auth-guard'
 import { requirePermission } from '../middleware/require-permission'
@@ -18,6 +18,32 @@ const shareRouter = new Hono<AuthEnv>()
 shareRouter.get('/public/:token', async (c) => {
   const result = await getDocumentByShareToken(c.env, c.req.param('token'))
   if (!result) return c.json({ error: 'Share link not found or expired' }, 404)
+
+  // Content negotiation: return raw markdown when Accept: text/markdown
+  const accept = c.req.header('Accept') || ''
+  if (accept.includes('text/markdown')) {
+    return c.text(result.document.content, 200, {
+      'Content-Type': 'text/markdown; charset=utf-8',
+    })
+  }
+
+  return c.json(result)
+})
+
+// --- Public: get published document by slug (no auth) ---
+
+shareRouter.get('/published/:slug', async (c) => {
+  const result = await getPublishedDocumentBySlug(c.env, c.req.param('slug'))
+  if (!result) return c.json({ error: 'Document not found or not published' }, 404)
+
+  // Content negotiation: return raw markdown when Accept: text/markdown
+  const accept = c.req.header('Accept') || ''
+  if (accept.includes('text/markdown')) {
+    return c.text(result.document.content, 200, {
+      'Content-Type': 'text/markdown; charset=utf-8',
+    })
+  }
+
   return c.json(result)
 })
 
@@ -41,7 +67,14 @@ shareRouter.get('/links/:documentId', authGuard, requirePermission('doc:read'), 
 })
 
 shareRouter.delete('/links/:id', authGuard, requirePermission('doc:share'), async (c) => {
-  await deleteShareLink(c.env, c.req.param('id'))
+  const { userId } = c.get('auth')
+  const result = await deleteShareLink(c.env, c.req.param('id'), userId)
+
+  if (!result.deleted) {
+    if (result.reason === 'not_found') return c.json({ error: 'Share link not found' }, 404)
+    return c.json({ error: 'Not authorized to delete this share link' }, 403)
+  }
+
   return c.json({ ok: true })
 })
 

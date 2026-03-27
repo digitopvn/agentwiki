@@ -61,7 +61,6 @@ export async function getDocumentByShareToken(env: Env, token: string) {
       id: doc[0].id,
       title: doc[0].title,
       content: doc[0].content,
-      contentJson: doc[0].contentJson,
       summary: doc[0].summary,
       category: doc[0].category,
       createdAt: doc[0].createdAt,
@@ -70,6 +69,31 @@ export async function getDocumentByShareToken(env: Env, token: string) {
     shareLink: {
       expiresAt: link[0].expiresAt,
       accessLevel: link[0].accessLevel,
+    },
+  }
+}
+
+/** Get published document by slug (public access, no share token needed) */
+export async function getPublishedDocumentBySlug(env: Env, slug: string) {
+  const db = drizzle(env.DB)
+
+  const doc = await db
+    .select()
+    .from(documents)
+    .where(and(eq(documents.slug, slug), eq(documents.accessLevel, 'public')))
+    .limit(1)
+
+  if (!doc.length) return null
+
+  return {
+    document: {
+      id: doc[0].id,
+      title: doc[0].title,
+      content: doc[0].content,
+      summary: doc[0].summary,
+      category: doc[0].category,
+      createdAt: doc[0].createdAt,
+      updatedAt: doc[0].updatedAt,
     },
   }
 }
@@ -89,8 +113,20 @@ export async function listShareLinks(env: Env, documentId: string) {
     .where(eq(shareLinks.documentId, documentId))
 }
 
-/** Delete a share link */
-export async function deleteShareLink(env: Env, linkId: string) {
+/** Delete a share link with ownership verification */
+export async function deleteShareLink(env: Env, linkId: string, userId: string) {
   const db = drizzle(env.DB)
+
+  // Verify link belongs to requesting user
+  const link = await db
+    .select({ id: shareLinks.id, createdBy: shareLinks.createdBy })
+    .from(shareLinks)
+    .where(eq(shareLinks.id, linkId))
+    .limit(1)
+
+  if (!link.length) return { deleted: false, reason: 'not_found' as const }
+  if (link[0].createdBy !== userId) return { deleted: false, reason: 'forbidden' as const }
+
   await db.delete(shareLinks).where(eq(shareLinks.id, linkId))
+  return { deleted: true, reason: null }
 }
