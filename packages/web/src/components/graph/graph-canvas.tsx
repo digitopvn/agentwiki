@@ -239,8 +239,8 @@ export function GraphCanvas({ data, onNodeSelect, onNodeNavigate, className = ''
         </button>
       </div>
 
-      {/* Legend */}
-      <div className="absolute bottom-4 left-4 rounded-lg bg-surface-1/90 p-3 backdrop-blur-sm">
+      {/* Legend — hidden on small phones to avoid overlap with zoom controls */}
+      <div className="absolute bottom-4 left-4 hidden rounded-lg bg-surface-1/90 p-3 backdrop-blur-sm sm:block">
         <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-neutral-500">Edge Types</div>
         <div className="flex flex-col gap-1">
           {Object.entries(EDGE_STYLES).map(([type, style]) => (

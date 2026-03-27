@@ -13,7 +13,7 @@ import {
 } from '../db/schema'
 import { generateId } from '../utils/crypto'
 import { slugify, uniqueSlug } from '../utils/slug'
-import { extractWikilinks } from '../utils/wikilink-extractor'
+import { extractAllLinks } from '../utils/wikilink-extractor'
 import type { Env } from '../env'
 import type { PaginationParams } from '../utils/pagination'
 
@@ -507,20 +507,24 @@ export async function getDocumentLinks(env: Env, docId: string) {
   return { forward, backlinks }
 }
 
-/** Sync wikilinks — delete old, insert new (with typed edges) */
-async function syncWikilinks(
+/** Sync document links — delete old, extract wikilinks + internal links, insert new */
+export async function syncWikilinks(
   db: ReturnType<typeof drizzle>,
   docId: string,
   content: string,
   tenantId: string,
 ) {
+  // Guard: skip if content is empty (contentJson-only saves have no markdown yet)
+  if (!content?.trim()) return
+
   // Delete existing links from this source
   await db.delete(documentLinks).where(eq(documentLinks.sourceDocId, docId))
 
-  const links = extractWikilinks(content)
+  const links = extractAllLinks(content)
   if (!links.length) return
 
-  // Resolve targets by slug or title
+  // Resolve targets by slug, title, or direct ID (for /doc/{id} links)
+  const inserted = new Set<string>()
   for (const link of links) {
     const target = await db
       .select({ id: documents.id })
@@ -529,12 +533,13 @@ async function syncWikilinks(
         and(
           eq(documents.tenantId, tenantId),
           isNull(documents.deletedAt),
-          sql`(${documents.slug} = ${link.target.toLowerCase()} OR ${documents.title} = ${link.target})`,
+          sql`(${documents.id} = ${link.target} OR ${documents.slug} = ${link.target.toLowerCase()} OR LOWER(${documents.title}) = ${link.target.toLowerCase()})`,
         ),
       )
       .limit(1)
 
-    if (target.length && target[0].id !== docId) {
+    if (target.length && target[0].id !== docId && !inserted.has(target[0].id)) {
+      inserted.add(target[0].id)
       await db.insert(documentLinks).values({
         id: generateId(),
         sourceDocId: docId,

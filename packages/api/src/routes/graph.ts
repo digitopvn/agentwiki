@@ -5,9 +5,10 @@ import { authGuard } from '../middleware/auth-guard'
 import { requirePermission } from '../middleware/require-permission'
 import { getFullGraph, getNeighbors, getSubgraph, findPath, getGraphStats } from '../services/graph-service'
 import { querySimilarDocs } from '../services/similarity-service'
-import { eq, or, and } from 'drizzle-orm'
+import { eq, or, and, isNull } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
-import { documentLinks } from '../db/schema'
+import { documentLinks, documents } from '../db/schema'
+import { syncWikilinks } from '../services/document-service'
 import type { Env } from '../env'
 import { EDGE_TYPES } from '@agentwiki/shared'
 import type { AuthContext, EdgeType } from '@agentwiki/shared'
@@ -166,6 +167,42 @@ graphRouter.get('/stats', requirePermission('doc:read'), async (c) => {
   } catch (err) {
     console.error('Graph stats error:', err)
     return c.json({ error: 'Failed to fetch graph statistics' }, 500)
+  }
+})
+
+/** Backfill edges for existing documents (admin, batched to respect CPU limits) */
+graphRouter.post('/backfill-edges', requirePermission('tenant:manage'), async (c) => {
+  try {
+    const { tenantId } = c.get('auth')
+    const db = drizzle(c.env.DB)
+    const BATCH_SIZE = 50
+    const offset = parseNum(c.req.query('offset'), 0)
+
+    const batch = await db
+      .select({ id: documents.id, content: documents.content })
+      .from(documents)
+      .where(and(eq(documents.tenantId, tenantId), isNull(documents.deletedAt)))
+      .limit(BATCH_SIZE)
+      .offset(offset)
+
+    let processed = 0
+    for (const doc of batch) {
+      if (!doc.content) continue
+      await syncWikilinks(db, doc.id, doc.content, tenantId)
+      processed++
+    }
+
+    const hasMore = batch.length === BATCH_SIZE
+    return c.json({
+      ok: true,
+      processed,
+      offset,
+      nextOffset: hasMore ? offset + BATCH_SIZE : null,
+      hasMore,
+    })
+  } catch (err) {
+    console.error('Backfill edges error:', err)
+    return c.json({ error: 'Failed to backfill edges' }, 500)
   }
 })
 

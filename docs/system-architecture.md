@@ -197,9 +197,12 @@ Content-Type: application/json
 
 **Technology**: Typed edges in D1 + Vectorize similarity + MCP tools
 
-**Architecture**: Dual-layer graph with explicit (typed wikilinks) and implicit (semantic similarity) edges:
+**Architecture**: Dual-layer graph with explicit (typed wikilinks & markdown links) and implicit (semantic similarity) edges:
 - **Layer 1 (Explicit)**: `document_links` table with 6 edge types (relates-to, depends-on, extends, references, contradicts, implements)
-- **Layer 2 (Implicit)**: `document_similarities` table caching top-5 semantic neighbors via Vectorize
+  - **Source 1**: Wikilinks `[[target|type:edge-type]]` — regex-extracted, support full type annotations
+  - **Source 2**: Markdown links `[text](/doc/slug)` — regex-extracted, always `relates-to` type
+  - **Extraction**: Automatic on document create/update; manual via `POST /api/graph/backfill-edges` (admin)
+- **Layer 2 (Implicit)**: `document_similarities` table caching top-5 semantic neighbors via Vectorize (default enabled)
 - **Traversal**: BFS in-memory for neighbors, subgraph, shortest path queries
 - **Auto-organization**: Queue jobs infer edge types via Workers AI (>80% accuracy target)
 
@@ -207,13 +210,15 @@ Content-Type: application/json
 - `graph-service.ts`: Full graph queries, traversal (neighbors, subgraph, paths), analytics
 - `similarity-service.ts`: Vectorize integration, cache management, on-demand similarity queries
 
-**API Endpoints**:
+**API Endpoints** (8 total):
 - `GET /api/graph` — Full graph with typed edges, optional implicit merging
 - `GET /api/graph/neighbors/:id` — N-hop neighborhood traversal
 - `GET /api/graph/subgraph/:id` — Ego network extraction
 - `GET /api/graph/path/:from/:to` — Shortest path via BFS
 - `GET /api/graph/stats` — Node/edge counts, density, orphan detection
 - `GET /api/graph/similar/:id` — On-demand semantic similarity
+- `GET /api/graph/suggest-links/:id` — AI-recommended missing links
+- `POST /api/graph/backfill-edges` — Re-extract edges from all documents (admin only)
 
 **MCP Tools** (6 tools for AI agents):
 - `graph_get` — Full graph with filters
@@ -244,7 +249,7 @@ Content-Type: application/json
 #### DocumentService
 - CRUD operations
 - Version history tracking
-- Wikilink extraction
+- Link extraction (`syncWikilinks()`) — combines wikilinks + markdown links
 - Category/tag association
 
 #### SearchService

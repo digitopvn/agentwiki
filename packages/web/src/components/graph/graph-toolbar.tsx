@@ -23,7 +23,7 @@ export function GraphToolbar({ filters, onChange, stats }: GraphToolbarProps) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-3 border-b border-white/[0.06] px-4 py-2.5">
+    <div className="flex items-center gap-3 overflow-x-auto border-b border-white/[0.06] px-4 py-2.5 scrollbar-none">
       {/* Edge type filters */}
       <div className="flex items-center gap-1.5">
         <span className="text-[10px] font-medium uppercase tracking-wider text-neutral-500">Edges:</span>
@@ -49,7 +49,7 @@ export function GraphToolbar({ filters, onChange, stats }: GraphToolbarProps) {
       <label className="flex cursor-pointer items-center gap-1.5">
         <input
           type="checkbox"
-          checked={filters.includeImplicit ?? false}
+          checked={filters.includeImplicit ?? true}
           onChange={(e) => onChange({ ...filters, includeImplicit: e.target.checked })}
           className="h-3 w-3 rounded border-neutral-600 bg-surface-2 text-brand-500 focus:ring-0"
         />

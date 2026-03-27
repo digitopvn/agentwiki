@@ -1,5 +1,6 @@
 /** AI insight panel — stats, similar docs, path info for selected nodes */
 
+import { useState } from 'react'
 import { useGraphStats, useGraphSimilar, useGraphPath } from '../../hooks/use-graph'
 
 interface GraphInsightPanelProps {
@@ -8,6 +9,7 @@ interface GraphInsightPanelProps {
 }
 
 export function GraphInsightPanel({ selectedNodes, onNavigate }: GraphInsightPanelProps) {
+  const [isOpen, setIsOpen] = useState(false)
   const { data: stats } = useGraphStats()
   const selectedId = selectedNodes.length === 1 ? selectedNodes[0] : null
   const { data: similarData } = useGraphSimilar(selectedId)
@@ -20,8 +22,28 @@ export function GraphInsightPanel({ selectedNodes, onNavigate }: GraphInsightPan
   const isValidPath = pathData && 'path' in pathData && Array.isArray(pathData.path)
 
   return (
-    <div className="flex w-72 flex-col gap-4 overflow-y-auto border-l border-white/[0.06] bg-surface-1 p-4">
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-400">Graph Insights</h3>
+    <>
+      {/* Mobile toggle button */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="absolute right-3 top-14 z-20 flex h-8 w-8 items-center justify-center rounded-md bg-surface-2 text-neutral-300 hover:bg-surface-3 md:hidden"
+        title="Toggle insights"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+      </button>
+
+      <div className={`${isOpen ? 'absolute inset-y-0 right-0 z-10 flex' : 'hidden'} w-72 flex-col gap-4 overflow-y-auto border-l border-white/[0.06] bg-surface-1 p-4 md:relative md:flex`}>
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-400">Graph Insights</h3>
+        {/* Close button — visible only on mobile when panel is open */}
+        <button
+          onClick={() => setIsOpen(false)}
+          className="flex h-6 w-6 items-center justify-center rounded text-neutral-500 hover:bg-surface-2 hover:text-neutral-300 md:hidden"
+          title="Close panel"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
 
       {/* Stats section */}
       {stats && (
@@ -116,6 +138,7 @@ export function GraphInsightPanel({ selectedNodes, onNavigate }: GraphInsightPan
         </p>
       )}
     </div>
+    </>
   )
 }
 
