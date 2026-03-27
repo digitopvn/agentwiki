@@ -270,9 +270,13 @@ export function CommandPalette() {
 function AccuracyBadge({ value, isDark }: { value: number; isDark: boolean }) {
   const color =
     value >= 80
-      ? 'text-emerald-400 bg-emerald-500/10'
+      ? isDark
+        ? 'text-emerald-400 bg-emerald-500/10'
+        : 'text-emerald-600 bg-emerald-50'
       : value >= 50
-        ? 'text-amber-400 bg-amber-500/10'
+        ? isDark
+          ? 'text-amber-400 bg-amber-500/10'
+          : 'text-amber-600 bg-amber-50'
         : isDark
           ? 'text-neutral-500 bg-neutral-500/10'
           : 'text-neutral-400 bg-neutral-400/10'

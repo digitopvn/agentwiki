@@ -41,7 +41,7 @@ export async function storageKeywordSearch(
     title: r.filename,
     slug: '',
     snippet: extractSnippet(r.extractedText, query),
-    keywordScore: 1.0, // LIKE is binary match
+    // LIKE is binary — omit keywordScore so accuracy badge doesn't render for storage keyword results
     resultType: 'upload' as const,
   }))
 }
