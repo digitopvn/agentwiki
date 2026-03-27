@@ -24,6 +24,7 @@ import { useAI } from '../../hooks/use-ai'
 import { getAISlashMenuItems } from './ai-slash-commands'
 import { AISelectionToolbar } from './ai-selection-toolbar'
 import { cn } from '../../lib/utils'
+import { API_BASE } from '../../lib/api-client'
 
 // Safari lacks requestIdleCallback — polyfill with setTimeout (module-level, evaluated once)
 const rIC: typeof requestIdleCallback =
@@ -60,20 +61,19 @@ export function Editor({ documentId, tabId }: EditorProps) {
 
       const formData = new FormData()
       formData.append('file', file)
-      const res = await fetch(`${import.meta.env.VITE_API_URL ?? ''}/api/uploads`, {
+      const res = await fetch(`${API_BASE}/api/uploads`, {
         method: 'POST',
         body: formData,
         credentials: 'include',
       })
-
       if (!res.ok) {
         const err = await res.json().catch(() => null)
         throw new Error(err?.error ?? `Upload failed (${res.status})`)
       }
 
-      const data = await res.json() as { url?: string }
-      if (!data.url) throw new Error('Upload response missing URL')
-      return data.url
+      const data = await res.json() as { fileKey?: string }
+      if (!data.fileKey) throw new Error('Upload response missing fileKey')
+      return `${API_BASE}/api/files/${data.fileKey}`
     },
   })
 
