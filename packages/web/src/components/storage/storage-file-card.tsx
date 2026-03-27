@@ -22,8 +22,7 @@ export function StorageFileCard({ file, isDark, onDelete }: StorageFileCardProps
   const isImage = file.contentType.startsWith('image/')
 
   const handleCopyUrl = () => {
-    const base = API_BASE || window.location.origin
-    void navigator.clipboard.writeText(`${base}/api/files/${file.fileKey}`)
+    void navigator.clipboard.writeText(`${API_BASE}/api/files/${file.fileKey}`)
   }
 
   return (
