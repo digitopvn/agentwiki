@@ -55,6 +55,10 @@ export function Editor({ documentId, tabId }: EditorProps) {
 
   const editor = useCreateBlockNote({
     uploadFile: async (file: File) => {
+      if (!file.type.startsWith('image/')) {
+        throw new Error('Only image files are supported')
+      }
+
       const formData = new FormData()
       formData.append('file', file)
       const res = await fetch(`${API_BASE}/api/uploads`, {
@@ -62,11 +66,57 @@ export function Editor({ documentId, tabId }: EditorProps) {
         body: formData,
         credentials: 'include',
       })
-      if (!res.ok) throw new Error('Upload failed')
-      const data = await res.json() as { fileKey: string }
-      return `${API_BASE}/api/files/${data.fileKey}`
+      if (!res.ok) {
+        const err = await res.json().catch(() => null)
+        throw new Error(err?.error ?? `Upload failed (${res.status})`)
+      }
+
+      const data = await res.json() as { fileKey?: string; url?: string }
+      if (data.fileKey) return `${API_BASE}/api/files/${data.fileKey}`
+      if (data.url) return data.url
+      throw new Error('Upload response missing URL')
     },
   })
+
+  const editorContainerRef = useRef<HTMLDivElement>(null)
+
+  // Intercept paste events to handle markdown with code blocks (insert at cursor, not replace)
+  useEffect(() => {
+    const container = editorContainerRef.current
+    if (!container) return
+
+    // Match actual code fence blocks: ```<lang>\n...\n```
+    const codeFencePattern = /```\w*\n[\s\S]*?\n```/
+
+    const handlePaste = async (e: ClipboardEvent) => {
+      const text = e.clipboardData?.getData('text/plain') ?? ''
+      if (!codeFencePattern.test(text)) return
+
+      e.preventDefault()
+      e.stopPropagation()
+      try {
+        const blocks = await editor.tryParseMarkdownToBlocks(text)
+        // Insert at current cursor position instead of replacing entire document
+        const cursorBlock = editor.getTextCursorPosition().block
+        editor.insertBlocks(blocks, cursorBlock, 'after')
+      } catch {
+        // Fallback: insert as plain text paragraph at cursor
+        try {
+          const cursorBlock = editor.getTextCursorPosition().block
+          editor.insertBlocks(
+            [{ type: 'paragraph', content: [{ type: 'text', text, styles: {} }] }],
+            cursorBlock,
+            'after',
+          )
+        } catch {
+          // Editor may be unfocused — silently ignore
+        }
+      }
+    }
+
+    container.addEventListener('paste', handlePaste, true)
+    return () => container.removeEventListener('paste', handlePaste, true)
+  }, [editor])
 
   // Load initial content once doc is fetched
   useEffect(() => {
@@ -212,7 +262,7 @@ export function Editor({ documentId, tabId }: EditorProps) {
       )}
 
       {/* BlockNote editor with AI slash commands and selection toolbar */}
-      <div className="flex-1 overflow-y-auto px-1 md:px-4">
+      <div ref={editorContainerRef} className="flex-1 overflow-y-auto px-1 md:px-4">
         <BlockNoteView
           editor={editor}
           onChange={handleChange}

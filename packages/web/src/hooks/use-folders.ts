@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../lib/api-client'
+import { useAppStore } from '../stores/app-store'
 import type { Folder } from '@agentwiki/shared'
 
 interface FolderTree extends Folder {
@@ -39,9 +40,12 @@ export function useUpdateFolder() {
 
 export function useDeleteFolder() {
   const qc = useQueryClient()
+  const setFolderExpanded = useAppStore((s) => s.setFolderExpanded)
   return useMutation({
     mutationFn: (id: string) => apiClient.delete<{ ok: boolean }>(`/api/folders/${id}`),
-    onSuccess: () => {
+    onSuccess: (_data, deletedId) => {
+      // Prune deleted folder from persisted expanded state
+      setFolderExpanded(deletedId, false)
       qc.invalidateQueries({ queryKey: ['folders'] })
       qc.invalidateQueries({ queryKey: ['documents'] })
     },

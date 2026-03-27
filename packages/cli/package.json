@@ -12,12 +12,13 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@agentwiki/shared": "workspace:*",
     "commander": "^13.1.0",
-    "@agentwiki/shared": "workspace:*"
+    "fflate": "^0.8.2"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "typescript-eslint": "^8.0.0",
-    "eslint": "^9.0.0"
+    "eslint": "^9.0.0",
+    "typescript-eslint": "^8.0.0"
   }
 }

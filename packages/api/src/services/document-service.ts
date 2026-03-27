@@ -1,7 +1,8 @@
 /** Document CRUD + versioning + wikilink extraction */
 
-import { eq, and, isNull, desc, sql, like, inArray } from 'drizzle-orm'
+import { eq, and, isNull, desc, asc, sql, like, inArray } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
+import { generateKeyBetween } from 'fractional-indexing'
 import { deleteDocumentTrigrams } from './trigram-service'
 import {
   documents,
@@ -12,7 +13,7 @@ import {
 } from '../db/schema'
 import { generateId } from '../utils/crypto'
 import { slugify, uniqueSlug } from '../utils/slug'
-import { extractWikilinks } from '../utils/wikilink-extractor'
+import { extractAllLinks } from '../utils/wikilink-extractor'
 import type { Env } from '../env'
 import type { PaginationParams } from '../utils/pagination'
 
@@ -57,10 +58,22 @@ export async function createDocument(
     return existing.length > 0
   })
 
+  // Compute position: append after last sibling in same folder
+  const folderCondition = input.folderId ? eq(documents.folderId, input.folderId) : isNull(documents.folderId)
+  const lastSibling = await db
+    .select({ position: documents.position })
+    .from(documents)
+    .where(and(eq(documents.tenantId, tenantId), folderCondition, isNull(documents.deletedAt)))
+    .orderBy(desc(documents.position))
+    .limit(1)
+
+  const newPosition = generateKeyBetween(lastSibling[0]?.position ?? null, null)
+
   await db.insert(documents).values({
     id,
     tenantId,
     folderId: input.folderId ?? null,
+    position: newPosition,
     title: input.title,
     slug,
     content: input.content ?? '',
@@ -181,14 +194,24 @@ export async function listDocuments(
   env: Env,
   tenantId: string,
   params: PaginationParams,
-  filters?: { folderId?: string; category?: string; tag?: string; search?: string },
+  filters?: { folderId?: string; category?: string; tag?: string; search?: string; sort?: string; order?: string },
 ) {
   const db = drizzle(env.DB)
   const conditions = [eq(documents.tenantId, tenantId), isNull(documents.deletedAt)]
 
-  if (filters?.folderId) conditions.push(eq(documents.folderId, filters.folderId))
+  if (filters?.folderId === 'null') {
+    conditions.push(isNull(documents.folderId))
+  } else if (filters?.folderId) {
+    conditions.push(eq(documents.folderId, filters.folderId))
+  }
   if (filters?.category) conditions.push(eq(documents.category, filters.category))
   if (filters?.search) conditions.push(like(documents.title, `%${filters.search}%`))
+
+  // Determine sort order
+  const sortField = filters?.sort === 'position' ? documents.position
+    : filters?.sort === 'title' ? documents.title
+    : documents.updatedAt
+  const sortDir = filters?.order === 'asc' ? asc(sortField) : desc(sortField)
 
   let query = db
     .select({
@@ -199,13 +222,14 @@ export async function listDocuments(
       category: documents.category,
       accessLevel: documents.accessLevel,
       folderId: documents.folderId,
+      position: documents.position,
       createdBy: documents.createdBy,
       updatedAt: documents.updatedAt,
       createdAt: documents.createdAt,
     })
     .from(documents)
     .where(and(...conditions))
-    .orderBy(desc(documents.updatedAt))
+    .orderBy(sortDir)
     .limit(params.limit)
     .offset(params.offset)
 
@@ -225,23 +249,34 @@ export async function listDocuments(
         category: documents.category,
         accessLevel: documents.accessLevel,
         folderId: documents.folderId,
+        position: documents.position,
         createdBy: documents.createdBy,
         updatedAt: documents.updatedAt,
         createdAt: documents.createdAt,
       })
       .from(documents)
       .where(and(...conditions, inArray(documents.id, taggedIds)))
-      .orderBy(desc(documents.updatedAt))
+      .orderBy(sortDir)
       .limit(params.limit)
       .offset(params.offset)
   }
 
   const data = await query
 
+  // Count query must include tag filter when active
+  const countConditions = [...conditions]
+  if (filters?.tag) {
+    const taggedIdsForCount = db
+      .select({ documentId: documentTags.documentId })
+      .from(documentTags)
+      .where(eq(documentTags.tag, filters.tag))
+    countConditions.push(inArray(documents.id, taggedIdsForCount))
+  }
+
   const countResult = await db
     .select({ count: sql<number>`count(*)` })
     .from(documents)
-    .where(and(...conditions))
+    .where(and(...countConditions))
 
   return { data, total: countResult[0]?.count ?? 0 }
 }
@@ -334,7 +369,20 @@ export async function updateDocument(
   }
   if (input.content !== undefined) updates.content = input.content
   if (input.contentJson !== undefined) updates.contentJson = input.contentJson
-  if (input.folderId !== undefined) updates.folderId = input.folderId
+  if (input.folderId !== undefined) {
+    updates.folderId = input.folderId
+    // When moving to a different folder, recompute position to append at end of target
+    if (input.folderId !== current[0].folderId) {
+      const folderCond = input.folderId ? eq(documents.folderId, input.folderId) : isNull(documents.folderId)
+      const lastSibling = await db
+        .select({ position: documents.position })
+        .from(documents)
+        .where(and(eq(documents.tenantId, tenantId), folderCond, isNull(documents.deletedAt)))
+        .orderBy(desc(documents.position))
+        .limit(1)
+      updates.position = generateKeyBetween(lastSibling[0]?.position ?? null, null)
+    }
+  }
   if (input.category !== undefined) updates.category = input.category
   if (input.accessLevel !== undefined) updates.accessLevel = input.accessLevel
 
@@ -459,20 +507,24 @@ export async function getDocumentLinks(env: Env, docId: string) {
   return { forward, backlinks }
 }
 
-/** Sync wikilinks — delete old, insert new (with typed edges) */
-async function syncWikilinks(
+/** Sync document links — delete old, extract wikilinks + internal links, insert new */
+export async function syncWikilinks(
   db: ReturnType<typeof drizzle>,
   docId: string,
   content: string,
   tenantId: string,
 ) {
+  // Guard: skip if content is empty (contentJson-only saves have no markdown yet)
+  if (!content?.trim()) return
+
   // Delete existing links from this source
   await db.delete(documentLinks).where(eq(documentLinks.sourceDocId, docId))
 
-  const links = extractWikilinks(content)
+  const links = extractAllLinks(content)
   if (!links.length) return
 
-  // Resolve targets by slug or title
+  // Resolve targets by slug, title, or direct ID (for /doc/{id} links)
+  const inserted = new Set<string>()
   for (const link of links) {
     const target = await db
       .select({ id: documents.id })
@@ -481,12 +533,13 @@ async function syncWikilinks(
         and(
           eq(documents.tenantId, tenantId),
           isNull(documents.deletedAt),
-          sql`(${documents.slug} = ${link.target.toLowerCase()} OR ${documents.title} = ${link.target})`,
+          sql`(${documents.id} = ${link.target} OR ${documents.slug} = ${link.target.toLowerCase()} OR LOWER(${documents.title}) = ${link.target.toLowerCase()})`,
         ),
       )
       .limit(1)
 
-    if (target.length && target[0].id !== docId) {
+    if (target.length && target[0].id !== docId && !inserted.has(target[0].id)) {
+      inserted.add(target[0].id)
       await db.insert(documentLinks).values({
         id: generateId(),
         sourceDocId: docId,

@@ -57,6 +57,11 @@ interface AppState {
   updateUploadStatus: (id: string, status: UploadQueueItem['status'], error?: string) => void
   removeFromUploadQueue: (id: string) => void
 
+  // Folder expanded state (persisted across refreshes)
+  expandedFolderIds: string[]
+  toggleFolderExpanded: (folderId: string) => void
+  setFolderExpanded: (folderId: string, expanded: boolean) => void
+
   // Theme
   theme: 'dark' | 'light'
   toggleTheme: () => void
@@ -157,6 +162,23 @@ export const useAppStore = create<AppState>()(
         uploadQueue: s.uploadQueue.filter((u) => u.id !== id),
       })),
 
+      // Folder expanded state
+      expandedFolderIds: [],
+      toggleFolderExpanded: (folderId) =>
+        set((s) => ({
+          expandedFolderIds: s.expandedFolderIds.includes(folderId)
+            ? s.expandedFolderIds.filter((id) => id !== folderId)
+            : [...s.expandedFolderIds, folderId],
+        })),
+      setFolderExpanded: (folderId, expanded) =>
+        set((s) => ({
+          expandedFolderIds: expanded
+            ? s.expandedFolderIds.includes(folderId)
+              ? s.expandedFolderIds
+              : [...s.expandedFolderIds, folderId]
+            : s.expandedFolderIds.filter((id) => id !== folderId),
+        })),
+
       // Theme
       theme: 'dark',
       toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
@@ -166,6 +188,7 @@ export const useAppStore = create<AppState>()(
       partialize: (s) => ({
         sidebarCollapsed: s.sidebarCollapsed,
         metadataPanelCollapsed: s.metadataPanelCollapsed,
+        expandedFolderIds: s.expandedFolderIds,
         theme: s.theme,
       }),
     },

@@ -28,7 +28,7 @@ export function GraphPage() {
   }, [data, navigate])
 
   return (
-    <div className="flex h-screen flex-col bg-surface-0">
+    <div className="flex h-dvh flex-col bg-surface-0">
       {/* Header */}
       <div className="flex items-center gap-3 border-b border-white/[0.06] px-4 py-3">
         <button

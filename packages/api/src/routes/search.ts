@@ -16,9 +16,10 @@ const searchRouter = new Hono<AuthEnv>()
 searchRouter.use('*', authGuard)
 
 // Search documents with optional faceted filtering
+// Applies stricter rate limit when expand=true (AI cost surface)
 searchRouter.get(
   '/',
-  rateLimiter(RATE_LIMITS.search),
+  rateLimiter(RATE_LIMITS.search), // base rate limit for all search requests
   async (c) => {
     const { tenantId } = c.get('auth')
     const query = c.req.query('q')
@@ -38,9 +39,31 @@ searchRouter.get(
       dateTo: c.req.query('dateTo') || undefined,
     }
 
+    const debug = c.req.query('debug') === 'true'
+    const expand = c.req.query('expand') === 'true' // UI default: off, opt-in
+    const rawKwSource = c.req.query('keyword-source')
+    const keywordSource = rawKwSource === 'fts5' || rawKwSource === 'trigram' ? rawKwSource : undefined
+
+    // Enforce stricter rate limit for expand=true (AI cost surface: 10 req/min)
+    // NOTE: KV get+put is non-atomic — concurrent requests can race past the limit.
+    // Acceptable at 10 req/min; if limit is tightened, consider a Durable Object counter.
+    if (expand) {
+      const ip = c.req.header('CF-Connecting-IP') ?? 'unknown'
+      const userId = c.get('auth').userId ?? ip
+      const window = Math.floor(Date.now() / (RATE_LIMITS.searchExpand.windowSec * 1000))
+      const expandKey = `rl:expand:${userId}:${window}`
+      const count = parseInt((await c.env.KV.get(expandKey)) ?? '0', 10)
+      if (count >= RATE_LIMITS.searchExpand.limit) {
+        return c.json({ error: 'Query expansion rate limit exceeded' }, 429)
+      }
+      c.executionCtx.waitUntil(
+        c.env.KV.put(expandKey, String(count + 1), { expirationTtl: RATE_LIMITS.searchExpand.windowSec * 2 }),
+      )
+    }
+
     // Run search + facets in parallel when requested
-    const [results, facets] = await Promise.all([
-      searchDocuments(c.env, { tenantId, query, type, limit, filters, source }),
+    const [searchResult, facets] = await Promise.all([
+      searchDocuments(c.env, { tenantId, query, type, limit, filters, source, debug, expand, keywordSource }),
       includeFacets ? getFacetCounts(c.env, tenantId) : undefined,
     ])
 
@@ -48,12 +71,19 @@ searchRouter.get(
     const searchId = crypto.randomUUID()
     c.executionCtx.waitUntil(
       Promise.all([
-        recordSearchHistory(c.env, tenantId, query, results.length),
-        recordSearch(c.env, searchId, tenantId, query, type, results.length),
+        recordSearchHistory(c.env, tenantId, query, searchResult.results.length),
+        recordSearch(c.env, searchId, tenantId, query, type, searchResult.results.length),
       ]),
     )
 
-    return c.json({ results, facets, query, type, searchId })
+    return c.json({
+      results: searchResult.results,
+      facets,
+      query,
+      type,
+      searchId,
+      ...(debug ? { debug: searchResult.debug } : {}),
+    })
   },
 )
 

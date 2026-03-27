@@ -34,29 +34,53 @@ Dual-layer knowledge graph enabling typed document relationships, semantic disco
 
 ## Dual-Layer Design
 
-### Layer 1: Explicit Edges (Typed Wikilinks)
+### Link Extraction
 
-Documents are connected through wikilinks in markdown content. Each link carries a **typed relationship**:
+**Two extraction methods** are combined via `extractAllLinks()`:
+
+- **Wikilinks** — regex: `\[\[([^\]]+)\]\]` — extracts `[[target]]` with optional `|type:edge-type` annotations
+- **Markdown links** — regex: `\[([^\]]*)\]\(\/doc\/([^)]+)\)` — extracts standard `[text](/doc/slug)` patterns
+
+Both formats are deduplicated by target (wikilinks take priority to preserve type info). Extraction occurs on:
+- Document creation (`POST /api/documents`)
+- Document update (`PATCH /api/documents/:id`)
+- Backfill operation (`POST /api/graph/backfill-edges`)
+
+### Layer 1: Explicit Edges (Typed Wikilinks & Markdown Links)
+
+Documents are connected through two link formats:
+
+1. **Wikilinks** `[[target]]` — carry optional type annotations
+2. **Markdown links** `[text](/doc/slug)` — standard markdown format
+
+Each link creates an **explicit typed relationship**:
 
 | Edge Type | Meaning | Example |
 |-----------|---------|---------|
-| `relates-to` | General relationship (default) | `[[API Design]]` |
-| `depends-on` | Source requires target | `[[Auth Module\|type:depends-on]]` |
+| `relates-to` | General relationship (default) | `[[API Design]]` or `[API Design](/doc/api-design)` |
+| `depends-on` | Source requires target | `[[Auth Module\|type:depends-on]]` (wikilinks only) |
 | `extends` | Source builds upon target | `[[Base Config\|type:extends]]` |
 | `references` | Source cites target | `[[RFC 7519\|type:references]]` |
 | `contradicts` | Source conflicts with target | `[[Old Approach\|type:contradicts]]` |
 | `implements` | Source implements target concept | `[[Design Spec\|type:implements]]` |
 
-**Wikilink syntax** follows standard wiki convention:
+**Wikilink syntax** (supports type annotations):
 
 ```markdown
-[[Target Page]]                          → simple link
+[[Target Page]]                          → simple link (relates-to)
 [[Target Page|Display Text]]             → link with custom display text
 [[Target Page|type:depends-on]]          → typed link
 [[Target Page|Display Text|type:extends]] → typed link with display text
 ```
 
-**Storage**: `document_links` table in D1 with columns: `source_doc_id`, `target_doc_id`, `type`, `weight`, `inferred`, `context`.
+**Markdown link syntax** (no type annotations; always relates-to):
+
+```markdown
+[Display Text](/doc/target-slug)         → standard markdown link
+[](/doc/target-id)                       → link with no display text
+```
+
+**Storage**: `document_links` table in D1 with columns: `source_doc_id`, `target_doc_id`, `type` (default `relates-to`), `weight`, `inferred`, `context`.
 
 ### Layer 2: Implicit Edges (Semantic Similarity)
 
@@ -115,6 +139,14 @@ Document A ──embed──▶ Vectorize ◀──embed── Document B
 | `GET` | `/api/graph/stats` | Graph statistics (density, degree distribution, orphans) |
 | `GET` | `/api/graph/similar/:id` | On-demand Vectorize similarity query |
 | `GET` | `/api/graph/suggest-links/:id` | AI-suggested missing links |
+| `POST` | `/api/graph/backfill-edges` | Re-process all existing documents to extract edges (admin only) |
+
+**Backfill endpoint usage** (admin only, requires `org:manage` permission):
+```bash
+POST /api/graph/backfill-edges
+Response: { "ok": true, "documentsProcessed": 42, "edgesCreated": 157 }
+```
+Useful when link extraction logic changes or to re-process legacy content.
 
 **Common query parameters:**
 - `types` — Comma-separated edge types to filter: `?types=depends-on,extends`
@@ -222,8 +254,9 @@ CREATE TABLE document_similarities (
 | api | `services/graph-service.ts` | BFS traversal, full graph queries, analytics |
 | api | `services/similarity-service.ts` | Vectorize integration, cache, on-demand queries |
 | api | `services/graph-ai-service.ts` | AI edge type inference via Workers AI |
-| api | `routes/graph.ts` | 7 REST endpoints |
-| api | `utils/wikilink-extractor.ts` | Parse `[[target\|type:X]]` syntax |
+| api | `services/document-service.ts` | `syncWikilinks()` — extracts both wikilinks + markdown links |
+| api | `routes/graph.ts` | 8 REST endpoints (including backfill) |
+| api | `utils/wikilink-extractor.ts` | Extract `[[target\|type:X]]` wikilinks + `[text](/doc/slug)` markdown links |
 | api | `queue/handler.ts` | `compute-similarities` + `infer-edge-types` jobs |
 | mcp | `tools/graph-traversal-tools.ts` | 7 MCP tools for AI agents |
 | web | `components/graph/graph-canvas.tsx` | Cytoscape.js wrapper |
@@ -240,6 +273,15 @@ CREATE TABLE document_similarities (
 | Similarity query | < 500ms | Vectorize `query()` + D1 metadata |
 | Edge type inference | ~2s per link | Workers AI Llama 3.1 8B, batched (10/job) |
 
+## Migration Notes
+
+**Markdown link support** (2026-03-27):
+- `extractInternalLinks()` now extracts `[text](/doc/slug)` format
+- Markdown links treated as `relates-to` edges (no type annotations in markdown format)
+- Existing markdown links in documents are automatically detected and indexed
+- To re-process all documents after this fix, call `POST /api/graph/backfill-edges`
+- Deduplication: if both wikilink and markdown link target same document, wikilink is retained
+
 ## Known Limitations
 
 - BFS loads full tenant graph into memory (acceptable for < 1K docs per tenant)
@@ -247,3 +289,4 @@ CREATE TABLE document_similarities (
 - Path finding capped at 10 hops maximum
 - Edge type inference batched at 10 links per queue job (Workers AI quota)
 - Graph visualization optimized for < 10K nodes
+- Markdown links cannot carry type annotations (use wikilinks with `|type:X` for typed relationships)
