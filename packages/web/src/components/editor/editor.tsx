@@ -25,7 +25,7 @@ import { getAISlashMenuItems } from './ai-slash-commands'
 import { AISelectionToolbar } from './ai-selection-toolbar'
 import { cn } from '../../lib/utils'
 import { API_BASE } from '../../lib/api-client'
-import { createPasteMarkdownPlugin } from './paste-markdown-extension'
+import { createPasteMarkdownPlugin, pasteMarkdownPluginKey } from './paste-markdown-extension'
 
 // Safari lacks requestIdleCallback — polyfill with setTimeout (module-level, evaluated once)
 const rIC: typeof requestIdleCallback =
@@ -78,12 +78,13 @@ export function Editor({ documentId, tabId }: EditorProps) {
     },
   })
 
-  // Register paste-markdown plugin once (handles pasting content with code fences)
-  // Placed at head of plugin list so it runs before BlockNote's default paste handler
+  // Register paste-markdown plugin once (handles pasting content with code fences).
+  // Placed at head of plugin list via (p, existing) => [p, ...existing] so it runs
+  // before BlockNote's default paste handler which would insert code fences as plain text.
   useEffect(() => {
     const plugin = createPasteMarkdownPlugin(editor)
     editor._tiptapEditor.registerPlugin(plugin, (p, existing) => [p, ...existing])
-    return () => { editor._tiptapEditor.unregisterPlugin('pasteMarkdownWithCodeBlocks') }
+    return () => { editor._tiptapEditor.unregisterPlugin(pasteMarkdownPluginKey) }
   }, [editor])
 
   // Load initial content once doc is fetched

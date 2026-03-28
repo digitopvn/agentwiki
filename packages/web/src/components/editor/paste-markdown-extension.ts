@@ -3,14 +3,20 @@
  * BlockNote v0.22.0 default paste handler treats text/plain as plain text,
  * which loses code blocks. This plugin detects code fences and uses
  * BlockNote's markdown parser to preserve them.
+ *
+ * NOTE: Uses editor._tiptapEditor (private API) for plugin registration.
+ * May need updating on BlockNote major version upgrades.
  */
 
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import type { EditorView } from '@tiptap/pm/view'
 import type { BlockNoteEditor } from '@blocknote/core'
 
-/** Matches actual code fence blocks: ```<lang>\n...\n``` */
-const CODE_FENCE_REGEX = /```\w*\n[\s\S]*?\n```/
+/** Matches actual code fence blocks: ```<lang>\n...\n``` (handles \r\n for Windows) */
+const CODE_FENCE_REGEX = /```[\w-]*\r?\n[\s\S]*?\r?\n```/
+
+/** Exported key so editor.tsx can properly unregister the plugin on cleanup */
+export const pasteMarkdownPluginKey = new PluginKey('pasteMarkdownWithCodeBlocks')
 
 /**
  * Creates a ProseMirror plugin that intercepts paste events when clipboard
@@ -21,7 +27,7 @@ const CODE_FENCE_REGEX = /```\w*\n[\s\S]*?\n```/
  */
 export function createPasteMarkdownPlugin(editor: BlockNoteEditor) {
   return new Plugin({
-    key: new PluginKey('pasteMarkdownWithCodeBlocks'),
+    key: pasteMarkdownPluginKey,
     props: {
       handleDOMEvents: {
         paste(_view: EditorView, event: Event) {
@@ -30,6 +36,9 @@ export function createPasteMarkdownPlugin(editor: BlockNoteEditor) {
           const clipboardEvent = event as ClipboardEvent
           const clipboardData = clipboardEvent.clipboardData
           if (!clipboardData) return false
+
+          // Let VS Code's rich paste handler take priority
+          if (clipboardData.types.includes('vscode-editor-data')) return false
 
           const plainText = clipboardData.getData('text/plain')
           if (!plainText || !CODE_FENCE_REGEX.test(plainText)) return false
@@ -44,12 +53,18 @@ export function createPasteMarkdownPlugin(editor: BlockNoteEditor) {
             const cursorBlock = editor.getTextCursorPosition().block
             editor.insertBlocks(blocks, cursorBlock, 'after')
 
-            // Remove the current block if it's empty (cursor was on blank line)
+            // Remove the current block if it's empty (cursor was on blank line),
+            // but only if it's not the last remaining block in the document
             const currentContent = cursorBlock.content
-            if (Array.isArray(currentContent) && currentContent.length === 0) {
+            if (
+              Array.isArray(currentContent) &&
+              currentContent.length === 0 &&
+              editor.document.length > 1
+            ) {
               editor.removeBlocks([cursorBlock])
             }
-          }).catch(() => {
+          }).catch((err) => {
+            console.warn('Markdown paste parse failed, inserting as plain text:', err)
             // Fallback: insert as plain text paragraph at cursor
             try {
               const cursorBlock = editor.getTextCursorPosition().block
