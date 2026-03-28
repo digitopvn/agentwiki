@@ -25,6 +25,7 @@ import { getAISlashMenuItems } from './ai-slash-commands'
 import { AISelectionToolbar } from './ai-selection-toolbar'
 import { cn } from '../../lib/utils'
 import { API_BASE } from '../../lib/api-client'
+import { createPasteMarkdownPlugin, pasteMarkdownPluginKey } from './paste-markdown-extension'
 
 // Safari lacks requestIdleCallback — polyfill with setTimeout (module-level, evaluated once)
 const rIC: typeof requestIdleCallback =
@@ -77,44 +78,13 @@ export function Editor({ documentId, tabId }: EditorProps) {
     },
   })
 
-  const editorContainerRef = useRef<HTMLDivElement>(null)
-
-  // Intercept paste events to handle markdown with code blocks (insert at cursor, not replace)
+  // Register paste-markdown plugin once (handles pasting content with code fences).
+  // Placed at head of plugin list via (p, existing) => [p, ...existing] so it runs
+  // before BlockNote's default paste handler which would insert code fences as plain text.
   useEffect(() => {
-    const container = editorContainerRef.current
-    if (!container) return
-
-    // Match actual code fence blocks: ```<lang>\n...\n```
-    const codeFencePattern = /```\w*\n[\s\S]*?\n```/
-
-    const handlePaste = async (e: ClipboardEvent) => {
-      const text = e.clipboardData?.getData('text/plain') ?? ''
-      if (!codeFencePattern.test(text)) return
-
-      e.preventDefault()
-      e.stopPropagation()
-      try {
-        const blocks = await editor.tryParseMarkdownToBlocks(text)
-        // Insert at current cursor position instead of replacing entire document
-        const cursorBlock = editor.getTextCursorPosition().block
-        editor.insertBlocks(blocks, cursorBlock, 'after')
-      } catch {
-        // Fallback: insert as plain text paragraph at cursor
-        try {
-          const cursorBlock = editor.getTextCursorPosition().block
-          editor.insertBlocks(
-            [{ type: 'paragraph', content: [{ type: 'text', text, styles: {} }] }],
-            cursorBlock,
-            'after',
-          )
-        } catch {
-          // Editor may be unfocused — silently ignore
-        }
-      }
-    }
-
-    container.addEventListener('paste', handlePaste, true)
-    return () => container.removeEventListener('paste', handlePaste, true)
+    const plugin = createPasteMarkdownPlugin(editor)
+    editor._tiptapEditor.registerPlugin(plugin, (p, existing) => [p, ...existing])
+    return () => { editor._tiptapEditor.unregisterPlugin(pasteMarkdownPluginKey) }
   }, [editor])
 
   // Load initial content once doc is fetched
@@ -261,7 +231,7 @@ export function Editor({ documentId, tabId }: EditorProps) {
       )}
 
       {/* BlockNote editor with AI slash commands and selection toolbar */}
-      <div ref={editorContainerRef} className="flex-1 overflow-y-auto px-1 md:px-4">
+      <div className="flex-1 overflow-y-auto px-1 md:px-4">
         <BlockNoteView
           editor={editor}
           onChange={handleChange}
