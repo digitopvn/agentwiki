@@ -9,12 +9,8 @@ import { Plugin, PluginKey } from '@tiptap/pm/state'
 import type { EditorView } from '@tiptap/pm/view'
 import type { BlockNoteEditor } from '@blocknote/core'
 
-const CODE_FENCE_REGEX = /^```/m
-
-/** Detect if plain text contains markdown code fences (triple backticks) */
-function hasCodeFences(text: string): boolean {
-  return CODE_FENCE_REGEX.test(text)
-}
+/** Matches actual code fence blocks: ```<lang>\n...\n``` */
+const CODE_FENCE_REGEX = /```\w*\n[\s\S]*?\n```/
 
 /**
  * Creates a ProseMirror plugin that intercepts paste events when clipboard
@@ -36,28 +32,35 @@ export function createPasteMarkdownPlugin(editor: BlockNoteEditor) {
           if (!clipboardData) return false
 
           const plainText = clipboardData.getData('text/plain')
-          if (!plainText || !hasCodeFences(plainText)) return false
+          if (!plainText || !CODE_FENCE_REGEX.test(plainText)) return false
 
           // Prevent default and BlockNote's handler
           clipboardEvent.preventDefault()
 
-          // Async: parse markdown and insert blocks
+          // Async: parse markdown and insert blocks at cursor
           editor.tryParseMarkdownToBlocks(plainText).then((blocks) => {
             if (!blocks.length) return
 
-            const currentBlock = editor.getTextCursorPosition().block
-            editor.insertBlocks(blocks, currentBlock, 'after')
+            const cursorBlock = editor.getTextCursorPosition().block
+            editor.insertBlocks(blocks, cursorBlock, 'after')
 
             // Remove the current block if it's empty (cursor was on blank line)
-            const currentContent = currentBlock.content
-            if (
-              Array.isArray(currentContent) &&
-              currentContent.length === 0
-            ) {
-              editor.removeBlocks([currentBlock])
+            const currentContent = cursorBlock.content
+            if (Array.isArray(currentContent) && currentContent.length === 0) {
+              editor.removeBlocks([cursorBlock])
             }
-          }).catch((err) => {
-            console.error('Markdown paste failed:', err)
+          }).catch(() => {
+            // Fallback: insert as plain text paragraph at cursor
+            try {
+              const cursorBlock = editor.getTextCursorPosition().block
+              editor.insertBlocks(
+                [{ type: 'paragraph', content: [{ type: 'text', text: plainText, styles: {} }] }],
+                cursorBlock,
+                'after',
+              )
+            } catch {
+              // Editor may be unfocused — silently ignore
+            }
           })
 
           return true // signal event handled

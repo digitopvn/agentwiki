@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@plugin "@tailwindcss/typography";
 
 @theme {
   --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
@@ -105,6 +106,40 @@ html {
   opacity: 1;
   pointer-events: auto;
 }
+
+/* highlight.js dark theme for markdown code blocks */
+.hljs {
+  background: var(--color-surface-2);
+  color: #c9d1d9;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-section,
+.hljs-link { color: #ff7b72; }
+.hljs-string,
+.hljs-attr,
+.hljs-addition,
+.hljs-attribute,
+.hljs-meta .hljs-string { color: #a5d6ff; }
+.hljs-comment,
+.hljs-quote { color: #8b949e; font-style: italic; }
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-title,
+.hljs-type { color: #d2a8ff; }
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet { color: #79c0ff; }
+.hljs-variable,
+.hljs-template-variable,
+.hljs-regexp { color: #ffa657; }
+.hljs-built_in,
+.hljs-deletion { color: #ffa198; }
+.hljs-meta { color: #d2a8ff; }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: bold; }
 
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {

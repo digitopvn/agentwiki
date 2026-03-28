@@ -6,7 +6,7 @@ import { ArrowLeft, Save, LogOut } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../hooks/use-auth'
 import { useAppStore } from '../stores/app-store'
-import { apiClient } from '../lib/api-client'
+import { apiClient, API_BASE } from '../lib/api-client'
 import { cn } from '../lib/utils'
 
 export function ProfilePage() {
@@ -22,7 +22,7 @@ export function ProfilePage() {
 
   const updateProfile = useMutation({
     mutationFn: (body: { name: string }) =>
-      fetch(`${import.meta.env.VITE_API_URL ?? ''}/api/auth/me`, {
+      fetch(`${API_BASE}/api/auth/me`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

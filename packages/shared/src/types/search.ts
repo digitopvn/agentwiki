@@ -7,6 +7,7 @@ export interface SearchResult {
   snippet?: string
   score?: number
   category?: string
+  accuracy?: number // 0-100 relevance percentage
 }
 
 export interface SearchResponse {
@@ -21,6 +22,7 @@ export interface SuggestItem {
   source: 'title' | 'history' | 'fuzzy'
   documentId?: string
   slug?: string
+  accuracy?: number // 0-100 relevance percentage
 }
 
 export interface SuggestResponse {

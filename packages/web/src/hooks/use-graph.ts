@@ -29,7 +29,7 @@ export function useGraphData(filters: GraphFilters = {}) {
     category: filters.category,
     tag: filters.tag,
     types: filters.types?.join(','),
-    include_implicit: filters.includeImplicit ? 'true' : undefined,
+    include_implicit: (filters.includeImplicit ?? true) ? 'true' : 'false',
   })
 
   return useQuery<GraphResponse>({

@@ -24,6 +24,7 @@ import { useAI } from '../../hooks/use-ai'
 import { getAISlashMenuItems } from './ai-slash-commands'
 import { AISelectionToolbar } from './ai-selection-toolbar'
 import { cn } from '../../lib/utils'
+import { API_BASE } from '../../lib/api-client'
 import { createPasteMarkdownPlugin } from './paste-markdown-extension'
 
 // Safari lacks requestIdleCallback — polyfill with setTimeout (module-level, evaluated once)
@@ -55,16 +56,25 @@ export function Editor({ documentId, tabId }: EditorProps) {
 
   const editor = useCreateBlockNote({
     uploadFile: async (file: File) => {
+      if (!file.type.startsWith('image/')) {
+        throw new Error('Only image files are supported')
+      }
+
       const formData = new FormData()
       formData.append('file', file)
-      const res = await fetch(`${import.meta.env.VITE_API_URL ?? ''}/api/uploads`, {
+      const res = await fetch(`${API_BASE}/api/uploads`, {
         method: 'POST',
         body: formData,
         credentials: 'include',
       })
-      if (!res.ok) throw new Error('Upload failed')
-      const data = await res.json() as { fileKey: string }
-      return `/api/files/${data.fileKey}`
+      if (!res.ok) {
+        const err = await res.json().catch(() => null)
+        throw new Error(err?.error ?? `Upload failed (${res.status})`)
+      }
+
+      const data = await res.json() as { fileKey?: string }
+      if (!data.fileKey) throw new Error('Upload response missing fileKey')
+      return `${API_BASE}/api/files/${data.fileKey}`
     },
   })
 

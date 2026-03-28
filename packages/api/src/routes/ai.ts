@@ -92,6 +92,28 @@ aiRouter.put('/settings', requireAdmin, async (c) => {
   }
 })
 
+/** PATCH /api/ai/settings/order — reorder provider priorities (admin only) */
+aiRouter.patch('/settings/order', requireAdmin, async (c) => {
+  const auth = c.get('auth')
+  const body = await c.req.json()
+
+  // Validate order array structure
+  if (!body?.order || !Array.isArray(body.order) || body.order.length === 0) {
+    return c.json({ error: 'order array required' }, 400)
+  }
+  for (const item of body.order) {
+    if (typeof item.providerId !== 'string' || !item.providerId) {
+      return c.json({ error: 'Each order item must have a non-empty providerId string' }, 400)
+    }
+    if (typeof item.priority !== 'number' || !Number.isInteger(item.priority) || item.priority < 0) {
+      return c.json({ error: 'Each order item must have a non-negative integer priority' }, 400)
+    }
+  }
+
+  await aiService.updatePriorities(c.env, auth.tenantId, body.order)
+  return c.json({ success: true })
+})
+
 /** DELETE /api/ai/settings/:providerId — remove provider config (admin only) */
 aiRouter.delete('/settings/:providerId', requireAdmin, async (c) => {
   const auth = c.get('auth')

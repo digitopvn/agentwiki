@@ -4,6 +4,8 @@ import { useRef, useState } from 'react'
 import { Upload, Trash2, FileIcon, Image, Download, Cloud, Info } from 'lucide-react'
 import { useUploads, useUploadFile, useDeleteUpload } from '../../hooks/use-uploads'
 import { cn } from '../../lib/utils'
+import { API_BASE } from '../../lib/api-client'
+import { StorageConfigCard } from './storage-config-card'
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -58,7 +60,7 @@ export function StorageTab({ isDark }: { isDark: boolean }) {
         </div>
       </div>
 
-      {/* R2 Configuration info */}
+      {/* R2 default connection info */}
       <div className={cn('rounded-lg border p-4 space-y-2', isDark ? 'border-white/[0.06] bg-surface-1' : 'border-neutral-200 bg-white')}>
         <div className="flex items-center gap-2">
           <Cloud className="h-4 w-4 text-brand-400" />
@@ -91,6 +93,9 @@ export function StorageTab({ isDark }: { isDark: boolean }) {
         </div>
       </div>
 
+      {/* Custom R2 configuration */}
+      <StorageConfigCard isDark={isDark} />
+
       {/* File grid */}
       <div className="grid grid-cols-3 gap-3">
         {files.map((file) => (
@@ -104,11 +109,11 @@ export function StorageTab({ isDark }: { isDark: boolean }) {
             {/* Preview area */}
             <div
               className="cursor-pointer"
-              onClick={() => isImage(file.contentType) && setPreview(`/api/files/${file.fileKey}`)}
+              onClick={() => isImage(file.contentType) && setPreview(`${API_BASE}/api/files/${file.fileKey}`)}
             >
               {isImage(file.contentType) ? (
                 <img
-                  src={`/api/files/${file.fileKey}`}
+                  src={`${API_BASE}/api/files/${file.fileKey}`}
                   alt={file.filename}
                   className="h-28 w-full object-cover"
                   loading="lazy"
@@ -129,7 +134,7 @@ export function StorageTab({ isDark }: { isDark: boolean }) {
             {/* Actions overlay */}
             <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               <a
-                href={`/api/files/${file.fileKey}`}
+                href={`${API_BASE}/api/files/${file.fileKey}`}
                 download={file.filename}
                 className="rounded-md bg-black/60 p-1 text-white hover:bg-black/80"
                 title="Download"

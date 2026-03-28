@@ -1,7 +1,7 @@
 /** AI service — business logic for generate, transform, suggest, settings, usage */
 
 import { drizzle } from 'drizzle-orm/d1'
-import { eq, and, desc, inArray } from 'drizzle-orm'
+import { eq, and, desc, inArray, sql } from 'drizzle-orm'
 import { aiSettings, aiUsage, documents } from '../db/schema'
 import { embedQuery } from '../services/embedding-service'
 import { encrypt, decrypt } from '../utils/encryption'
@@ -19,13 +19,14 @@ import type {
   AIUsageRecord,
 } from '@agentwiki/shared'
 
-/** Resolve the first enabled provider for a tenant, decrypt its API key */
+/** Resolve the first enabled provider for a tenant (lowest priority), decrypt its API key */
 export async function getActiveProvider(env: Env, tenantId: string) {
   const db = drizzle(env.DB)
   const settings = await db
     .select()
     .from(aiSettings)
     .where(and(eq(aiSettings.tenantId, tenantId), eq(aiSettings.isEnabled, true)))
+    .orderBy(aiSettings.priority)
     .limit(1)
 
   if (!settings.length) return null
@@ -200,6 +201,7 @@ export async function getSettings(env: Env, tenantId: string): Promise<AIProvide
     apiKey: maskKey(r.encryptedApiKey),
     defaultModel: r.defaultModel,
     isEnabled: r.isEnabled,
+    priority: r.priority ?? 0,
   }))
 }
 
@@ -234,6 +236,13 @@ export async function upsertSetting(
       .set(updateData)
       .where(eq(aiSettings.id, existing[0].id))
   } else {
+    // Auto-assign priority = max existing + 1 so new providers go to the end
+    const maxResult = await db
+      .select({ max: sql<number>`MAX(priority)` })
+      .from(aiSettings)
+      .where(eq(aiSettings.tenantId, tenantId))
+    const nextPriority = ((maxResult[0]?.max as number) ?? -1) + 1
+
     await db.insert(aiSettings).values({
       id: generateId(),
       tenantId,
@@ -241,9 +250,32 @@ export async function upsertSetting(
       encryptedApiKey: encryptedKey,
       defaultModel: data.defaultModel,
       isEnabled: data.isEnabled,
+      priority: nextPriority,
       createdAt: new Date(now),
       updatedAt: new Date(now),
     })
+  }
+}
+
+/** Bulk update provider priorities (for drag-and-drop reordering) */
+export async function updatePriorities(
+  env: Env,
+  tenantId: string,
+  order: { providerId: string; priority: number }[],
+) {
+  const db = drizzle(env.DB)
+  const now = new Date()
+
+  // Validate all provider IDs belong to this tenant before mutating
+  const existing = await db.select({ providerId: aiSettings.providerId }).from(aiSettings).where(eq(aiSettings.tenantId, tenantId))
+  const validIds = new Set(existing.map((e) => e.providerId))
+
+  for (const item of order) {
+    if (!validIds.has(item.providerId)) continue // skip invalid IDs silently
+    await db
+      .update(aiSettings)
+      .set({ priority: item.priority, updatedAt: now })
+      .where(and(eq(aiSettings.tenantId, tenantId), eq(aiSettings.providerId, item.providerId)))
   }
 }
 
