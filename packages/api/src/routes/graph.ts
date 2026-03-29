@@ -238,6 +238,7 @@ graphRouter.post('/backfill-auto-links', requirePermission('tenant:manage'), asy
       offset,
       nextOffset: hasMore ? offset + BATCH_SIZE : null,
       hasMore,
+      note: 'Requires compute-similarities to have run first — docs without documentSimilarities rows are no-ops',
     })
   } catch (err) {
     console.error('Backfill auto-links error:', err)

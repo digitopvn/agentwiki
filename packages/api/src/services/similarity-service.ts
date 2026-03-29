@@ -284,5 +284,17 @@ export async function autoLinkFromSimilarities(
     ))
   }
 
+  // 5. Remove inferred links superseded by an explicit counterpart (prevents double-edge).
+  //    When a user creates an explicit A→B wikilink after an inferred one already exists,
+  //    both rows coexist unless we clean up here.
+  const explicitFwdArray = [...explicitFwd]
+  if (explicitFwdArray.length > 0) {
+    await db.delete(documentLinks).where(and(
+      eq(documentLinks.sourceDocId, documentId),
+      eq(documentLinks.inferred, 1),
+      inArray(documentLinks.targetDocId, explicitFwdArray),
+    ))
+  }
+
   return created
 }
