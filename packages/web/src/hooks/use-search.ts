@@ -14,6 +14,7 @@ export function useSearch(query: string) {
       ),
     enabled: query.length >= 2,
     staleTime: 30_000,
+    placeholderData: (prev) => prev, // keep previous results while fetching new query
   })
 }
 
@@ -27,5 +28,6 @@ export function useSuggest(query: string) {
       ),
     enabled: query.length >= 1,
     staleTime: 60_000,
+    placeholderData: (prev) => prev, // keep previous suggestions while fetching
   })
 }
