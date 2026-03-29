@@ -1,10 +1,14 @@
 /** Search routes — hybrid trigram + semantic, faceted filtering, autocomplete suggestions */
 
 import { Hono } from 'hono'
+import { eq, and, isNull } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/d1'
+import { documents } from '../db/schema'
 import { searchDocuments, getFacetCounts, type SearchSource } from '../services/search-service'
 import { getSuggestions, recordSearchHistory } from '../services/suggest-service'
 import { recordSearch, recordClick } from '../services/analytics-service'
 import { authGuard } from '../middleware/auth-guard'
+import { requirePermission } from '../middleware/require-permission'
 import { rateLimiter } from '../middleware/rate-limiter'
 import { RATE_LIMITS } from '@agentwiki/shared'
 import type { Env } from '../env'
@@ -123,5 +127,26 @@ searchRouter.post(
     return c.json({ ok: true })
   },
 )
+
+// Backfill search indexes (trigram + FTS5) for all tenant documents (admin only)
+searchRouter.post('/backfill-index', requirePermission('tenant:manage'), async (c) => {
+  const { tenantId } = c.get('auth')
+  const db = drizzle(c.env.DB)
+
+  const docs = await db
+    .select({ id: documents.id })
+    .from(documents)
+    .where(and(eq(documents.tenantId, tenantId), isNull(documents.deletedAt)))
+
+  // Enqueue indexing for each document
+  const messages = docs.flatMap((doc) => [
+    c.env.QUEUE.send({ type: 'index-trigrams', documentId: doc.id, tenantId }),
+    c.env.QUEUE.send({ type: 'index-fts5', documentId: doc.id, tenantId }),
+    c.env.QUEUE.send({ type: 'embed', documentId: doc.id, tenantId }),
+  ])
+  await Promise.all(messages)
+
+  return c.json({ ok: true, indexed: docs.length })
+})
 
 export { searchRouter }

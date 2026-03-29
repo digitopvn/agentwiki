@@ -101,9 +101,13 @@ export async function createDocument(
     try { await env.QUEUE.send({ type: 'infer-edge-types', documentId: id, tenantId }) } catch { /* dev */ }
   }
 
-  // Enqueue AI summary generation
+  // Enqueue AI summary generation + search indexing
   try {
-    await env.QUEUE.send({ type: 'generate-summary', documentId: id, tenantId })
+    await Promise.all([
+      env.QUEUE.send({ type: 'generate-summary', documentId: id, tenantId }),
+      env.QUEUE.send({ type: 'index-trigrams', documentId: id, tenantId }),
+      env.QUEUE.send({ type: 'index-fts5', documentId: id, tenantId }),
+    ])
   } catch {
     // Queue may not be available in dev
   }
@@ -405,9 +409,13 @@ export async function updateDocument(
     try { await env.QUEUE.send({ type: 'infer-edge-types', documentId: docId, tenantId }) } catch { /* dev */ }
   }
 
-  // Enqueue summary regeneration
+  // Enqueue summary regeneration + search re-indexing
   try {
-    await env.QUEUE.send({ type: 'generate-summary', documentId: docId, tenantId })
+    await Promise.all([
+      env.QUEUE.send({ type: 'generate-summary', documentId: docId, tenantId }),
+      env.QUEUE.send({ type: 'index-trigrams', documentId: docId, tenantId }),
+      env.QUEUE.send({ type: 'index-fts5', documentId: docId, tenantId }),
+    ])
   } catch {
     // Queue may not be available in dev
   }
