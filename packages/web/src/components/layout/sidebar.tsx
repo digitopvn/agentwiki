@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { Search, Plus, Sun, Moon, PanelLeftClose, PanelLeft, FolderPlus, Filter, Settings, User, X, HardDrive, Network } from 'lucide-react'
+import { Search, Plus, Sun, Moon, PanelLeftClose, PanelLeft, FolderPlus, Filter, Settings, User, X, HardDrive, Network, Plug } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAppStore } from '../../stores/app-store'
 import { useIsMobile } from '../../hooks/use-is-mobile'
@@ -14,6 +14,7 @@ import { BrowsePanel, type BrowseFilter } from '../sidebar/browse-panel'
 import { SortControls } from '../sidebar/sort-controls'
 import { RecentDocuments } from '../sidebar/recent-documents'
 import { CreateFolderModal } from '../sidebar/create-folder-modal'
+import { McpGuideModal } from '../sidebar/mcp-guide-modal'
 import { useCreateFolder } from '../../hooks/use-folders'
 import { useCreateDocument, useDocuments } from '../../hooks/use-documents'
 import { useSidebarSort } from '../../hooks/use-preferences'
@@ -24,6 +25,7 @@ export function Sidebar() {
   const [search, setSearch] = useState('')
   const [showBrowse, setShowBrowse] = useState(false)
   const [folderModalOpen, setFolderModalOpen] = useState(false)
+  const [mcpModalOpen, setMcpModalOpen] = useState(false)
   const [browseFilter, setBrowseFilter] = useState<BrowseFilter | null>(null)
   const createFolder = useCreateFolder()
   const createDocument = useCreateDocument()
@@ -329,6 +331,16 @@ export function Sidebar() {
           >
             <Settings className="h-5 w-5 md:h-4 md:w-4" />
           </button>
+          <button
+            onClick={() => setMcpModalOpen(true)}
+            className={cn(
+              'rounded-md p-2 md:p-1',
+              isDark ? 'text-neutral-500 hover:bg-surface-3 hover:text-neutral-300 active:bg-surface-3' : 'text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 active:bg-neutral-100',
+            )}
+            title="MCP Connection Guide"
+          >
+            <Plug className="h-5 w-5 md:h-4 md:w-4" />
+          </button>
         </div>
 
         <div className="flex items-center gap-1">
@@ -353,6 +365,7 @@ export function Sidebar() {
         onClose={() => setFolderModalOpen(false)}
         onSubmit={handleNewFolder}
       />
+      <McpGuideModal open={mcpModalOpen} onClose={() => setMcpModalOpen(false)} />
     </div>
   )
 }
