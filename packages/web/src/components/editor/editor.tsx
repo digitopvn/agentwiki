@@ -78,14 +78,17 @@ export function Editor({ documentId, tabId }: EditorProps) {
     },
   })
 
-  // Register paste-markdown plugin once (handles pasting content with code fences).
+  // Register paste-markdown plugin once doc is loaded (handles pasting content with code fences).
+  // Gated on `doc` to ensure BlockNoteView has mounted and TipTap's EditorView exists —
+  // registering before mount causes "Cannot read properties of undefined (reading 'updateState')".
   // Placed at head of plugin list via (p, existing) => [p, ...existing] so it runs
   // before BlockNote's default paste handler which would insert code fences as plain text.
   useEffect(() => {
+    if (!doc) return
     const plugin = createPasteMarkdownPlugin(editor)
     editor._tiptapEditor.registerPlugin(plugin, (p, existing) => [p, ...existing])
     return () => { editor._tiptapEditor.unregisterPlugin(pasteMarkdownPluginKey) }
-  }, [editor])
+  }, [editor, doc])
 
   // Load initial content once doc is fetched
   useEffect(() => {
