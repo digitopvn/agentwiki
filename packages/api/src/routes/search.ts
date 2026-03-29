@@ -128,25 +128,38 @@ searchRouter.post(
   },
 )
 
-// Backfill search indexes (trigram + FTS5) for all tenant documents (admin only)
+// Backfill search indexes (trigram + FTS5 + embeddings + summaries) for tenant documents (admin only)
+// Paginated: processes up to 500 docs per call, returns nextOffset if more remain
 searchRouter.post('/backfill-index', requirePermission('tenant:manage'), async (c) => {
   const { tenantId } = c.get('auth')
   const db = drizzle(c.env.DB)
+  const BATCH_SIZE = 500
+  const offset = Math.max(0, parseInt(c.req.query('offset') ?? '0', 10))
 
   const docs = await db
     .select({ id: documents.id })
     .from(documents)
     .where(and(eq(documents.tenantId, tenantId), isNull(documents.deletedAt)))
+    .limit(BATCH_SIZE + 1)
+    .offset(offset)
 
-  // Enqueue indexing for each document
-  const messages = docs.flatMap((doc) => [
-    c.env.QUEUE.send({ type: 'index-trigrams', documentId: doc.id, tenantId }),
-    c.env.QUEUE.send({ type: 'index-fts5', documentId: doc.id, tenantId }),
-    c.env.QUEUE.send({ type: 'embed', documentId: doc.id, tenantId }),
-  ])
-  await Promise.all(messages)
+  const hasMore = docs.length > BATCH_SIZE
+  const batch = hasMore ? docs.slice(0, BATCH_SIZE) : docs
 
-  return c.json({ ok: true, indexed: docs.length })
+  // Enqueue full pipeline per document: summary (triggers embed + FTS5) + trigrams
+  for (const doc of batch) {
+    try { await c.env.QUEUE.send({ type: 'generate-summary', documentId: doc.id, tenantId }) } catch { /* */ }
+    try { await c.env.QUEUE.send({ type: 'index-trigrams', documentId: doc.id, tenantId }) } catch { /* */ }
+    try { await c.env.QUEUE.send({ type: 'embed', documentId: doc.id, tenantId }) } catch { /* */ }
+  }
+
+  return c.json({
+    ok: true,
+    indexed: batch.length,
+    offset,
+    nextOffset: hasMore ? offset + BATCH_SIZE : null,
+    hasMore,
+  })
 })
 
 export { searchRouter }

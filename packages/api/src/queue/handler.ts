@@ -137,8 +137,9 @@ async function generateSummary(env: Env, documentId: string, tenantId: string) {
     }
   }
 
-  // Always trigger embedding after summary generation
+  // Trigger embedding + FTS5 indexing after summary is written (so FTS5 includes summary)
   await embedDocumentJob(env, documentId, tenantId)
+  await indexFTS5Job(env, documentId, tenantId)
 }
 
 /** Generate embeddings for a document — skips if content unchanged (hash check) */
