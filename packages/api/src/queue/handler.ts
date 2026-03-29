@@ -69,9 +69,6 @@ async function processMessage(msg: QueueMessage, env: Env) {
     case 'infer-edge-types':
       if (msg.documentId) await inferEdgeTypesForDoc(env, msg.documentId, msg.tenantId)
       break
-    case 'index-fts5':
-      if (msg.documentId) await indexFTS5Job(env, msg.documentId, msg.tenantId)
-      break
     case 'backfill-fts5': {
       const result = await backfillFTS5Index(env, msg.offset ?? 0)
       // Re-enqueue if more documents to process

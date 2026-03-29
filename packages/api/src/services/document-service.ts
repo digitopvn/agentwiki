@@ -4,6 +4,7 @@ import { eq, and, isNull, desc, asc, sql, like, inArray } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { generateKeyBetween } from 'fractional-indexing'
 import { deleteDocumentTrigrams } from './trigram-service'
+import { removeDocumentFTS5 } from './fts5-search-service'
 import {
   documents,
   documentVersions,
@@ -453,8 +454,9 @@ export async function deleteDocument(env: Env, tenantId: string, docId: string) 
     .set({ deletedAt: new Date() })
     .where(and(eq(documents.id, docId), eq(documents.tenantId, tenantId), isNull(documents.deletedAt)))
 
-  // Clean up trigram index for deleted document
+  // Clean up search indexes for deleted document
   await deleteDocumentTrigrams(env, docId).catch(() => {})
+  await removeDocumentFTS5(env, docId).catch(() => {})
 
   return result
 }
