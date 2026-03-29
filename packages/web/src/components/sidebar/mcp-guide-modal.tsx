@@ -1,6 +1,6 @@
 /** Modal showing MCP server connection configs for Claude Desktop, Claude Code, Cursor */
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { X, Copy, Check, ExternalLink, Plug } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../../stores/app-store'
@@ -19,7 +19,7 @@ const TABS: { id: TabId; label: string; configPath: string; steps: string[] }[] 
   {
     id: 'claude-desktop',
     label: 'Claude Desktop',
-    configPath: '~/Library/Application Support/Claude/claude_desktop_config.json',
+    configPath: 'macOS: ~/Library/Application Support/Claude/ · Win: %APPDATA%\\Claude\\ · Linux: ~/.config/Claude/',
     steps: [
       'Open Claude Desktop → Settings → Developer → Edit Config',
       'Paste the JSON below into your config file',
@@ -67,9 +67,15 @@ function buildSnippet(): string {
 export function McpGuideModal({ open, onClose }: McpGuideModalProps) {
   const [activeTab, setActiveTab] = useState<TabId>('claude-desktop')
   const [copied, setCopied] = useState(false)
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
   const { theme } = useAppStore()
   const navigate = useNavigate()
   const isDark = theme === 'dark'
+
+  // Clean up copy feedback timer on unmount
+  useEffect(() => {
+    return () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current) }
+  }, [])
 
   if (!open) return null
 
@@ -77,9 +83,14 @@ export function McpGuideModal({ open, onClose }: McpGuideModalProps) {
   const snippet = buildSnippet()
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(snippet)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    try {
+      await navigator.clipboard.writeText(snippet)
+      setCopied(true)
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
+      copyTimerRef.current = setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Clipboard API may fail on non-HTTPS or permission denied — silent fail
+    }
   }
 
   const handleApiKeyLink = () => {
