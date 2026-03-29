@@ -194,7 +194,7 @@ export async function autoLinkFromSimilarities(
     .limit(1)
   if (!owner.length) return 0
 
-  // 1. Get cached similarities with threshold filter
+  // 1. Get cached similarities with threshold filter (limit 5 — matches TOP_K - 1 cap)
   const similarities = await db.select({
     targetDocId: documentSimilarities.targetDocId,
     score: documentSimilarities.score,
@@ -205,15 +205,13 @@ export async function autoLinkFromSimilarities(
       sql`${documentSimilarities.score} >= ${SIMILARITY_THRESHOLD}`,
     ))
     .orderBy(desc(documentSimilarities.score))
+    .limit(5)
 
   if (!similarities.length) {
-    // No similarities — remove all auto-links from/to this doc
+    // No similarities — remove outbound auto-links from this doc only.
+    // Reverse links (targetDocId = documentId) are owned by their source docs.
     await db.delete(documentLinks).where(and(
       eq(documentLinks.sourceDocId, documentId),
-      eq(documentLinks.inferred, 1),
-    ))
-    await db.delete(documentLinks).where(and(
-      eq(documentLinks.targetDocId, documentId),
       eq(documentLinks.inferred, 1),
     ))
     return 0
@@ -237,17 +235,15 @@ export async function autoLinkFromSimilarities(
   const existingFwd = new Set(existingLinks.filter((l) => l.sourceDocId === documentId).map((l) => l.targetDocId))
   const existingRev = new Set(existingLinks.filter((l) => l.targetDocId === documentId).map((l) => l.sourceDocId))
 
-  // 3. Insert auto-links for similar docs not already linked
+  // 3. Batch-insert auto-links for similar docs not already linked
   const now = new Date()
-  const autoLinkedTargets: string[] = []
-  let created = 0
+  const fwdInserts: (typeof documentLinks.$inferInsert)[] = []
+  const revInserts: (typeof documentLinks.$inferInsert)[] = []
 
   for (const sim of similarities) {
     if (explicitFwd.has(sim.targetDocId)) continue
-    autoLinkedTargets.push(sim.targetDocId)
-
     if (!existingFwd.has(sim.targetDocId)) {
-      await db.insert(documentLinks).values({
+      fwdInserts.push({
         id: generateId(),
         sourceDocId: documentId,
         targetDocId: sim.targetDocId,
@@ -257,11 +253,9 @@ export async function autoLinkFromSimilarities(
         context: null,
         createdAt: now,
       })
-      created++
     }
-
     if (!existingRev.has(sim.targetDocId)) {
-      await db.insert(documentLinks).values({
+      revInserts.push({
         id: generateId(),
         sourceDocId: sim.targetDocId,
         targetDocId: documentId,
@@ -271,21 +265,22 @@ export async function autoLinkFromSimilarities(
         context: null,
         createdAt: now,
       })
-      created++
     }
   }
 
-  // 4. Clean stale auto-links (both forward and reverse directions)
-  if (autoLinkedTargets.length > 0) {
+  if (fwdInserts.length) await db.insert(documentLinks).values(fwdInserts)
+  if (revInserts.length) await db.insert(documentLinks).values(revInserts)
+  const created = fwdInserts.length + revInserts.length
+
+  // 4. Clean stale outbound auto-links from this doc (owns its own outbound inferred links only).
+  // Do NOT touch reverse links (targetDocId = documentId, inferred=1) — those are owned by
+  // the source document and cleaned up when that document is processed.
+  // Use targetIds (full similarity set) so cleanup runs even if all targets already had explicit links.
+  if (targetIds.length > 0) {
     await db.delete(documentLinks).where(and(
       eq(documentLinks.sourceDocId, documentId),
       eq(documentLinks.inferred, 1),
-      not(inArray(documentLinks.targetDocId, autoLinkedTargets)),
-    ))
-    await db.delete(documentLinks).where(and(
-      eq(documentLinks.targetDocId, documentId),
-      eq(documentLinks.inferred, 1),
-      not(inArray(documentLinks.sourceDocId, autoLinkedTargets)),
+      not(inArray(documentLinks.targetDocId, targetIds)),
     ))
   }
 
