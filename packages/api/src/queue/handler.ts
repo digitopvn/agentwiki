@@ -5,7 +5,7 @@ import { generateSummaryWithProvider } from '../ai/ai-service'
 import { indexDocumentTrigrams } from '../services/trigram-service'
 import { indexDocumentFTS5, backfillFTS5Index } from '../services/fts5-search-service'
 import { pruneOldAnalytics } from '../services/analytics-service'
-import { computeSimilarities } from '../services/similarity-service'
+import { computeSimilarities, autoLinkFromSimilarities } from '../services/similarity-service'
 import { inferEdgeTypesForDoc } from '../services/graph-ai-service'
 import { runImport } from '../services/import/import-engine'
 import { ObsidianAdapter } from '../services/import/adapters/obsidian-adapter'
@@ -64,7 +64,20 @@ async function processMessage(msg: QueueMessage, env: Env) {
       if (msg.uploadId) await summarizeUploadJob(env, msg.uploadId, msg.tenantId)
       break
     case 'compute-similarities':
-      if (msg.documentId) await computeSimilarities(env, msg.documentId, msg.tenantId)
+      if (msg.documentId) {
+        await computeSimilarities(env, msg.documentId, msg.tenantId)
+        // Chain: auto-create document_links from computed similarities
+        await env.QUEUE.send({ type: 'auto-link-similarities', documentId: msg.documentId, tenantId: msg.tenantId })
+      }
+      break
+    case 'auto-link-similarities':
+      if (msg.documentId) {
+        const created = await autoLinkFromSimilarities(env, msg.documentId, msg.tenantId)
+        // Chain: infer edge types only if new auto-links were created
+        if (created > 0) {
+          await env.QUEUE.send({ type: 'infer-edge-types', documentId: msg.documentId, tenantId: msg.tenantId })
+        }
+      }
       break
     case 'infer-edge-types':
       if (msg.documentId) await inferEdgeTypesForDoc(env, msg.documentId, msg.tenantId)
