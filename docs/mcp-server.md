@@ -39,7 +39,7 @@ Edit `~/.claude/claude_desktop_config.json`:
 {
   "mcpServers": {
     "agentwiki": {
-      "url": "https://api.agentwiki.cc/mcp",
+      "url": "https://mcp.agentwiki.cc/mcp",
       "env": {
         "API_KEY": "aw_xxxxxxxxxxxxx"
       }
@@ -55,7 +55,7 @@ In Cursor Settings → Features → MCP:
 {
   "servers": {
     "agentwiki": {
-      "url": "https://api.agentwiki.cc/mcp",
+      "url": "https://mcp.agentwiki.cc/mcp",
       "env": {
         "API_KEY": "aw_xxxxxxxxxxxxx"
       }
@@ -693,7 +693,7 @@ pnpm -F @agentwiki/mcp build
 pnpm -F @agentwiki/mcp deploy
 
 # Health check
-curl https://api.agentwiki.cc/health
+curl https://mcp.agentwiki.cc/health
 ```
 
 ### Shared Bindings
