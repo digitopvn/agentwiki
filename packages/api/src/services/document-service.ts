@@ -108,7 +108,7 @@ export async function createDocument(
     // Queue may not be available in dev
   }
 
-  return { id, slug, title: input.title }
+  return { id, slug, title: input.title, content: input.content ?? '', contentJson: input.contentJson ?? null }
 }
 
 /** Get a single document by ID */
