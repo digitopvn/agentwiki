@@ -106,6 +106,58 @@ html {
   pointer-events: auto;
 }
 
+/* highlight.js dark theme for markdown code blocks */
+.hljs {
+  background: var(--color-surface-2);
+  color: #c9d1d9;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-section,
+.hljs-link { color: #ff7b72; }
+.hljs-string,
+.hljs-attr,
+.hljs-addition,
+.hljs-attribute,
+.hljs-meta .hljs-string { color: #a5d6ff; }
+.hljs-comment,
+.hljs-quote { color: #8b949e; font-style: italic; }
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-title,
+.hljs-type { color: #d2a8ff; }
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet { color: #79c0ff; }
+.hljs-variable,
+.hljs-template-variable,
+.hljs-regexp { color: #ffa657; }
+.hljs-built_in,
+.hljs-deletion { color: #ffa198; }
+.hljs-meta { color: #d2a8ff; }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: bold; }
+
+/* BlockNote inline content must fill the block so clicks to the right of text
+   place the cursor at end-of-line instead of beginning.
+   !important needed to override BlockNote's high-specificity Mantine CSS. */
+.bn-editor .bn-inline-content {
+  flex: 1 1 0% !important;
+}
+
+/* Links inside BlockNote editor content */
+.bn-container a {
+  color: var(--color-brand-400);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.bn-container a:hover {
+  color: var(--color-brand-300);
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

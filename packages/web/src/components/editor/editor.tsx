@@ -24,6 +24,8 @@ import { useAI } from '../../hooks/use-ai'
 import { getAISlashMenuItems } from './ai-slash-commands'
 import { AISelectionToolbar } from './ai-selection-toolbar'
 import { cn } from '../../lib/utils'
+import { API_BASE } from '../../lib/api-client'
+import { createPasteMarkdownPlugin, pasteMarkdownPluginKey } from './paste-markdown-extension'
 
 // Safari lacks requestIdleCallback — polyfill with setTimeout (module-level, evaluated once)
 const rIC: typeof requestIdleCallback =
@@ -54,18 +56,62 @@ export function Editor({ documentId, tabId }: EditorProps) {
 
   const editor = useCreateBlockNote({
     uploadFile: async (file: File) => {
+      if (!file.type.startsWith('image/')) {
+        throw new Error('Only image files are supported')
+      }
+
       const formData = new FormData()
       formData.append('file', file)
-      const res = await fetch(`${import.meta.env.VITE_API_URL ?? ''}/api/uploads`, {
+      const res = await fetch(`${API_BASE}/api/uploads`, {
         method: 'POST',
         body: formData,
         credentials: 'include',
       })
-      if (!res.ok) throw new Error('Upload failed')
-      const data = await res.json() as { fileKey: string }
-      return `/api/files/${data.fileKey}`
+      if (!res.ok) {
+        const err = await res.json().catch(() => null)
+        throw new Error(err?.error ?? `Upload failed (${res.status})`)
+      }
+
+      const data = await res.json() as { fileKey?: string }
+      if (!data.fileKey) throw new Error('Upload response missing fileKey')
+      return `${API_BASE}/api/files/${data.fileKey}`
     },
   })
+
+  // Register paste-markdown plugin once doc is loaded AND TipTap's EditorView exists.
+  // BlockNoteView creates the EditorView in its own effect; if it hasn't run yet,
+  // we defer via tiptap.on('create') to avoid "Cannot read properties of undefined".
+  useEffect(() => {
+    if (!doc) return
+
+    const tiptap = editor._tiptapEditor
+    let registered = false
+    let cleaned = false
+
+    const tryRegister = () => {
+      if (registered || cleaned || tiptap.isDestroyed || !tiptap.view) return
+      try {
+        const plugin = createPasteMarkdownPlugin(editor)
+        tiptap.registerPlugin(plugin, (p, existing) => [p, ...existing])
+        registered = true
+      } catch (err) {
+        console.warn('paste-markdown plugin registration failed:', err)
+      }
+    }
+
+    // Attempt immediately — view may already exist from a previous mount
+    tryRegister()
+    // Fallback: if view wasn't ready, wait for TipTap's 'create' event
+    if (!registered) tiptap.on('create', tryRegister)
+
+    return () => {
+      cleaned = true
+      tiptap.off('create', tryRegister)
+      if (registered && !tiptap.isDestroyed) {
+        try { tiptap.unregisterPlugin(pasteMarkdownPluginKey) } catch { /* view already gone */ }
+      }
+    }
+  }, [editor, doc])
 
   // Load initial content once doc is fetched
   useEffect(() => {
