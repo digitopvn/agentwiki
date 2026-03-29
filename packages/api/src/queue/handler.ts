@@ -113,27 +113,32 @@ async function generateSummary(env: Env, documentId: string, tenantId: string) {
     console.warn('AI provider summary failed, falling back to Workers AI:', err)
   }
 
-  // Fallback: Workers AI (Llama 3.1 8B)
+  // Fallback: Workers AI (Llama 3.1 8B) — wrapped in try/catch so AI failure
+  // doesn't prevent FTS5 + embedding indexing below
   if (!summaryGenerated) {
-    const result = await (env.AI as Ai).run('@cf/meta/llama-3.1-8b-instruct' as never, {
-      messages: [
-        {
-          role: 'system',
-          content: 'Summarize the following document in 1-2 concise sentences. Return only the summary.',
-        },
-        {
-          role: 'user',
-          content: `Title: ${doc[0].title}\n\n${truncated}`,
-        },
-      ],
-      max_tokens: 150,
-    } as never) as { response: string }
+    try {
+      const result = await (env.AI as Ai).run('@cf/meta/llama-3.1-8b-instruct' as never, {
+        messages: [
+          {
+            role: 'system',
+            content: 'Summarize the following document in 1-2 concise sentences. Return only the summary.',
+          },
+          {
+            role: 'user',
+            content: `Title: ${doc[0].title}\n\n${truncated}`,
+          },
+        ],
+        max_tokens: 150,
+      } as never) as { response: string }
 
-    if (result.response) {
-      await db
-        .update(documents)
-        .set({ summary: result.response.trim() })
-        .where(eq(documents.id, documentId))
+      if (result.response) {
+        await db
+          .update(documents)
+          .set({ summary: result.response.trim() })
+          .where(eq(documents.id, documentId))
+      }
+    } catch (err) {
+      console.warn('Workers AI fallback failed:', err)
     }
   }
 
