@@ -72,14 +72,27 @@ export function Editor({ documentId, tabId }: EditorProps) {
     if (!doc || initializedRef.current) return
     initializedRef.current = true
 
-    if (doc.contentJson) {
-      try {
-        const blocks = doc.contentJson as Parameters<typeof editor.replaceBlocks>[1]
-        editor.replaceBlocks(editor.document, blocks)
-      } catch {
-        // Fallback: leave editor empty if contentJson is malformed
+    const loadContent = async () => {
+      if (doc.contentJson) {
+        try {
+          const blocks = doc.contentJson as Parameters<typeof editor.replaceBlocks>[1]
+          editor.replaceBlocks(editor.document, blocks)
+          return
+        } catch {
+          // Fall through to markdown parsing
+        }
+      }
+      // Fallback: parse markdown content (e.g. imported .md files have content but no contentJson)
+      if (doc.content) {
+        try {
+          const blocks = await editor.tryParseMarkdownToBlocks(doc.content)
+          editor.replaceBlocks(editor.document, blocks)
+        } catch {
+          // Leave editor empty if parsing fails
+        }
       }
     }
+    loadContent()
   }, [doc, editor])
 
   // Debounced auto-save: contentJson first (fast), markdown deferred via requestIdleCallback
