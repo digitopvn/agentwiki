@@ -206,4 +206,43 @@ graphRouter.post('/backfill-edges', requirePermission('tenant:manage'), async (c
   }
 })
 
+/** Backfill auto-links from similarities for existing documents (admin, batched via queue) */
+graphRouter.post('/backfill-auto-links', requirePermission('tenant:manage'), async (c) => {
+  try {
+    const { tenantId } = c.get('auth')
+    const db = drizzle(c.env.DB)
+    const BATCH_SIZE = 50
+    const offset = parseNum(c.req.query('offset'), 0)
+
+    const batch = await db
+      .select({ id: documents.id })
+      .from(documents)
+      .where(and(eq(documents.tenantId, tenantId), isNull(documents.deletedAt)))
+      .limit(BATCH_SIZE)
+      .offset(offset)
+
+    let enqueued = 0
+    for (const doc of batch) {
+      await c.env.QUEUE.send({
+        type: 'auto-link-similarities',
+        documentId: doc.id,
+        tenantId,
+      })
+      enqueued++
+    }
+
+    const hasMore = batch.length === BATCH_SIZE
+    return c.json({
+      ok: true,
+      enqueued,
+      offset,
+      nextOffset: hasMore ? offset + BATCH_SIZE : null,
+      hasMore,
+    })
+  } catch (err) {
+    console.error('Backfill auto-links error:', err)
+    return c.json({ error: 'Failed to backfill auto-links' }, 500)
+  }
+})
+
 export { graphRouter }
