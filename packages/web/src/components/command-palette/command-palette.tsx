@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Command } from 'cmdk'
-import { Search, FileText, Plus, FolderPlus, X, Clock, Sparkles, History } from 'lucide-react'
+import { Search, FileText, Plus, FolderPlus, X, Clock, Sparkles, History, Loader2 } from 'lucide-react'
 import { useDocuments, useCreateDocument } from '../../hooks/use-documents'
 import { useSearch, useSuggest } from '../../hooks/use-search'
 import { useDebounce } from '../../hooks/use-debounce'
@@ -22,7 +22,7 @@ export function CommandPalette() {
   // Autocomplete suggestions (faster debounce, >= 1 char)
   const { data: suggestData } = useSuggest(debouncedSuggestQuery)
   // Hybrid search for typed queries (>= 2 chars)
-  const { data: searchData } = useSearch(debouncedQuery)
+  const { data: searchData, isFetching: isSearching } = useSearch(debouncedQuery)
   // Recent docs when no query
   const { data: recentData } = useDocuments({ limit: 5 })
   const createDocument = useCreateDocument()
@@ -130,7 +130,11 @@ export function CommandPalette() {
               isDark ? 'border-white/[0.06]' : 'border-neutral-200',
             )}
           >
-            <Search className={cn('h-4 w-4 shrink-0', isDark ? 'text-neutral-500' : 'text-neutral-400')} />
+            {isSearching ? (
+              <Loader2 className={cn('h-4 w-4 shrink-0 animate-spin', isDark ? 'text-brand-400' : 'text-brand-500')} />
+            ) : (
+              <Search className={cn('h-4 w-4 shrink-0', isDark ? 'text-neutral-500' : 'text-neutral-400')} />
+            )}
             <Command.Input
               value={query}
               onValueChange={setQuery}
@@ -156,7 +160,7 @@ export function CommandPalette() {
             <Command.Empty
               className={cn('px-3 py-6 text-center text-sm', isDark ? 'text-neutral-500' : 'text-neutral-400')}
             >
-              No results found.
+              {isSearching ? 'Searching...' : 'No results found.'}
             </Command.Empty>
 
             {/* Quick actions */}
