@@ -12,7 +12,7 @@ import { ObsidianAdapter } from '../services/import/adapters/obsidian-adapter'
 import { NotionAdapter } from '../services/import/adapters/notion-adapter'
 import { LarkAdapter } from '../services/import/adapters/lark-adapter'
 import { drizzle } from 'drizzle-orm/d1'
-import { eq } from 'drizzle-orm'
+import { eq, and, isNull } from 'drizzle-orm'
 import { documents, uploads, fileExtractions, importJobs } from '../db/schema'
 import { chunkMarkdown } from '../utils/chunker'
 import { computeHash } from '../utils/hash'
@@ -91,7 +91,7 @@ async function generateSummary(env: Env, documentId: string, tenantId: string) {
   const doc = await db
     .select({ content: documents.content, title: documents.title })
     .from(documents)
-    .where(eq(documents.id, documentId))
+    .where(and(eq(documents.id, documentId), isNull(documents.deletedAt)))
     .limit(1)
 
   if (!doc.length || !doc[0].content) return
@@ -140,9 +140,9 @@ async function generateSummary(env: Env, documentId: string, tenantId: string) {
   }
 
   // FTS5 first — reads summary, contentHash not yet set so skip-guard won't fire
-  // Embed last — sets contentHash (which indexFTS5Job uses as skip-guard)
-  await indexFTS5Job(env, documentId, tenantId)
-  await embedDocumentJob(env, documentId, tenantId)
+  // Embed last — sets contentHash; each isolated so one failure doesn't block the other
+  try { await indexFTS5Job(env, documentId, tenantId) } catch (err) { console.warn('FTS5 index failed:', err) }
+  try { await embedDocumentJob(env, documentId, tenantId) } catch (err) { console.warn('Embed failed:', err) }
 }
 
 /** Generate embeddings for a document — skips if content unchanged (hash check) */
