@@ -263,7 +263,7 @@ curl https://api.agentwiki.cc/health
 # Response: {"status": "ok", "timestamp": "..."}
 ```
 
-MCP endpoint: `POST https://api.agentwiki.cc/mcp`
+MCP endpoint: `POST https://mcp.agentwiki.cc/mcp`
 
 Configure in Claude Desktop, Cursor, or other MCP clients with API key. See [MCP Server Documentation](./mcp-server.md) for setup.
 
