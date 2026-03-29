@@ -141,6 +141,24 @@ html {
 .hljs-emphasis { font-style: italic; }
 .hljs-strong { font-weight: bold; }
 
+/* BlockNote inline content must fill the block so clicks to the right of text
+   place the cursor at end-of-line instead of beginning.
+   !important needed to override BlockNote's high-specificity Mantine CSS. */
+.bn-editor .bn-inline-content {
+  flex: 1 1 0% !important;
+}
+
+/* Links inside BlockNote editor content */
+.bn-container a {
+  color: var(--color-brand-400);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.bn-container a:hover {
+  color: var(--color-brand-300);
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

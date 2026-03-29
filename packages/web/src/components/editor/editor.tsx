@@ -78,16 +78,39 @@ export function Editor({ documentId, tabId }: EditorProps) {
     },
   })
 
-  // Register paste-markdown plugin once doc is loaded (handles pasting content with code fences).
-  // Gated on `doc` to ensure BlockNoteView has mounted and TipTap's EditorView exists —
-  // registering before mount causes "Cannot read properties of undefined (reading 'updateState')".
-  // Placed at head of plugin list via (p, existing) => [p, ...existing] so it runs
-  // before BlockNote's default paste handler which would insert code fences as plain text.
+  // Register paste-markdown plugin once doc is loaded AND TipTap's EditorView exists.
+  // BlockNoteView creates the EditorView in its own effect; if it hasn't run yet,
+  // we defer via tiptap.on('create') to avoid "Cannot read properties of undefined".
   useEffect(() => {
     if (!doc) return
-    const plugin = createPasteMarkdownPlugin(editor)
-    editor._tiptapEditor.registerPlugin(plugin, (p, existing) => [p, ...existing])
-    return () => { editor._tiptapEditor.unregisterPlugin(pasteMarkdownPluginKey) }
+
+    const tiptap = editor._tiptapEditor
+    let registered = false
+    let cleaned = false
+
+    const tryRegister = () => {
+      if (registered || cleaned || tiptap.isDestroyed || !tiptap.view) return
+      try {
+        const plugin = createPasteMarkdownPlugin(editor)
+        tiptap.registerPlugin(plugin, (p, existing) => [p, ...existing])
+        registered = true
+      } catch (err) {
+        console.warn('paste-markdown plugin registration failed:', err)
+      }
+    }
+
+    // Attempt immediately — view may already exist from a previous mount
+    tryRegister()
+    // Fallback: if view wasn't ready, wait for TipTap's 'create' event
+    if (!registered) tiptap.on('create', tryRegister)
+
+    return () => {
+      cleaned = true
+      tiptap.off('create', tryRegister)
+      if (registered && !tiptap.isDestroyed) {
+        try { tiptap.unregisterPlugin(pasteMarkdownPluginKey) } catch { /* view already gone */ }
+      }
+    }
   }, [editor, doc])
 
   // Load initial content once doc is fetched
