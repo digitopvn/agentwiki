@@ -97,70 +97,77 @@ export async function trigramSearch(
   const queryTrigrams = extractTrigrams(query)
   if (queryTrigrams.size === 0) return []
 
-  const trigramKeys = [...queryTrigrams.keys()]
-  const db = drizzle(env.DB)
+  try {
+    const trigramKeys = [...queryTrigrams.keys()]
+    const db = drizzle(env.DB)
 
-  // Find documents matching query trigrams, scored by overlap
-  // Title matches get a 2x boost via CASE expression
-  const matchRows = await db
-    .select({
-      documentId: searchTrigrams.documentId,
-      matchedTrigrams: sql<number>`COUNT(DISTINCT ${searchTrigrams.trigram})`,
-      rawScore: sql<number>`SUM(
-        CASE WHEN ${searchTrigrams.field} = 'title' THEN ${searchTrigrams.frequency} * 2
-             ELSE ${searchTrigrams.frequency}
-        END
-      )`,
-    })
-    .from(searchTrigrams)
-    .where(
-      and(
-        inArray(searchTrigrams.trigram, trigramKeys),
-        eq(searchTrigrams.tenantId, tenantId),
-      ),
-    )
-    .groupBy(searchTrigrams.documentId)
-    .orderBy(sql`COUNT(DISTINCT ${searchTrigrams.trigram}) DESC, rawScore DESC`)
-    .limit(limit)
+    // Find documents matching query trigrams, scored by overlap
+    // Title matches get a 2x boost via CASE expression
+    const matchRows = await db
+      .select({
+        documentId: searchTrigrams.documentId,
+        matchedTrigrams: sql<number>`COUNT(DISTINCT ${searchTrigrams.trigram})`,
+        rawScore: sql<number>`SUM(
+          CASE WHEN ${searchTrigrams.field} = 'title' THEN ${searchTrigrams.frequency} * 2
+               ELSE ${searchTrigrams.frequency}
+          END
+        )`,
+      })
+      .from(searchTrigrams)
+      .where(
+        and(
+          inArray(searchTrigrams.trigram, trigramKeys),
+          eq(searchTrigrams.tenantId, tenantId),
+        ),
+      )
+      .groupBy(searchTrigrams.documentId)
+      .orderBy(sql`2 DESC, 3 DESC`) // order by matchedTrigrams DESC, rawScore DESC (column positions)
+      .limit(limit)
 
-  if (!matchRows.length) return []
+    if (!matchRows.length) return []
 
-  // Fetch document details
-  const docIds = matchRows.map((r) => r.documentId)
-  const conditions = [
-    inArray(documents.id, docIds),
-    isNull(documents.deletedAt),
-  ]
-  if (category) {
-    conditions.push(eq(documents.category, category))
+    // Fetch document details
+    const docIds = matchRows.map((r) => r.documentId)
+    const conditions = [
+      inArray(documents.id, docIds),
+      isNull(documents.deletedAt),
+    ]
+    if (category) {
+      conditions.push(eq(documents.category, category))
+    }
+
+    const docs = await db
+      .select({
+        id: documents.id,
+        title: documents.title,
+        slug: documents.slug,
+        content: documents.content,
+        category: documents.category,
+      })
+      .from(documents)
+      .where(and(...conditions))
+
+    const docMap = new Map(docs.map((d) => [d.id, d]))
+
+    // Build ranked results preserving trigram score order
+    return matchRows
+      .map((match) => {
+        const doc = docMap.get(match.documentId)
+        if (!doc) return null
+        const overlapRatio = match.matchedTrigrams / trigramKeys.length
+        return {
+          id: doc.id,
+          title: doc.title,
+          slug: doc.slug,
+          snippet: extractSnippet(doc.content, query),
+          score: overlapRatio,
+          category: doc.category ?? undefined,
+          keywordScore: overlapRatio,
+        } satisfies RankedResult
+      })
+      .filter((r): r is NonNullable<typeof r> => r !== null)
+  } catch (err) {
+    console.error('Trigram search error:', err)
+    return []
   }
-
-  const docs = await db
-    .select({
-      id: documents.id,
-      title: documents.title,
-      slug: documents.slug,
-      content: documents.content,
-      category: documents.category,
-    })
-    .from(documents)
-    .where(and(...conditions))
-
-  const docMap = new Map(docs.map((d) => [d.id, d]))
-
-  // Build ranked results preserving trigram score order
-  return matchRows
-    .map((match) => {
-      const doc = docMap.get(match.documentId)
-      if (!doc) return null
-      return {
-        id: doc.id,
-        title: doc.title,
-        slug: doc.slug,
-        snippet: extractSnippet(doc.content, query),
-        score: match.matchedTrigrams / trigramKeys.length, // overlap ratio
-        category: doc.category ?? undefined,
-      } satisfies RankedResult
-    })
-    .filter((r): r is NonNullable<typeof r> => r !== null)
 }

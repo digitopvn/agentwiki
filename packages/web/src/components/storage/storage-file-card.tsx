@@ -2,6 +2,7 @@
 
 import { FileIcon, Download, Trash2, Copy } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { API_BASE } from '../../lib/api-client'
 import { ExtractionBadge } from './extraction-badge'
 import type { Upload } from '../../hooks/use-uploads'
 
@@ -21,7 +22,7 @@ export function StorageFileCard({ file, isDark, onDelete }: StorageFileCardProps
   const isImage = file.contentType.startsWith('image/')
 
   const handleCopyUrl = () => {
-    navigator.clipboard.writeText(`${window.location.origin}/api/files/${file.fileKey}`)
+    void navigator.clipboard.writeText(`${API_BASE}/api/files/${file.fileKey}`)
   }
 
   return (
@@ -35,7 +36,7 @@ export function StorageFileCard({ file, isDark, onDelete }: StorageFileCardProps
       <div className="h-24">
         {isImage ? (
           <img
-            src={`/api/files/${file.fileKey}`}
+            src={`${API_BASE}/api/files/${file.fileKey}`}
             alt={file.filename}
             className="h-full w-full object-cover"
             loading="lazy"
@@ -70,7 +71,7 @@ export function StorageFileCard({ file, isDark, onDelete }: StorageFileCardProps
           <Copy className="h-3 w-3" />
         </button>
         <a
-          href={`/api/files/${file.fileKey}`}
+          href={`${API_BASE}/api/files/${file.fileKey}`}
           download={file.filename}
           className="rounded-md bg-black/60 p-1 text-white hover:bg-black/80"
           title="Download"

@@ -36,6 +36,41 @@
       "when": 1774178764927,
       "tag": "0004_far_slipstream",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1774189278305,
+      "tag": "0005_explorer_positions",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1774418504000,
+      "tag": "0006_drop_folders_position",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1774490851714,
+      "tag": "0007_graceful_dagger",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1774533904000,
+      "tag": "0008_add_import_started_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1774407000000,
+      "tag": "0009_add_missing_upload_columns",
+      "breakpoints": true
     }
   ]
 }

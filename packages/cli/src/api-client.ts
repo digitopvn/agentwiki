@@ -18,9 +18,9 @@ interface Credentials {
 /** Get stored credentials */
 export function getCredentials(): Credentials {
   if (!existsSync(CREDENTIALS_FILE)) {
-    return { apiUrl: 'https://app.agentwiki.cc' }
+    return { apiUrl: 'https://api.agentwiki.cc' }
   }
-  return JSON.parse(readFileSync(CREDENTIALS_FILE, 'utf-8'))
+  return { apiUrl: 'https://api.agentwiki.cc', ...JSON.parse(readFileSync(CREDENTIALS_FILE, 'utf-8')) }
 }
 
 /** Save credentials */
@@ -54,4 +54,61 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
   }
 
   return res.json() as Promise<T>
+}
+
+/** Upload file via multipart form data */
+export async function apiUpload<T>(path: string, formData: FormData): Promise<T> {
+  const creds = getCredentials()
+  const url = `${creds.apiUrl}/api${path}`
+
+  const headers: Record<string, string> = {}
+  if (creds.apiKey) headers['Authorization'] = `Bearer ${creds.apiKey}`
+  else if (creds.accessToken) headers['Authorization'] = `Bearer ${creds.accessToken}`
+
+  const res = await fetch(url, { method: 'POST', headers, body: formData })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Upload error ${res.status}: ${body}`)
+  }
+  return res.json() as Promise<T>
+}
+
+/** Stream SSE events from an endpoint, calling handler for each event */
+export async function streamSSE(
+  path: string,
+  onEvent: (event: Record<string, unknown>) => void,
+): Promise<void> {
+  const creds = getCredentials()
+  const url = `${creds.apiUrl}/api${path}`
+
+  const headers: Record<string, string> = {}
+  if (creds.apiKey) headers['Authorization'] = `Bearer ${creds.apiKey}`
+  else if (creds.accessToken) headers['Authorization'] = `Bearer ${creds.accessToken}`
+
+  const res = await fetch(url, { headers })
+  if (!res.ok) throw new Error(`SSE error ${res.status}`)
+  if (!res.body) return
+
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
+
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        try {
+          const event = JSON.parse(line.slice(6))
+          onEvent(event)
+          if (event.type === 'complete' || event.type === 'error') return
+        } catch { /* malformed JSON — skip */ }
+      }
+    }
+  }
 }

@@ -1,20 +1,27 @@
-/** Single folder item with expand/collapse, context menu, and external markdown drop */
+/** Single folder item with expand/collapse, sortable, context menu, and external markdown drop */
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronRight, Folder, FolderOpen, FileText, Plus, Pencil, Trash2 } from 'lucide-react'
-import { useDroppable, useDraggable } from '@dnd-kit/core'
+import { ChevronRight, Folder, FolderOpen, Plus, Pencil, Trash2 } from 'lucide-react'
+import { useSortable } from '@dnd-kit/sortable'
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { cn } from '../../lib/utils'
 import { useAppStore } from '../../stores/app-store'
 import { useUpdateFolder, useDeleteFolder, useCreateFolder } from '../../hooks/use-folders'
 import { useCreateDocument, useDocuments } from '../../hooks/use-documents'
 import { DocumentContextMenu } from './document-context-menu'
 import { CreateFolderModal } from './create-folder-modal'
+import { SortableDocItem } from './folder-tree'
 import { useMarkdownImport, partitionMarkdownFiles } from '../../hooks/use-markdown-import'
 
 interface FolderTreeNode {
   id: string
+  parentId: string | null
   name: string
+  positionIndex?: string
+  updatedAt?: Date | string
+  docCount?: number
   children: FolderTreeNode[]
 }
 
@@ -22,10 +29,22 @@ interface FolderNodeProps {
   folder: FolderTreeNode
   depth?: number
   searchQuery?: string
+  sortMode?: 'manual' | 'name' | 'date'
+  sortDirection?: 'asc' | 'desc'
+  isSortable?: boolean
 }
 
-export function FolderNode({ folder, depth = 0, searchQuery = '' }: FolderNodeProps) {
-  const [expanded, setExpanded] = useState(false)
+export function FolderNode({
+  folder,
+  depth = 0,
+  searchQuery = '',
+  sortMode = 'manual',
+  sortDirection = 'asc',
+  isSortable = true,
+}: FolderNodeProps) {
+  const expanded = useAppStore((s) => s.expandedFolderIds.includes(folder.id))
+  const toggleFolderExpanded = useAppStore((s) => s.toggleFolderExpanded)
+  const setFolderExpanded = useAppStore((s) => s.setFolderExpanded)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [docMenu, setDocMenu] = useState<{
     doc: { id: string; title: string; slug: string; folderId?: string | null }
@@ -44,12 +63,23 @@ export function FolderNode({ folder, depth = 0, searchQuery = '' }: FolderNodePr
 
   const isDark = theme === 'dark'
 
+  // Sortable for this folder
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: `folder-${folder.id}`,
+    data: { type: 'folder', folder },
+    disabled: !isSortable,
+  })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  }
+
+  // External markdown drop support (from main)
   const { importMarkdownFiles } = useMarkdownImport()
   const [isExternalDragOver, setIsExternalDragOver] = useState(false)
 
-  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: folder.id })
-
-  // Handle external file drops (markdown files) onto folder
   const handleExternalDragOver = useCallback((e: React.DragEvent) => {
     if (!e.dataTransfer.types.includes('Files')) return
     e.preventDefault()
@@ -59,7 +89,6 @@ export function FolderNode({ folder, depth = 0, searchQuery = '' }: FolderNodePr
   }, [])
 
   const handleExternalDragLeave = useCallback((e: React.DragEvent) => {
-    // Skip reset if cursor moved to a child element within the folder
     if (e.currentTarget.contains(e.relatedTarget as Node)) return
     e.preventDefault()
     setIsExternalDragOver(false)
@@ -74,11 +103,12 @@ export function FolderNode({ folder, depth = 0, searchQuery = '' }: FolderNodePr
     const { markdown } = partitionMarkdownFiles(files)
     if (markdown.length === 0) return
 
-    setExpanded(true)
+    setFolderExpanded(folder.id, true)
     await importMarkdownFiles(markdown, folder.id)
   }, [folder.id, importMarkdownFiles])
 
-  const { data: docData } = useDocuments({ folderId: folder.id })
+  // limit: 100 = API max; virtual scroll needed for >100 docs per folder
+  const { data: docData } = useDocuments({ folderId: folder.id, sort: 'position', order: 'asc', limit: 100, enabled: expanded })
   const docs = docData?.data ?? []
 
   // Close context menu on outside click
@@ -112,7 +142,7 @@ export function FolderNode({ folder, depth = 0, searchQuery = '' }: FolderNodePr
 
   const handleCreateSubfolder = async (name: string) => {
     await createFolder.mutateAsync({ name, parentId: folder.id })
-    setExpanded(true)
+    setFolderExpanded(folder.id, true)
   }
 
   const handleNewDoc = async () => {
@@ -122,7 +152,7 @@ export function FolderNode({ folder, depth = 0, searchQuery = '' }: FolderNodePr
     openTab({ id: tabId, documentId: doc.id, title: doc.title })
     setActiveTab(tabId)
     navigate(`/doc/${doc.slug}`)
-    setExpanded(true)
+    setFolderExpanded(folder.id, true)
   }
 
   const handleOpenDoc = (doc: { id: string; title: string; slug: string }) => {
@@ -138,22 +168,60 @@ export function FolderNode({ folder, depth = 0, searchQuery = '' }: FolderNodePr
     !searchQuery || title.toLowerCase().includes(searchQuery.toLowerCase())
 
   const visibleDocs = docs.filter((d) => filterMatch(d.title))
-  const hasChildren = folder.children.length > 0 || visibleDocs.length > 0
+
+  // Sort children
+  const sortedChildren = useMemo(() => {
+    if (sortMode === 'name') {
+      return [...folder.children].sort((a, b) =>
+        sortDirection === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name),
+      )
+    }
+    if (sortMode === 'date') {
+      return [...folder.children].sort((a, b) => {
+        const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0
+        const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0
+        return sortDirection === 'asc' ? aTime - bTime : bTime - aTime
+      })
+    }
+    return folder.children
+  }, [folder.children, sortMode, sortDirection])
+
+  const sortedDocs = useMemo(() => {
+    if (sortMode === 'name') {
+      return [...visibleDocs].sort((a, b) =>
+        sortDirection === 'asc' ? a.title.localeCompare(b.title) : b.title.localeCompare(a.title),
+      )
+    }
+    if (sortMode === 'date') {
+      return [...visibleDocs].sort((a, b) =>
+        sortDirection === 'asc'
+          ? new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
+          : new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+      )
+    }
+    return visibleDocs
+  }, [visibleDocs, sortMode, sortDirection])
+
+  const hasChildren = sortedChildren.length > 0 || sortedDocs.length > 0 || (folder.docCount ?? 0) > 0
+
+  // DnD ids for nested sortable contexts
+  const childFolderDndIds = sortedChildren.map((c) => `folder-${c.id}`)
+  const childDocDndIds = sortedDocs.map((d) => `doc-${d.id}`)
 
   return (
-    <div>
-      {/* Folder row (droppable target) */}
+    <div ref={setNodeRef} style={style} {...attributes}>
+      {/* Folder row */}
       <div
-        ref={setDropRef}
+        {...listeners}
         className={cn(
           'group flex cursor-pointer items-center gap-1.5 rounded-lg py-1 text-xs select-none',
-          (isOver || isExternalDragOver) && 'ring-1 ring-brand-400 bg-brand-500/10',
+          isExternalDragOver && 'ring-1 ring-brand-400 bg-brand-500/10',
           isDark
             ? 'text-neutral-300 hover:bg-surface-3'
             : 'text-neutral-700 hover:bg-neutral-100',
         )}
         style={{ paddingLeft }}
-        onClick={() => setExpanded((v) => !v)}
+        onClick={() => toggleFolderExpanded(folder.id)}
         onContextMenu={(e) => {
           e.preventDefault()
           setContextMenu({ x: e.clientX, y: e.clientY })
@@ -198,22 +266,38 @@ export function FolderNode({ folder, depth = 0, searchQuery = '' }: FolderNodePr
       {/* Children */}
       {expanded && (
         <div>
-          {folder.children.map((child) => (
-            <FolderNode key={child.id} folder={child} depth={depth + 1} searchQuery={searchQuery} />
-          ))}
-          {visibleDocs.map((doc) => (
-            <NestedDraggableDoc
-              key={doc.id}
-              doc={doc}
-              paddingLeft={paddingLeft + 20}
-              isDark={isDark}
-              onClick={() => handleOpenDoc(doc)}
-              onContextMenu={(e) => {
-                e.preventDefault()
-                setDocMenu({ doc: { ...doc, folderId: folder.id }, x: e.clientX, y: e.clientY })
-              }}
-            />
-          ))}
+          {/* Child folders */}
+          <SortableContext items={childFolderDndIds} strategy={verticalListSortingStrategy} disabled={!isSortable}>
+            {sortedChildren.map((child) => (
+              <FolderNode
+                key={child.id}
+                folder={child}
+                depth={depth + 1}
+                searchQuery={searchQuery}
+                sortMode={sortMode}
+                sortDirection={sortDirection}
+                isSortable={isSortable}
+              />
+            ))}
+          </SortableContext>
+
+          {/* Child documents */}
+          <SortableContext items={childDocDndIds} strategy={verticalListSortingStrategy} disabled={!isSortable}>
+            {sortedDocs.map((doc) => (
+              <SortableDocItem
+                key={doc.id}
+                doc={doc}
+                paddingLeft={paddingLeft + 20}
+                isDark={isDark}
+                isSortable={isSortable}
+                onClick={() => handleOpenDoc(doc)}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  setDocMenu({ doc: { ...doc, folderId: folder.id }, x: e.clientX, y: e.clientY })
+                }}
+              />
+            ))}
+          </SortableContext>
         </div>
       )}
 
@@ -232,43 +316,6 @@ export function FolderNode({ folder, depth = 0, searchQuery = '' }: FolderNodePr
         onSubmit={handleCreateSubfolder}
         parentName={folder.name}
       />
-    </div>
-  )
-}
-
-function NestedDraggableDoc({
-  doc,
-  paddingLeft,
-  isDark,
-  onClick,
-  onContextMenu,
-}: {
-  doc: { id: string; title: string; slug: string }
-  paddingLeft: number
-  isDark: boolean
-  onClick: () => void
-  onContextMenu: (e: React.MouseEvent) => void
-}) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: doc.id })
-
-  return (
-    <div
-      ref={setNodeRef}
-      {...listeners}
-      {...attributes}
-      className={cn(
-        'flex cursor-pointer items-center gap-2 rounded-lg py-1 text-xs',
-        isDragging && 'opacity-40',
-        isDark
-          ? 'text-neutral-400 hover:bg-surface-3 hover:text-neutral-200'
-          : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800',
-      )}
-      style={{ paddingLeft }}
-      onClick={onClick}
-      onContextMenu={onContextMenu}
-    >
-      <FileText className="h-3 w-3 shrink-0 text-neutral-500" />
-      <span className="truncate">{doc.title}</span>
     </div>
   )
 }

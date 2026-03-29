@@ -18,4 +18,5 @@ export type Env = {
   AI_ENCRYPTION_KEY: string
   EXTRACTION_INTERNAL_SECRET: string // shared secret for VPS extraction service auth
   EXTRACTION_SERVICE_URL: string    // VPS extraction service URL (e.g., http://vps:8100)
+  USE_FTS5?: string                 // "true" to use FTS5/BM25 as primary keyword search (default: trigram)
 }
