@@ -4,7 +4,7 @@ Enterprise knowledge management integration for AI agents via Model Context Prot
 
 ## Overview
 
-The AgentWiki MCP server enables AI systems (Claude, ChatGPT, Cursor, etc.) to access and manage organizational knowledge through the Model Context Protocol. It provides 25 tools for document management, search, file uploads, and access control—directly integrated with the same database and bindings as the REST API.
+The AgentWiki MCP server enables AI systems (Claude, ChatGPT, Cursor, etc.) to access and manage organizational knowledge through the Model Context Protocol. It provides 31 tools for document management, search, knowledge graph traversal, file uploads, and access control—directly integrated with the same database and bindings as the REST API.
 
 **Framework**: Cloudflare Workers + @modelcontextprotocol/sdk
 **Transport**: HTTP (WebStandardStreamableHTTPServerTransport)
@@ -124,7 +124,8 @@ Revoked keys are immediately invalidated across all sessions.
 | `doc:update` | document_update | Update documents |
 | `doc:delete` | document_delete | Delete documents |
 | `doc:share` | share_link_create | Create share links |
-| `search:*` | search, graph_get | Full search access |
+| `search:*` | search | Full search access |
+| `doc:read` | graph_get, graph_traverse, graph_find_path, graph_suggest_links, graph_explain_connection, graph_stats | Knowledge graph (read) |
 | `folder:*` | folder_create, folder_list, folder_update, folder_delete | Folder management |
 | `tag:*` | tag_list, category_list | Tag management |
 | `upload:*` | upload_file, upload_list | File uploads |
@@ -254,16 +255,20 @@ Response:
   }>
 ```
 
-### Search & Graph Tools (2 tools)
+### Search Tool (1 tool)
 
 #### search
-Hybrid search combining keyword + semantic.
+Search documents and/or uploaded files using keyword, semantic, or hybrid search.
 ```
 Parameters:
-  query: string (required)
+  query: string (required, max: 500)
   type?: "hybrid" | "keyword" | "semantic" (default: "hybrid")
+  source?: "docs" | "storage" | "all" (default: "docs")
+    — docs: wiki documents only
+    — storage: uploaded files only
+    — all: both documents and files
   limit?: number (default: 10, max: 50)
-  offset?: number (default: 0)
+  category?: string — Filter by category
 
 Response:
   results: Array<{
@@ -276,16 +281,102 @@ Response:
   total: number
 ```
 
+### Knowledge Graph Tools (6 tools)
+
+AgentWiki supports 6 typed edge types: `relates-to`, `depends-on`, `extends`, `references`, `contradicts`, `implements`.
+
+Additionally, the graph supports **implicit similarity edges** — AI-inferred connections based on semantic vector similarity (Vectorize). These are not stored explicitly but computed on demand.
+
 #### graph_get
-Fetch document knowledge graph.
+Get knowledge graph with typed edges. Supports filtering by edge type and including implicit AI-inferred similarity edges.
 ```
 Parameters:
-  limit?: number (default: 100)
+  category?: string — Filter nodes by category
+  tag?: string — Filter nodes by tag
+  types?: string[] — Filter edges by type (e.g., ["depends-on", "extends"])
+  include_implicit?: boolean (default: false) — Include AI-inferred similarity edges
 
 Response:
-  nodes: Array<{ id, title }>
+  nodes: Array<{ id, title, category?, tags? }>
+  edges: Array<{ from, to, type, context? }>
+```
+
+#### graph_traverse
+Multi-hop traversal from a starting document. Returns all reachable docs within N hops. Use for dependency analysis, impact assessment, or discovering related knowledge clusters.
+```
+Parameters:
+  startDocId: string (required) — Document ID to start from
+  depth?: number (default: 2, min: 1, max: 3) — Max hops
+  edgeTypes?: string[] — Only follow these edge types
+  direction?: "outbound" | "inbound" | "both" (default: "both")
+  include_implicit?: boolean (default: false) — Include similarity edges
+
+Response:
+  nodes: Array<{ id, title, depth }>
   edges: Array<{ from, to, type }>
 ```
+
+#### graph_find_path
+Find shortest path between two documents. Returns the chain of documents connecting them with edge types.
+```
+Parameters:
+  fromDocId: string (required) — Starting document ID
+  toDocId: string (required) — Target document ID
+  maxHops?: number (default: 5, min: 1, max: 10) — Maximum path length
+  edgeTypes?: string[] — Only follow these edge types
+
+Response:
+  path: Array<{ id, title }> — Ordered list of documents from source to target
+  edges: Array<{ from, to, type }> — Edges along the path
+  length: number — Number of hops
+
+  Returns error if no path found.
+```
+
+#### graph_suggest_links
+AI suggests missing links by finding semantically similar docs not yet explicitly linked. Useful for enriching the knowledge graph and discovering hidden connections.
+```
+Parameters:
+  docId: string (required) — Document to get suggestions for
+  limit?: number (default: 5, min: 1, max: 20)
+
+Response:
+  suggestions: Array<{ id, title, score }> — Sorted by similarity
+  documentId: string
+
+  Similarity threshold: 0.5 (only sufficiently similar docs suggested)
+```
+
+#### graph_explain_connection
+Explain why two documents are related. Shows direct links, shortest path, and similarity score.
+```
+Parameters:
+  docId1: string (required) — First document ID
+  docId2: string (required) — Second document ID
+
+Response:
+  directLinks: Array<{ type, context, direction: "forward" }>
+  reverseLinks: Array<{ type, context, direction: "reverse" }>
+  path: object | null — Shortest path if exists (max 5 hops)
+  similarity: { score: number } | null — Semantic similarity (threshold: 0.3)
+  connected: boolean — true if any connection found
+```
+
+#### graph_stats
+Get knowledge graph statistics: node/edge counts, density, most connected documents, orphan nodes, and edge type distribution.
+```
+Parameters: (none)
+
+Response:
+  nodeCount: number
+  edgeCount: number
+  density: number
+  orphanNodes: Array<{ id, title }> — Documents with no connections
+  topConnected: Array<{ id, title, degree }> — Most connected documents
+  edgeTypeDistribution: Record<string, number> — Count per edge type
+```
+
+> **Permission**: All graph tools require `doc:read` scope.
 
 ### Folder Tools (4 tools)
 
@@ -352,31 +443,29 @@ Response:
 ### Upload Tools (2 tools)
 
 #### upload_file
-Upload file to R2 storage.
+Upload file to R2 storage (base64 encoded, max 2MB encoded ≈ 1.5MB actual).
 ```
 Parameters:
-  filename: string (required)
-  content: string (required) — Base64-encoded file content
-  mimeType?: string
-  docId?: string — Associate with document
+  filename: string (required) — File name with extension (e.g., image.png)
+  contentBase64: string (required) — Base64-encoded file content (max 2MB encoded)
+  contentType: string (required) — MIME type (e.g., image/png, application/pdf)
+  documentId?: string — Link upload to a document
 
 Response:
-  uploadId: string
+  id: string
   filename: string
   url: string (CDN URL)
   size: number
 ```
 
 #### upload_list
-List uploads in workspace.
+List uploaded files, optionally filtered by document.
 ```
 Parameters:
-  limit?: number (default: 20)
-  offset?: number (default: 0)
+  documentId?: string — Filter uploads by document ID
 
 Response:
   uploads: Array<{ id, filename, url, size, createdAt }>
-  total: number
 ```
 
 ### Member Tools (3 tools)
