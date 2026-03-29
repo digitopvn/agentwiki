@@ -288,7 +288,6 @@ async function indexFTS5Job(env: Env, documentId: string, tenantId: string) {
       title: documents.title,
       summary: documents.summary,
       content: documents.content,
-      contentHash: documents.contentHash,
     })
     .from(documents)
     .where(eq(documents.id, documentId))
@@ -297,12 +296,8 @@ async function indexFTS5Job(env: Env, documentId: string, tenantId: string) {
   if (!rows.length) return
   const doc = rows[0]
 
-  // Skip re-indexing if content hasn't changed (same optimization as embedDocumentJob).
-  // NOTE: contentHash is populated by embedDocumentJob, not indexFTS5Job. If embedding
-  // hasn't run yet, contentHash is null and this guard won't fire (benign: just redundant work).
-  const newHash = await computeHash(doc.content)
-  if (doc.contentHash && doc.contentHash === newHash) return
-
+  // No skip-guard here — FTS5 indexes title+summary+content, so any field change
+  // must update the index. The upsert (delete+insert) is cheap for a single row.
   await indexDocumentFTS5(env, documentId, tenantId, doc.title, doc.summary ?? '', doc.content)
 }
 
