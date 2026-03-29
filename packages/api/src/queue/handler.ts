@@ -137,9 +137,10 @@ async function generateSummary(env: Env, documentId: string, tenantId: string) {
     }
   }
 
-  // Trigger embedding + FTS5 indexing after summary is written (so FTS5 includes summary)
-  await embedDocumentJob(env, documentId, tenantId)
+  // FTS5 first — reads summary, contentHash not yet set so skip-guard won't fire
+  // Embed last — sets contentHash (which indexFTS5Job uses as skip-guard)
   await indexFTS5Job(env, documentId, tenantId)
+  await embedDocumentJob(env, documentId, tenantId)
 }
 
 /** Generate embeddings for a document — skips if content unchanged (hash check) */

@@ -146,11 +146,12 @@ searchRouter.post('/backfill-index', requirePermission('tenant:manage'), async (
   const hasMore = docs.length > BATCH_SIZE
   const batch = hasMore ? docs.slice(0, BATCH_SIZE) : docs
 
-  // Enqueue full pipeline per document: summary (triggers embed + FTS5) + trigrams
+  // Enqueue full pipeline per document:
+  // generate-summary → indexFTS5Job + embedDocumentJob (chained internally)
+  // index-trigrams runs independently (no summary dependency)
   for (const doc of batch) {
     try { await c.env.QUEUE.send({ type: 'generate-summary', documentId: doc.id, tenantId }) } catch { /* */ }
     try { await c.env.QUEUE.send({ type: 'index-trigrams', documentId: doc.id, tenantId }) } catch { /* */ }
-    try { await c.env.QUEUE.send({ type: 'embed', documentId: doc.id, tenantId }) } catch { /* */ }
   }
 
   return c.json({
