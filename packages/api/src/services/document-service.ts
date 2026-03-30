@@ -84,9 +84,11 @@ export async function createDocument(
     await syncWikilinks(db, id, input.content, tenantId)
   }
 
-  // Enqueue AI summary generation
+  // Enqueue AI summary generation + search indexing
   try {
     await env.QUEUE.send({ type: 'generate-summary', documentId: id, tenantId })
+    await env.QUEUE.send({ type: 'index-fts5', documentId: id, tenantId })
+    await env.QUEUE.send({ type: 'index-trigrams', documentId: id, tenantId })
   } catch {
     // Queue may not be available in dev
   }
@@ -255,9 +257,11 @@ export async function updateDocument(
     await syncWikilinks(db, docId, input.content, tenantId)
   }
 
-  // Enqueue summary regeneration
+  // Enqueue summary regeneration + search indexing
   try {
     await env.QUEUE.send({ type: 'generate-summary', documentId: docId, tenantId })
+    await env.QUEUE.send({ type: 'index-fts5', documentId: docId, tenantId })
+    await env.QUEUE.send({ type: 'index-trigrams', documentId: docId, tenantId })
   } catch {
     // Queue may not be available in dev
   }
