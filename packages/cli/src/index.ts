@@ -286,10 +286,14 @@ program
   .option('--type <type>', 'Search type: hybrid|keyword|semantic', 'hybrid')
   .option('--limit <n>', 'Max results', '10')
   .option('--doc-id <id>', 'Filter by linked document ID')
+  .option('--date-from <date>', 'Filter images uploaded after this date (ISO 8601)')
+  .option('--date-to <date>', 'Filter images uploaded before this date (ISO 8601)')
   .option('--json', 'Output as JSON')
-  .action(async (query: string, opts: { type: string; limit: string; docId?: string; json?: boolean }) => {
+  .action(async (query: string, opts: { type: string; limit: string; docId?: string; dateFrom?: string; dateTo?: string; json?: boolean }) => {
     const params = new URLSearchParams({ q: query, type: opts.type, limit: opts.limit })
     if (opts.docId) params.set('documentId', opts.docId)
+    if (opts.dateFrom) params.set('dateFrom', opts.dateFrom)
+    if (opts.dateTo) params.set('dateTo', opts.dateTo)
 
     const result = await apiFetch<{
       results: Array<{

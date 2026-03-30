@@ -26,14 +26,15 @@ export async function searchImages(env: Env, options: ImageSearchOptions): Promi
     ? filters.contentTypes
     : [...IMAGE_CONTENT_TYPES]
 
-  // Run keyword + semantic search in parallel
+  // Run keyword + semantic search in parallel (date filters applied upstream for accurate limiting)
   const fetchLimit = limit * 2
+  const { dateFrom, dateTo } = filters ?? {}
   const [keywordResults, semanticResults] = await Promise.all([
     (type === 'hybrid' || type === 'keyword')
-      ? storageKeywordSearch(env, tenantId, query, fetchLimit, contentTypes)
+      ? storageKeywordSearch(env, tenantId, query, fetchLimit, contentTypes, dateFrom, dateTo)
       : Promise.resolve([]),
     (type === 'hybrid' || type === 'semantic')
-      ? storageSemanticSearch(env, tenantId, query, fetchLimit, contentTypes)
+      ? storageSemanticSearch(env, tenantId, query, fetchLimit, contentTypes, dateFrom, dateTo)
       : Promise.resolve([]),
   ])
 
@@ -70,12 +71,7 @@ async function enrichImageResults(
   if (filters?.documentId) {
     conditions.push(eq(uploads.documentId, filters.documentId))
   }
-  if (filters?.dateFrom) {
-    conditions.push(sql`${uploads.createdAt} >= ${new Date(filters.dateFrom).getTime()}`)
-  }
-  if (filters?.dateTo) {
-    conditions.push(sql`${uploads.createdAt} <= ${new Date(filters.dateTo).getTime()}`)
-  }
+  // dateFrom/dateTo filters are now applied upstream in storageKeywordSearch/storageSemanticSearch
 
   // Fetch upload metadata + extraction description in parallel
   const [uploadRows, extractionRows] = await Promise.all([

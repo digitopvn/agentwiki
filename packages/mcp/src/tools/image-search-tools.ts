@@ -26,6 +26,7 @@ export function registerImageSearchTools(
   }, async (args) => {
     if (!checkPermission(auth.scopes, 'doc:read')) return toolError('Permission denied: doc:read required')
     return safeToolCall(() =>
+      // MCP Env is a subset of API Env — safe at runtime (same pattern as all other MCP tools)
       searchImages(env as never, {
         tenantId: auth.tenantId,
         query: args.query,

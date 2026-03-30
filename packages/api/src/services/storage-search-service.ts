@@ -15,6 +15,8 @@ export async function storageKeywordSearch(
   query: string,
   limit: number,
   contentTypes?: string[],
+  dateFrom?: string,
+  dateTo?: string,
 ): Promise<RankedResult[]> {
   const db = drizzle(env.DB)
   // Escape LIKE meta-characters to prevent wildcard injection
@@ -27,6 +29,14 @@ export async function storageKeywordSearch(
   ]
   if (contentTypes?.length) {
     conditions.push(sql`${uploads.contentType} IN (${sql.join(contentTypes.map((ct) => sql`${ct}`), sql`, `)})`)
+  }
+  if (dateFrom) {
+    const ts = new Date(dateFrom).getTime()
+    if (!isNaN(ts)) conditions.push(sql`${uploads.createdAt} >= ${ts}`)
+  }
+  if (dateTo) {
+    const ts = new Date(dateTo).getTime()
+    if (!isNaN(ts)) conditions.push(sql`${uploads.createdAt} <= ${ts}`)
   }
 
   const results = await db
@@ -57,6 +67,8 @@ export async function storageSemanticSearch(
   query: string,
   limit: number,
   contentTypes?: string[],
+  dateFrom?: string,
+  dateTo?: string,
 ): Promise<RankedResult[]> {
   try {
     const queryVector = await embedQuery(env, query)
@@ -88,6 +100,14 @@ export async function storageSemanticSearch(
     ]
     if (contentTypes?.length) {
       uploadConditions.push(sql`${uploads.contentType} IN (${sql.join(contentTypes.map((ct) => sql`${ct}`), sql`, `)})`)
+    }
+    if (dateFrom) {
+      const ts = new Date(dateFrom).getTime()
+      if (!isNaN(ts)) uploadConditions.push(sql`${uploads.createdAt} >= ${ts}`)
+    }
+    if (dateTo) {
+      const ts = new Date(dateTo).getTime()
+      if (!isNaN(ts)) uploadConditions.push(sql`${uploads.createdAt} <= ${ts}`)
     }
     const uploadRows = await db
       .select({ id: uploads.id, filename: uploads.filename })
