@@ -1,8 +1,8 @@
 /**
- * ProseMirror plugin that intercepts paste events containing markdown code fences.
+ * ProseMirror plugin that intercepts paste events containing markdown content.
  * BlockNote v0.22.0 default paste handler treats text/plain as plain text,
- * which loses code blocks. This plugin detects code fences and uses
- * BlockNote's markdown parser to preserve them.
+ * which loses formatting (headings, lists, code blocks, etc.). This plugin
+ * detects markdown patterns and uses BlockNote's markdown parser to preserve them.
  *
  * NOTE: Uses editor._tiptapEditor (private API) for plugin registration.
  * May need updating on BlockNote major version upgrades.
@@ -16,13 +16,20 @@ import { sanitizeCodeFences } from '../../lib/sanitize-markdown-code-fences'
 /** Matches actual code fence blocks: ```<lang>\n...\n``` (handles \r\n for Windows) */
 const CODE_FENCE_REGEX = /```[\w-]*\r?\n[\s\S]*?\r?\n```/
 
+/**
+ * Matches common markdown block-level patterns at the start of any line.
+ * Only triggers on multi-line text to avoid false positives on regular text.
+ */
+const MARKDOWN_BLOCK_REGEX =
+  /^(#{1,6}\s|[-*+]\s|>\s|\d+\.\s|---|- \[[ x]\])/m
+
 /** Exported key so editor.tsx can properly unregister the plugin on cleanup */
 export const pasteMarkdownPluginKey = new PluginKey('pasteMarkdownWithCodeBlocks')
 
 /**
  * Creates a ProseMirror plugin that intercepts paste events when clipboard
- * text/plain contains markdown code fences. Parses the markdown via
- * BlockNote's parser and inserts blocks at the cursor position.
+ * text/plain contains markdown (code fences, headings, lists, blockquotes, etc.).
+ * Parses the markdown via BlockNote's parser and inserts blocks at the cursor.
  *
  * Register after editor creation via editor._tiptapEditor.registerPlugin().
  */
@@ -42,7 +49,12 @@ export function createPasteMarkdownPlugin(editor: BlockNoteEditor) {
           if (clipboardData.types.includes('vscode-editor-data')) return false
 
           const plainText = clipboardData.getData('text/plain')
-          if (!plainText || !CODE_FENCE_REGEX.test(plainText)) return false
+          if (!plainText) return false
+
+          // Detect markdown: code fences always trigger; other patterns require multi-line text
+          const hasCodeFence = CODE_FENCE_REGEX.test(plainText)
+          const hasMarkdownBlocks = plainText.includes('\n') && MARKDOWN_BLOCK_REGEX.test(plainText)
+          if (!hasCodeFence && !hasMarkdownBlocks) return false
 
           // Prevent default and BlockNote's handler
           clipboardEvent.preventDefault()
