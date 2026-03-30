@@ -1,8 +1,8 @@
 /** Similarity computation + caching — implicit graph edges from Vectorize */
 
-import { eq, and, desc, inArray, isNull, not } from 'drizzle-orm'
+import { eq, and, or, desc, inArray, isNull, not, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
-import { documentSimilarities, documents } from '../db/schema'
+import { documentSimilarities, documentLinks, documents } from '../db/schema'
 import { generateId } from '../utils/crypto'
 import type { Env } from '../env'
 import type { SimilarDoc } from '@agentwiki/shared'
@@ -177,4 +177,124 @@ export async function querySimilarDocs(
   return results
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
+}
+
+/** Auto-create document_links from cached similarities (Queue job) */
+export async function autoLinkFromSimilarities(
+  env: Env,
+  documentId: string,
+  tenantId: string,
+): Promise<number> {
+  const db = drizzle(env.DB)
+
+  // Tenant ownership check — prevent cross-tenant mutation
+  const owner = await db.select({ id: documents.id })
+    .from(documents)
+    .where(and(eq(documents.id, documentId), eq(documents.tenantId, tenantId), isNull(documents.deletedAt)))
+    .limit(1)
+  if (!owner.length) return 0
+
+  // 1. Get cached similarities with threshold filter (limit 5 — matches TOP_K - 1 cap)
+  const similarities = await db.select({
+    targetDocId: documentSimilarities.targetDocId,
+    score: documentSimilarities.score,
+  })
+    .from(documentSimilarities)
+    .where(and(
+      eq(documentSimilarities.sourceDocId, documentId),
+      sql`${documentSimilarities.score} >= ${SIMILARITY_THRESHOLD}`,
+    ))
+    .orderBy(desc(documentSimilarities.score))
+    .limit(5)
+
+  if (!similarities.length) {
+    // No similarities — remove outbound auto-links from this doc only.
+    // Reverse links (targetDocId = documentId) are owned by their source docs.
+    await db.delete(documentLinks).where(and(
+      eq(documentLinks.sourceDocId, documentId),
+      eq(documentLinks.inferred, 1),
+    ))
+    return 0
+  }
+
+  const targetIds = similarities.map((s) => s.targetDocId)
+
+  // 2. Batch-fetch all existing links for this doc (both directions) to avoid N+1
+  const existingLinks = await db.select({
+    sourceDocId: documentLinks.sourceDocId,
+    targetDocId: documentLinks.targetDocId,
+    inferred: documentLinks.inferred,
+  })
+    .from(documentLinks)
+    .where(or(
+      eq(documentLinks.sourceDocId, documentId),
+      eq(documentLinks.targetDocId, documentId),
+    ))
+
+  const explicitFwd = new Set(existingLinks.filter((l) => l.sourceDocId === documentId && l.inferred === 0).map((l) => l.targetDocId))
+  const existingFwd = new Set(existingLinks.filter((l) => l.sourceDocId === documentId).map((l) => l.targetDocId))
+  const existingRev = new Set(existingLinks.filter((l) => l.targetDocId === documentId).map((l) => l.sourceDocId))
+
+  // 3. Batch-insert auto-links for similar docs not already linked
+  const now = new Date()
+  const fwdInserts: (typeof documentLinks.$inferInsert)[] = []
+  const revInserts: (typeof documentLinks.$inferInsert)[] = []
+
+  for (const sim of similarities) {
+    if (explicitFwd.has(sim.targetDocId)) continue
+    if (!existingFwd.has(sim.targetDocId)) {
+      fwdInserts.push({
+        id: generateId(),
+        sourceDocId: documentId,
+        targetDocId: sim.targetDocId,
+        type: 'relates-to',
+        weight: sim.score,
+        inferred: 1,
+        context: null,
+        createdAt: now,
+      })
+    }
+    if (!existingRev.has(sim.targetDocId)) {
+      revInserts.push({
+        id: generateId(),
+        sourceDocId: sim.targetDocId,
+        targetDocId: documentId,
+        type: 'relates-to',
+        weight: sim.score,
+        inferred: 1,
+        context: null,
+        createdAt: now,
+      })
+    }
+  }
+
+  if (fwdInserts.length) await db.insert(documentLinks).values(fwdInserts)
+  if (revInserts.length) await db.insert(documentLinks).values(revInserts)
+  const created = fwdInserts.length + revInserts.length
+
+  // 4. Clean stale outbound auto-links from this doc (owns its own outbound inferred links only).
+  // Do NOT touch reverse links (targetDocId = documentId, inferred=1) — those are owned by
+  // the source document and cleaned up when that document is processed.
+  // Use targetIds (full similarity set) so cleanup runs even if all targets already had explicit links.
+  if (targetIds.length > 0) {
+    await db.delete(documentLinks).where(and(
+      eq(documentLinks.sourceDocId, documentId),
+      eq(documentLinks.inferred, 1),
+      not(inArray(documentLinks.targetDocId, targetIds)),
+    ))
+  }
+
+  // 5. Remove inferred links superseded by an explicit counterpart (prevents double-edge).
+  //    When a user creates an explicit A→B wikilink after an inferred one already exists,
+  //    both rows coexist unless we clean up here.
+  const explicitFwdArray = [...explicitFwd]
+  if (explicitFwdArray.length > 0) {
+    await db.delete(documentLinks).where(and(
+      eq(documentLinks.sourceDocId, documentId),
+      eq(documentLinks.inferred, 1),
+      inArray(documentLinks.targetDocId, explicitFwdArray),
+    ))
+  }
+
+  return created
 }
