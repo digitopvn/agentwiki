@@ -78,6 +78,8 @@ export async function storageSemanticSearch(
   try {
     const queryVector = await embedQuery(env, query)
 
+    // topK fetches broadly; document_id is not in Vectorize filter metadata,
+    // so documentId filtering happens in the DB step below — results bounded by topK
     const vectorResults = await env.VECTORIZE.query(queryVector, {
       topK: limit,
       filter: { org_id: tenantId, source_type: 'upload' },
