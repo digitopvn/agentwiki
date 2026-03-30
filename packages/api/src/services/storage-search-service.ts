@@ -17,6 +17,7 @@ export async function storageKeywordSearch(
   contentTypes?: string[],
   dateFrom?: string,
   dateTo?: string,
+  documentId?: string,
 ): Promise<RankedResult[]> {
   const db = drizzle(env.DB)
   // Escape LIKE meta-characters to prevent wildcard injection
@@ -37,6 +38,9 @@ export async function storageKeywordSearch(
   if (dateTo) {
     const ts = new Date(dateTo).getTime()
     if (!isNaN(ts)) conditions.push(sql`${uploads.createdAt} <= ${ts}`)
+  }
+  if (documentId) {
+    conditions.push(eq(uploads.documentId, documentId))
   }
 
   const results = await db
@@ -69,6 +73,7 @@ export async function storageSemanticSearch(
   contentTypes?: string[],
   dateFrom?: string,
   dateTo?: string,
+  documentId?: string,
 ): Promise<RankedResult[]> {
   try {
     const queryVector = await embedQuery(env, query)
@@ -108,6 +113,9 @@ export async function storageSemanticSearch(
     if (dateTo) {
       const ts = new Date(dateTo).getTime()
       if (!isNaN(ts)) uploadConditions.push(sql`${uploads.createdAt} <= ${ts}`)
+    }
+    if (documentId) {
+      uploadConditions.push(eq(uploads.documentId, documentId))
     }
     const uploadRows = await db
       .select({ id: uploads.id, filename: uploads.filename })

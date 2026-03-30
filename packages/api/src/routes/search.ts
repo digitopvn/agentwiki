@@ -136,7 +136,11 @@ searchRouter.get('/images', rateLimiter(RATE_LIMITS.search), async (c) => {
   if (!query) return c.json({ error: 'Query parameter "q" is required' }, 400)
   if (query.length > 500) return c.json({ error: 'Query too long (max 500 characters)' }, 400)
 
-  const type = (c.req.query('type') ?? 'hybrid') as 'hybrid' | 'keyword' | 'semantic'
+  const rawType = c.req.query('type') ?? 'hybrid'
+  if (!['hybrid', 'keyword', 'semantic'].includes(rawType)) {
+    return c.json({ error: 'Invalid type. Must be hybrid, keyword, or semantic' }, 400)
+  }
+  const type = rawType as 'hybrid' | 'keyword' | 'semantic'
   const limit = Math.min(50, Math.max(1, parseInt(c.req.query('limit') ?? '10', 10) || 10))
   const documentId = c.req.query('documentId') || undefined
   const dateFrom = c.req.query('dateFrom') || undefined

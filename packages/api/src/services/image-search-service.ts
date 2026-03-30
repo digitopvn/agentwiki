@@ -26,15 +26,15 @@ export async function searchImages(env: Env, options: ImageSearchOptions): Promi
     ? filters.contentTypes
     : [...IMAGE_CONTENT_TYPES]
 
-  // Run keyword + semantic search in parallel (date filters applied upstream for accurate limiting)
+  // Run keyword + semantic search in parallel (all filters applied upstream for accurate limiting)
   const fetchLimit = limit * 2
-  const { dateFrom, dateTo } = filters ?? {}
+  const { dateFrom, dateTo, documentId } = filters ?? {}
   const [keywordResults, semanticResults] = await Promise.all([
     (type === 'hybrid' || type === 'keyword')
-      ? storageKeywordSearch(env, tenantId, query, fetchLimit, contentTypes, dateFrom, dateTo)
+      ? storageKeywordSearch(env, tenantId, query, fetchLimit, contentTypes, dateFrom, dateTo, documentId)
       : Promise.resolve([]),
     (type === 'hybrid' || type === 'semantic')
-      ? storageSemanticSearch(env, tenantId, query, fetchLimit, contentTypes, dateFrom, dateTo)
+      ? storageSemanticSearch(env, tenantId, query, fetchLimit, contentTypes, dateFrom, dateTo, documentId)
       : Promise.resolve([]),
   ])
 
@@ -50,7 +50,7 @@ export async function searchImages(env: Env, options: ImageSearchOptions): Promi
   if (!ranked.length) return []
 
   // Enrich with upload metadata
-  return enrichImageResults(env, tenantId, ranked, filters)
+  return enrichImageResults(env, tenantId, ranked)
 }
 
 /** Fetch full upload metadata and build ImageSearchResult objects */
@@ -58,7 +58,6 @@ async function enrichImageResults(
   env: Env,
   tenantId: string,
   ranked: Array<{ id: string; snippet: string; score?: number; accuracy?: number }>,
-  filters?: ImageSearchFilters,
 ): Promise<ImageSearchResult[]> {
   const db = drizzle(env.DB)
   const uploadIds = ranked.map((r) => r.id)
@@ -68,11 +67,6 @@ async function enrichImageResults(
     eq(uploads.tenantId, tenantId),
     sql`${uploads.id} IN (${sql.join(uploadIds.map((id) => sql`${id}`), sql`, `)})`,
   ]
-  if (filters?.documentId) {
-    conditions.push(eq(uploads.documentId, filters.documentId))
-  }
-  // dateFrom/dateTo filters are now applied upstream in storageKeywordSearch/storageSemanticSearch
-
   // Fetch upload metadata + extraction description in parallel
   const [uploadRows, extractionRows] = await Promise.all([
     db.select({
