@@ -139,8 +139,8 @@ async function generateSummary(env: Env, documentId: string, tenantId: string) {
     }
   }
 
-  // FTS5 first — reads summary, contentHash not yet set so skip-guard won't fire
-  // Embed last — sets contentHash; each isolated so one failure doesn't block the other
+  // Always run FTS5 + embed after summary generation, each isolated so one failure doesn't block the other
+  // FTS5 first (no skip-guard — upsert is idempotent), then embed (sets contentHash for dedup)
   try { await indexFTS5Job(env, documentId, tenantId) } catch (err) { console.warn('FTS5 index failed:', err) }
   try { await embedDocumentJob(env, documentId, tenantId) } catch (err) { console.warn('Embed failed:', err) }
 }

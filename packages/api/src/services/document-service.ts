@@ -515,8 +515,8 @@ export async function syncWikilinks(
   // Guard: skip if content is empty (contentJson-only saves have no markdown yet)
   if (!content?.trim()) return
 
-  // Delete existing links from this source
-  await db.delete(documentLinks).where(eq(documentLinks.sourceDocId, docId))
+  // Delete only explicit wikilinks — preserve AI-inferred edges (inferred=1) and user-confirmed (inferred=2)
+  await db.delete(documentLinks).where(and(eq(documentLinks.sourceDocId, docId), eq(documentLinks.inferred, 0)))
 
   const links = extractAllLinks(content)
   if (!links.length) return
