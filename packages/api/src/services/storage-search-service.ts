@@ -14,11 +14,34 @@ export async function storageKeywordSearch(
   tenantId: string,
   query: string,
   limit: number,
+  contentTypes?: string[],
+  dateFrom?: string,
+  dateTo?: string,
+  documentId?: string,
 ): Promise<RankedResult[]> {
   const db = drizzle(env.DB)
   // Escape LIKE meta-characters to prevent wildcard injection
   const escapedQuery = query.replace(/[%_\\]/g, '\\$&')
   const likeQuery = `%${escapedQuery}%`
+
+  const conditions = [
+    eq(fileExtractions.tenantId, tenantId),
+    sql`${fileExtractions.extractedText} LIKE ${likeQuery} ESCAPE '\\'`,
+  ]
+  if (contentTypes?.length) {
+    conditions.push(sql`${uploads.contentType} IN (${sql.join(contentTypes.map((ct) => sql`${ct}`), sql`, `)})`)
+  }
+  if (dateFrom) {
+    const ts = new Date(dateFrom).getTime()
+    if (!isNaN(ts)) conditions.push(sql`${uploads.createdAt} >= ${ts}`)
+  }
+  if (dateTo) {
+    const ts = new Date(dateTo).getTime()
+    if (!isNaN(ts)) conditions.push(sql`${uploads.createdAt} <= ${ts}`)
+  }
+  if (documentId) {
+    conditions.push(eq(uploads.documentId, documentId))
+  }
 
   const results = await db
     .select({
@@ -28,12 +51,7 @@ export async function storageKeywordSearch(
     })
     .from(fileExtractions)
     .innerJoin(uploads, eq(fileExtractions.uploadId, uploads.id))
-    .where(
-      and(
-        eq(fileExtractions.tenantId, tenantId),
-        sql`${fileExtractions.extractedText} LIKE ${likeQuery} ESCAPE '\\'`,
-      ),
-    )
+    .where(and(...conditions))
     .limit(limit)
 
   return results.map((r) => ({
@@ -52,10 +70,16 @@ export async function storageSemanticSearch(
   tenantId: string,
   query: string,
   limit: number,
+  contentTypes?: string[],
+  dateFrom?: string,
+  dateTo?: string,
+  documentId?: string,
 ): Promise<RankedResult[]> {
   try {
     const queryVector = await embedQuery(env, query)
 
+    // topK fetches broadly; document_id is not in Vectorize filter metadata,
+    // so documentId filtering happens in the DB step below — results bounded by topK
     const vectorResults = await env.VECTORIZE.query(queryVector, {
       topK: limit,
       filter: { org_id: tenantId, source_type: 'upload' },
@@ -75,12 +99,30 @@ export async function storageSemanticSearch(
 
     if (!uploadIds.length) return []
 
-    // Fetch upload metadata
+    // Fetch upload metadata (with tenant isolation + optional contentType filter)
     const db = drizzle(env.DB)
+    const uploadConditions = [
+      eq(uploads.tenantId, tenantId),
+      sql`${uploads.id} IN (${sql.join(uploadIds.map((id) => sql`${id}`), sql`, `)})`,
+    ]
+    if (contentTypes?.length) {
+      uploadConditions.push(sql`${uploads.contentType} IN (${sql.join(contentTypes.map((ct) => sql`${ct}`), sql`, `)})`)
+    }
+    if (dateFrom) {
+      const ts = new Date(dateFrom).getTime()
+      if (!isNaN(ts)) uploadConditions.push(sql`${uploads.createdAt} >= ${ts}`)
+    }
+    if (dateTo) {
+      const ts = new Date(dateTo).getTime()
+      if (!isNaN(ts)) uploadConditions.push(sql`${uploads.createdAt} <= ${ts}`)
+    }
+    if (documentId) {
+      uploadConditions.push(eq(uploads.documentId, documentId))
+    }
     const uploadRows = await db
       .select({ id: uploads.id, filename: uploads.filename })
       .from(uploads)
-      .where(sql`${uploads.id} IN (${sql.join(uploadIds.map((id) => sql`${id}`), sql`, `)})`)
+      .where(and(...uploadConditions))
 
     const uploadMap = new Map(uploadRows.map((u) => [u.id, u]))
 

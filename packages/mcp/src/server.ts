@@ -7,6 +7,7 @@ import { registerGraphTraversalTools } from './tools/graph-traversal-tools'
 import { registerFolderTools } from './tools/folder-tools'
 import { registerTagTools } from './tools/tag-tools'
 import { registerUploadTools } from './tools/upload-tools'
+import { registerImageSearchTools } from './tools/image-search-tools'
 import { registerMemberTools } from './tools/member-tools'
 import { registerApiKeyTools } from './tools/api-key-tools'
 import { registerShareTools } from './tools/share-tools'
@@ -25,13 +26,14 @@ export function createMcpServer(
     version: '1.0.0',
   })
 
-  // Register all tools (31 total: 25 existing + 6 graph traversal)
+  // Register all tools (32 total: 25 existing + 6 graph traversal + 1 image search)
   registerDocumentTools(server, env, auth, ctx)
   registerSearchAndGraphTools(server, env, auth, ctx)
   registerGraphTraversalTools(server, env, auth)
   registerFolderTools(server, env, auth, ctx)
   registerTagTools(server, env, auth, ctx)
   registerUploadTools(server, env, auth, ctx)
+  registerImageSearchTools(server, env, auth)
   registerMemberTools(server, env, auth, ctx)
   registerApiKeyTools(server, env, auth, ctx)
   registerShareTools(server, env, auth, ctx)

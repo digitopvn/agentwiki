@@ -59,6 +59,30 @@ export interface SearchClickEvent {
   position: number
 }
 
+/** Image search result with enriched upload metadata */
+export interface ImageSearchResult {
+  id: string
+  filename: string
+  contentType: string
+  sizeBytes: number
+  description: string | null
+  summary: string | null
+  snippet: string
+  score?: number
+  accuracy?: number
+  fileUrl: string
+  documentId: string | null
+  createdAt: string
+}
+
+/** Filters for image-specific search */
+export interface ImageSearchFilters {
+  documentId?: string
+  contentTypes?: string[]
+  dateFrom?: string
+  dateTo?: string
+}
+
 export interface AnalyticsSummary {
   topQueries: { query: string; count: number; avgResults: number }[]
   zeroResultQueries: { query: string; count: number; lastSearched: string }[]

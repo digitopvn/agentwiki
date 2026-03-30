@@ -278,6 +278,52 @@ upload
     }
   })
 
+// --- Image Search ---
+
+program
+  .command('search-images <query>')
+  .description('Search uploaded images by text description')
+  .option('--type <type>', 'Search type: hybrid|keyword|semantic', 'hybrid')
+  .option('--limit <n>', 'Max results', '10')
+  .option('--doc-id <id>', 'Filter by linked document ID')
+  .option('--date-from <date>', 'Filter images uploaded after this date (ISO 8601)')
+  .option('--date-to <date>', 'Filter images uploaded before this date (ISO 8601)')
+  .option('--json', 'Output as JSON')
+  .action(async (query: string, opts: { type: string; limit: string; docId?: string; dateFrom?: string; dateTo?: string; json?: boolean }) => {
+    const params = new URLSearchParams({ q: query, type: opts.type, limit: opts.limit })
+    if (opts.docId) params.set('documentId', opts.docId)
+    if (opts.dateFrom) params.set('dateFrom', opts.dateFrom)
+    if (opts.dateTo) params.set('dateTo', opts.dateTo)
+
+    const result = await apiFetch<{
+      results: Array<{
+        id: string; filename: string; contentType: string; sizeBytes: number
+        description: string | null; summary: string | null; snippet: string
+        score?: number; accuracy?: number; fileUrl: string; documentId: string | null
+      }>
+    }>(`/search/images?${params}`)
+
+    if (opts.json) {
+      console.log(JSON.stringify(result, null, 2))
+    } else {
+      if (!result.results.length) {
+        console.log('No images found.')
+        return
+      }
+      for (const r of result.results) {
+        const size = r.sizeBytes < 1024 * 1024
+          ? `${(r.sizeBytes / 1024).toFixed(1)}KB`
+          : `${(r.sizeBytes / (1024 * 1024)).toFixed(1)}MB`
+        const score = r.score ? ` (${r.score.toFixed(3)})` : ''
+        console.log(`${r.id}  ${r.filename}  ${size}${score}`)
+        if (r.summary) console.log(`  ${r.summary}`)
+        else if (r.snippet) console.log(`  ${r.snippet}`)
+        console.log()
+      }
+      console.log(`${result.results.length} images found`)
+    }
+  })
+
 // --- Tags ---
 
 program
