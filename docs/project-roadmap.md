@@ -3,7 +3,7 @@
 Living document tracking development progress, milestones, and future plans.
 
 **Current Version**: 0.1.0 (MVP)
-**Last Updated**: 2026-03-18
+**Last Updated**: 2026-03-23
 **Status**: In Development
 
 ## Executive Summary
@@ -94,6 +94,9 @@ AgentWiki is an enterprise knowledge management platform serving humans and AI a
 - [x] OAuth login page
 - [x] TailwindCSS v4 styling
 - [x] Responsive design (mobile-ready)
+- [x] Auto-save performance optimization (2s debounce, deferred markdown) — Issue #32
+- [x] Mobile sidebar drawers (CSS transform, swipe gestures) — Issue #37
+- [x] Drag-and-drop markdown file import — Issue #21
 
 **Key Files**:
 - `packages/web/src/components/editor/editor.tsx` — BlockNote wrapper
@@ -123,6 +126,29 @@ AgentWiki is an enterprise knowledge management platform serving humans and AI a
 - [x] Async embedding generation (Queues)
 - [x] Queue consumer for batch processing
 - [x] Document summary generation
+- [x] Multi-vendor AI providers (6: OpenAI, Anthropic, Google, OpenRouter, MiniMax, Alibaba)
+- [x] AI slash commands (5) in BlockNote editor
+- [x] AI selection toolbar (6 actions) for text
+- [x] AI settings page with provider configuration
+- [x] Usage tracking & cost dashboard
+- [x] Encrypted provider API keys storage
+
+**Phase 5.5: QMD-Inspired Search Pipeline (NEW) ✅ COMPLETE**
+
+**Timeline**: Mar 2026
+**Status**: Code-complete, staged rollout
+
+**Deliverables**:
+- [x] Position-aware RRF with signal weighting (keyword/semantic/default)
+- [x] KV search cache (5-min TTL)
+- [x] FTS5/BM25 search service (ready for evaluation, not yet primary)
+- [x] Parallel AI query expansion (Promise.all latency optimization)
+- [x] Folder context enrichment in results
+- [x] Smart markdown chunking (2000→1200 chars, heading chains, code block protection)
+- [x] Content hash skip for embeddings (SHA-256 caching)
+- [x] Search debug mode (`?debug=true`)
+- [x] Search eval harness (MRR@5, Precision@3, Recall@10, NDCG@10)
+- [x] 21 unit tests (all passing)
 
 **Key Files**:
 - `packages/api/src/services/search-service.ts` — Hybrid search
@@ -164,18 +190,49 @@ AgentWiki is an enterprise knowledge management platform serving humans and AI a
 ### Phase 7: Graph & Hardening 🔄 IN PROGRESS
 
 **Timeline**: Mar 2026 - Mar 2026
-**Status**: 90% Complete
+**Status**: 97% Complete
 
 **Deliverables**:
 - [x] Document graph endpoint (nodes + edges)
 - [x] Cytoscape.js integration (pending: UI component)
 - [x] Relationship analysis
 - [x] Wikilink visualization prep
+- [x] Sidebar DnD sorting (Issue #29: Explorer Sidebar Positions, Sorting & Recent Modifications)
+- [x] Sort controls (Manual, By Name, By Date Modified)
+- [x] User preferences persistence (key-value store)
+- [x] Recent modifications section
 - [ ] Interactive graph UI component
 - [ ] Graph-based recommendations
 - [ ] Enhanced error handling
 - [ ] E2E test suite
 - [ ] Load testing & optimization
+
+### Phase 8: MCP Server Implementation ✅ COMPLETE
+
+**Timeline**: Mar 2026 - Mar 2026
+**Status**: Shipped
+
+**Deliverables**:
+- [x] Model Context Protocol (MCP) server on Cloudflare Workers
+- [x] 25 MCP tools (document, search, folder, tag, upload, member, key, share operations)
+- [x] 6 context resources (documents, search results, folder tree, members, keys, shares)
+- [x] 4 system prompts for AI agent guidance (wiki writer, research, coordination, architecture)
+- [x] API key authentication (PBKDF2 + scope-based RBAC)
+- [x] Streamable HTTP transport (stateless)
+- [x] Service reuse from packages/api (D1, R2, KV, Vectorize, Queue, AI bindings)
+- [x] Audit logging for MCP actions
+- [x] Error handling & serialization
+
+**Key Files**:
+- `packages/mcp/src/server.ts` — McpServer factory
+- `packages/mcp/src/tools/*` — Tool implementations
+- `packages/mcp/src/resources/wiki-resources.ts` — Context resources
+- `packages/mcp/src/prompts/wiki-prompts.ts` — System prompts
+- `packages/mcp/src/auth/api-key-auth.ts` — Authentication
+
+**Deployment**:
+- URL: `https://mcp.agentwiki.cc`
+- Bindings: Shared with REST API (D1, R2, KV, Vectorize, Queue, AI)
 
 **Key Files**:
 - `packages/api/src/routes/graph.ts` — Graph API
@@ -208,13 +265,19 @@ AgentWiki is an enterprise knowledge management platform serving humans and AI a
 | Multi-tenant | ✅ | 100% | Tenant isolation verified |
 | Authentication | ✅ | 100% | OAuth + JWT + API keys |
 | Authorization | ✅ | 100% | RBAC with 4 roles |
-| Search (keyword) | ✅ | 100% | FTS5 on D1 |
-| Search (semantic) | ✅ | 100% | Vectorize integrated |
+| Search (keyword) | ✅ | 100% | Hybrid: trigram + FTS5 ready |
+| Search (semantic) | ✅ | 100% | Vectorize + position-aware RRF |
+| Search (AI-powered) | ✅ | 100% | Parallel query expansion |
 | File uploads | ✅ | 100% | R2 storage |
 | Sharing | ✅ | 100% | Token-based links |
 | Publishing | ✅ | 100% | Public web pages |
+| AI-assisted writing | ✅ | 100% | 6 providers, 11 commands |
+| MCP server | ✅ | 100% | 25 tools, 6 resources, 4 prompts |
 | CLI tool | ✅ | 100% | All major commands |
 | API completeness | ✅ | 100% | RESTful, type-safe |
+| Sidebar sorting | ✅ | 100% | DnD, manual/name/date modes |
+| User preferences | ✅ | 100% | Persistent KV store |
+| Import Files (Obsidian, Notion, LarkSuite) | 🔄 | 95% | Adapter pattern, Queue-based processing, SSE progress |
 
 ### Quality & Operations
 | Aspect | Status | Progress | Notes |
@@ -472,6 +535,7 @@ AgentWiki is an enterprise knowledge management platform serving humans and AI a
 - Web editor (BlockNote)
 - Document sharing
 - Audit logging
+- MCP server for AI agent integration (25 tools, 6 resources, 4 prompts)
 
 ### 0.2.0 (Planned Q2 2026)
 - Real-time collaborative editing
@@ -513,7 +577,7 @@ Items under consideration for future versions:
 
 For roadmap questions or feature requests:
 - GitHub Issues: [agentwiki/issues](https://github.com/your-org/agentwiki/issues)
-- Email: [product@agentwiki.cc](mailto:product@agentwiki.cc)
+- Email: [support@agentwiki.cc](mailto:support@agentwiki.cc)
 - Roadmap discussions: [Roadmap label](https://github.com/your-org/agentwiki/labels/roadmap)
 
 ## Document History

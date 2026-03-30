@@ -5,6 +5,7 @@ import { Lock, Globe, Users, Calendar, User } from 'lucide-react'
 import { useDocument, useUpdateDocument } from '../../hooks/use-documents'
 import { useAppStore } from '../../stores/app-store'
 import { cn } from '../../lib/utils'
+import { ShareLinkDisplay } from './share-link-display'
 
 const ACCESS_LEVEL_OPTIONS = [
   { value: 'private', label: 'Private', icon: Lock },
@@ -35,7 +36,7 @@ export function DocumentProperties({ documentId }: DocumentPropertiesProps) {
   const labelCls = cn('text-xs font-medium', isDark ? 'text-neutral-400' : 'text-neutral-500')
   const valueCls = cn('text-xs', isDark ? 'text-neutral-200' : 'text-neutral-800')
   const inputCls = cn(
-    'w-full rounded border px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-blue-500',
+    'w-full rounded border px-2 py-1.5 text-base outline-none focus:ring-1 focus:ring-blue-500 md:py-1 md:text-xs',
     isDark
       ? 'border-neutral-700 bg-neutral-800 text-neutral-100 placeholder-neutral-500'
       : 'border-neutral-300 bg-white text-neutral-900',
@@ -105,6 +106,9 @@ export function DocumentProperties({ documentId }: DocumentPropertiesProps) {
             </button>
           ))}
         </div>
+        {(accessLevel === 'public' || accessLevel === 'specific') && (
+          <ShareLinkDisplay documentId={documentId} />
+        )}
       </div>
 
       {/* Dates */}
@@ -122,7 +126,7 @@ export function DocumentProperties({ documentId }: DocumentPropertiesProps) {
         <div className="flex items-center gap-2">
           <User className="h-3 w-3 text-neutral-500" />
           <span className={labelCls}>Author</span>
-          <span className={cn(valueCls, 'ml-auto truncate max-w-[120px]')}>{doc.createdBy}</span>
+          <span className={cn(valueCls, 'ml-auto truncate max-w-[120px]')}>{doc.authorName ?? doc.createdBy}</span>
         </div>
       </div>
     </div>

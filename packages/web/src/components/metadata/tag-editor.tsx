@@ -109,7 +109,7 @@ export function TagEditor({ documentId }: TagEditorProps) {
             onFocus={() => setShowSuggestions(true)}
             placeholder="Add tag..."
             className={cn(
-              'flex-1 bg-transparent text-xs outline-none placeholder-neutral-500',
+              'flex-1 bg-transparent text-base outline-none placeholder-neutral-500 md:text-xs',
               isDark ? 'text-neutral-100' : 'text-neutral-900',
             )}
           />

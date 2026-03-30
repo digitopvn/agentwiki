@@ -12,6 +12,7 @@ Welcome to AgentWiki documentation. All files are organized by topic and cross-r
 - **[Code Standards](./code-standards.md)** — TypeScript conventions, code patterns, security checklists
 - **[Codebase Summary](./codebase-summary.md)** — Directory structure, database schema, API routes
 - **[System Architecture](./system-architecture.md)** — Layered design, data flows, security model
+- **[MCP Server](./mcp-server.md)** — AI agent integration, tool reference, configuration
 
 ### For DevOps & Operations
 - **[Deployment Guide](./deployment-guide.md)** — Setup, deployment, monitoring, troubleshooting
@@ -149,6 +150,9 @@ AgentWiki Documentation
 ### I want to start coding
 1. Code Standards → Codebase Summary → System Architecture
 
+### I want to integrate AI agents
+1. README.md (MCP section) → MCP Server (setup & tool reference) → Deployment Guide (MCP deployment)
+
 ### I want to deploy to production
 1. Deployment Guide → System Architecture (topology section)
 
@@ -212,6 +216,7 @@ See Deployment Guide → "Maintenance" for quarterly review tasks.
 - **API Key**: PBKDF2-hashed credential for CLI/agent access
 - **JWT**: JSON Web Token for user authentication (15 min expiry)
 - **RRF**: Reciprocal Rank Fusion, algorithm combining search results
+- **MCP**: Model Context Protocol, standard for AI agent integrations
 - **D1**: Cloudflare SQLite database
 - **R2**: Cloudflare object storage (files)
 - **KV**: Cloudflare key-value cache

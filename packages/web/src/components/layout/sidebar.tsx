@@ -1,19 +1,55 @@
-/** Left sidebar panel: folder tree, search, theme toggle */
+/** Left sidebar panel: folder tree, browse, search, theme toggle, user menu */
 
-import { useState } from 'react'
-import { Search, Plus, Sun, Moon, ChevronLeft, FolderPlus } from 'lucide-react'
+import { useCallback, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
+import { Search, Plus, Sun, Moon, PanelLeftClose, PanelLeft, FolderPlus, Filter, Settings, User, X, HardDrive, Network, Plug } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAppStore } from '../../stores/app-store'
+import { useIsMobile } from '../../hooks/use-is-mobile'
+import { useAuth } from '../../hooks/use-auth'
 import { FolderTree } from '../sidebar/folder-tree'
+import { ErrorBoundary } from './error-boundary'
+import { BrowsePanel, type BrowseFilter } from '../sidebar/browse-panel'
+import { SortControls } from '../sidebar/sort-controls'
+import { RecentDocuments } from '../sidebar/recent-documents'
+import { CreateFolderModal } from '../sidebar/create-folder-modal'
+import { McpGuideModal } from '../sidebar/mcp-guide-modal'
 import { useCreateFolder } from '../../hooks/use-folders'
-import { useCreateDocument } from '../../hooks/use-documents'
+import { useCreateDocument, useDocuments } from '../../hooks/use-documents'
+import { useSidebarSort } from '../../hooks/use-preferences'
+import { FileText } from 'lucide-react'
 
 export function Sidebar() {
-  const { sidebarCollapsed, setSidebarCollapsed, theme, toggleTheme } = useAppStore()
+  const { sidebarCollapsed, setSidebarCollapsed, theme, toggleTheme, setMobileSidebarOpen, toggleStorageDrawer } = useAppStore()
   const [search, setSearch] = useState('')
+  const [showBrowse, setShowBrowse] = useState(false)
+  const [folderModalOpen, setFolderModalOpen] = useState(false)
+  const [mcpModalOpen, setMcpModalOpen] = useState(false)
+  const [browseFilter, setBrowseFilter] = useState<BrowseFilter | null>(null)
   const createFolder = useCreateFolder()
   const createDocument = useCreateDocument()
   const { openTab, setActiveTab } = useAppStore()
+  const { user } = useAuth()
+  const navigate = useNavigate()
+  const isMobile = useIsMobile()
+  const queryClient = useQueryClient()
+  const { sortMode, sortDirection, setSortPref } = useSidebarSort()
+
+  const handleErrorReset = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['folders'] })
+    queryClient.invalidateQueries({ queryKey: ['documents'] })
+  }, [queryClient])
+
+  const isDark = theme === 'dark'
+
+  // Filtered docs when browse filter active
+  const filterParams = browseFilter
+    ? browseFilter.type === 'category'
+      ? { category: browseFilter.value }
+      : { tag: browseFilter.value }
+    : {}
+  const { data: filteredData } = useDocuments(browseFilter ? filterParams : { limit: 0 })
 
   const handleNewDocument = async () => {
     try {
@@ -21,30 +57,47 @@ export function Sidebar() {
       const tabId = `tab-${doc.id}`
       openTab({ id: tabId, documentId: doc.id, title: doc.title })
       setActiveTab(tabId)
+      navigate(`/doc/${doc.slug}`)
+      if (isMobile) setMobileSidebarOpen(false)
     } catch (err) {
       console.error('Failed to create document:', err)
     }
   }
 
-  const handleNewFolder = async () => {
-    const name = window.prompt('Folder name:')
-    if (!name?.trim()) return
+  const handleNewFolder = async (name: string) => {
     try {
-      await createFolder.mutateAsync({ name: name.trim() })
+      await createFolder.mutateAsync({ name })
     } catch (err) {
       console.error('Failed to create folder:', err)
     }
   }
 
-  if (sidebarCollapsed) {
+  const handleOpenDoc = (doc: { id: string; title: string; slug: string }) => {
+    const tabId = `tab-${doc.id}`
+    openTab({ id: tabId, documentId: doc.id, title: doc.title })
+    setActiveTab(tabId)
+    navigate(`/doc/${doc.slug}`)
+    if (isMobile) setMobileSidebarOpen(false)
+  }
+
+  // On desktop, show collapsed state
+  if (!isMobile && sidebarCollapsed) {
     return (
-      <div className="flex w-10 flex-col items-center border-r border-neutral-800 bg-neutral-900 py-3">
+      <div
+        className={cn(
+          'flex w-10 flex-col items-center border-r py-3',
+          isDark ? 'border-white/[0.06] bg-surface-1' : 'border-neutral-200 bg-white',
+        )}
+      >
         <button
           onClick={() => setSidebarCollapsed(false)}
-          className="rounded p-1 text-neutral-400 hover:text-neutral-100"
+          className={cn(
+            'cursor-pointer rounded-md p-1.5',
+            isDark ? 'text-neutral-500 hover:bg-surface-3 hover:text-neutral-300' : 'text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700',
+          )}
           title="Expand sidebar"
         >
-          <ChevronLeft className="h-4 w-4 rotate-180" />
+          <PanelLeft className="h-4 w-4" />
         </button>
       </div>
     )
@@ -53,38 +106,65 @@ export function Sidebar() {
   return (
     <div
       className={cn(
-        'flex w-[260px] shrink-0 flex-col border-r border-neutral-800',
-        theme === 'dark' ? 'bg-neutral-900' : 'bg-neutral-50',
+        'flex h-full shrink-0 flex-col border-r',
+        isMobile ? 'w-full' : 'w-[260px]',
+        isDark ? 'border-white/[0.06] bg-surface-1' : 'border-neutral-200 bg-white',
       )}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-3 border-b border-neutral-800">
-        <span className={cn('text-sm font-semibold', theme === 'dark' ? 'text-neutral-100' : 'text-neutral-900')}>
-          AgentWiki
-        </span>
-        <button
-          onClick={() => setSidebarCollapsed(true)}
-          className="rounded p-1 text-neutral-400 hover:text-neutral-100"
-          title="Collapse sidebar"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
+      <div
+        className={cn(
+          'flex items-center justify-between px-3 py-3 border-b',
+          isDark ? 'border-white/[0.06]' : 'border-neutral-200',
+        )}
+      >
+        <div className="flex items-center gap-2">
+          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-brand-500 to-brand-700">
+            <span className="text-[10px] font-bold text-white">A</span>
+          </div>
+          <span className={cn('text-sm font-semibold tracking-tight', isDark ? 'text-neutral-100' : 'text-neutral-900')}>
+            AgentWiki
+          </span>
+        </div>
+        {isMobile ? (
+          <button
+            onClick={() => setMobileSidebarOpen(false)}
+            className={cn(
+              'rounded-lg p-2',
+              isDark ? 'text-neutral-500 active:bg-surface-3' : 'text-neutral-400 active:bg-neutral-100',
+            )}
+            aria-label="Close sidebar"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        ) : (
+          <button
+            onClick={() => setSidebarCollapsed(true)}
+            className={cn(
+              'cursor-pointer rounded-md p-1',
+              isDark ? 'text-neutral-500 hover:bg-surface-3 hover:text-neutral-300' : 'text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700',
+            )}
+            title="Collapse sidebar"
+          >
+            <PanelLeftClose className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {/* Search */}
       <div className="px-2 py-2">
         <div className="relative">
-          <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-500" />
+          <Search className={cn('absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2', isDark ? 'text-neutral-500' : 'text-neutral-400')} />
           <input
             type="text"
             placeholder="Search documents..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className={cn(
-              'w-full rounded-md border py-1.5 pl-7 pr-3 text-xs outline-none focus:ring-1 focus:ring-blue-500',
-              theme === 'dark'
-                ? 'border-neutral-700 bg-neutral-800 text-neutral-100 placeholder-neutral-500'
-                : 'border-neutral-300 bg-white text-neutral-900 placeholder-neutral-400',
+              'w-full rounded-lg border py-2 pl-8 pr-3 text-base outline-none md:py-1.5 md:text-xs',
+              isDark
+                ? 'border-white/[0.06] bg-surface-2 text-neutral-200 placeholder-neutral-500 focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/30'
+                : 'border-neutral-200 bg-neutral-50 text-neutral-900 placeholder-neutral-400 focus:border-brand-500 focus:ring-1 focus:ring-brand-500/30',
             )}
           />
         </div>
@@ -95,38 +175,197 @@ export function Sidebar() {
         <button
           onClick={handleNewDocument}
           disabled={createDocument.isPending}
-          className="flex flex-1 items-center gap-1.5 rounded px-2 py-1.5 text-xs text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100"
+          className={cn(
+            'flex flex-1 items-center gap-1.5 rounded-lg px-2 py-2.5 text-sm font-medium md:py-1.5 md:text-xs',
+            isDark
+              ? 'text-neutral-400 hover:bg-surface-3 hover:text-neutral-200 active:bg-surface-3'
+              : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800 active:bg-neutral-100',
+          )}
         >
-          <Plus className="h-3.5 w-3.5" />
+          <Plus className="h-4 w-4 md:h-3.5 md:w-3.5" />
           New doc
         </button>
         <button
-          onClick={handleNewFolder}
+          onClick={() => setFolderModalOpen(true)}
           disabled={createFolder.isPending}
-          className="flex items-center gap-1.5 rounded px-2 py-1.5 text-xs text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100"
+          className={cn(
+            'flex items-center gap-1.5 rounded-lg px-2 py-2.5 text-sm md:py-1.5 md:text-xs',
+            isDark
+              ? 'text-neutral-400 hover:bg-surface-3 hover:text-neutral-200 active:bg-surface-3'
+              : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800 active:bg-neutral-100',
+          )}
         >
-          <FolderPlus className="h-3.5 w-3.5" />
+          <FolderPlus className="h-4 w-4 md:h-3.5 md:w-3.5" />
         </button>
-      </div>
-
-      {/* Folder tree */}
-      <div className="flex-1 overflow-y-auto px-1 py-1">
-        <FolderTree searchQuery={search} />
-      </div>
-
-      {/* Footer: theme toggle */}
-      <div className="flex items-center justify-between border-t border-neutral-800 px-3 py-2">
-        <span className="text-xs text-neutral-500">
-          {theme === 'dark' ? 'Dark' : 'Light'} mode
-        </span>
         <button
-          onClick={toggleTheme}
-          className="rounded p-1 text-neutral-400 hover:text-neutral-100"
-          title="Toggle theme"
+          onClick={() => { setShowBrowse((v) => !v); if (showBrowse) setBrowseFilter(null) }}
+          className={cn(
+            'flex items-center gap-1.5 rounded-lg px-2 py-2.5 text-sm md:py-1.5 md:text-xs',
+            showBrowse
+              ? 'bg-brand-600 text-white'
+              : isDark
+                ? 'text-neutral-400 hover:bg-surface-3 hover:text-neutral-200 active:bg-surface-3'
+                : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800 active:bg-neutral-100',
+          )}
+          title="Browse by tags/categories"
         >
-          {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          <Filter className="h-4 w-4 md:h-3.5 md:w-3.5" />
         </button>
       </div>
+
+      {/* Browse panel */}
+      {showBrowse && (
+        <div className={cn('border-b pb-2', isDark ? 'border-white/[0.06]' : 'border-neutral-200')}>
+          <BrowsePanel
+            activeFilter={browseFilter}
+            onSelectFilter={setBrowseFilter}
+            onClearFilter={() => setBrowseFilter(null)}
+          />
+        </div>
+      )}
+
+      {/* Sort controls */}
+      {!browseFilter && (
+        <SortControls mode={sortMode} direction={sortDirection} onChange={setSortPref} />
+      )}
+
+      {/* Recent modifications */}
+      {!browseFilter && !search && (
+        <RecentDocuments onDocumentOpen={isMobile ? () => setMobileSidebarOpen(false) : undefined} />
+      )}
+
+      {/* Folder tree or filtered results */}
+      <div className="flex-1 overflow-y-auto px-1 py-1">
+        {browseFilter ? (
+          <div className="space-y-0.5">
+            {(filteredData?.data ?? []).map((doc) => (
+              <div
+                key={doc.id}
+                className={cn(
+                  'flex items-center gap-2 rounded-lg px-2 py-2.5 text-sm md:py-1 md:text-xs',
+                  isDark
+                    ? 'text-neutral-400 hover:bg-surface-3 hover:text-neutral-200 active:bg-surface-3'
+                    : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800 active:bg-neutral-100',
+                )}
+                onClick={() => handleOpenDoc(doc)}
+              >
+                <FileText className="h-4 w-4 shrink-0 text-neutral-500 md:h-3.5 md:w-3.5" />
+                <span className="truncate">{doc.title}</span>
+              </div>
+            ))}
+            {(filteredData?.data ?? []).length === 0 && (
+              <p className={cn('px-2 py-4 text-center text-xs', isDark ? 'text-neutral-600' : 'text-neutral-400')}>
+                No documents found
+              </p>
+            )}
+          </div>
+        ) : (
+          <ErrorBoundary onReset={handleErrorReset}>
+            <FolderTree
+              searchQuery={search}
+              sortMode={sortMode}
+              sortDirection={sortDirection}
+              onDocumentOpen={isMobile ? () => setMobileSidebarOpen(false) : undefined}
+            />
+          </ErrorBoundary>
+        )}
+      </div>
+
+      {/* Storage + Graph buttons */}
+      <div className={cn('border-t px-2 py-1.5 space-y-0.5', isDark ? 'border-white/[0.06]' : 'border-neutral-200')}>
+        <button
+          onClick={toggleStorageDrawer}
+          className={cn(
+            'flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm md:py-1.5 md:text-xs',
+            isDark
+              ? 'text-neutral-400 hover:bg-surface-3 hover:text-neutral-200'
+              : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800',
+          )}
+        >
+          <HardDrive className="h-4 w-4 md:h-3.5 md:w-3.5" />
+          Storage
+        </button>
+        <button
+          onClick={() => { navigate('/graph'); if (isMobile) setMobileSidebarOpen(false) }}
+          className={cn(
+            'flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm md:py-1.5 md:text-xs',
+            isDark
+              ? 'text-neutral-400 hover:bg-surface-3 hover:text-neutral-200'
+              : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800',
+          )}
+        >
+          <Network className="h-4 w-4 md:h-3.5 md:w-3.5" />
+          Knowledge Graph
+        </button>
+      </div>
+
+      {/* Footer: user menu + theme toggle */}
+      <div
+        className={cn(
+          'flex items-center justify-between border-t px-3 py-2',
+          isDark ? 'border-white/[0.06]' : 'border-neutral-200',
+        )}
+      >
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { navigate('/profile'); if (isMobile) setMobileSidebarOpen(false) }}
+            className={cn(
+              'flex items-center gap-1.5 rounded-md p-2 md:p-1',
+              isDark ? 'text-neutral-500 hover:bg-surface-3 hover:text-neutral-300 active:bg-surface-3' : 'text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 active:bg-neutral-100',
+            )}
+            title="Profile"
+          >
+            {user?.avatarUrl ? (
+              <img src={user.avatarUrl} alt="" className="h-5 w-5 rounded-full" />
+            ) : (
+              <User className="h-5 w-5 md:h-4 md:w-4" />
+            )}
+          </button>
+          <button
+            onClick={() => { navigate('/settings'); if (isMobile) setMobileSidebarOpen(false) }}
+            className={cn(
+              'rounded-md p-2 md:p-1',
+              isDark ? 'text-neutral-500 hover:bg-surface-3 hover:text-neutral-300 active:bg-surface-3' : 'text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 active:bg-neutral-100',
+            )}
+            title="Settings"
+          >
+            <Settings className="h-5 w-5 md:h-4 md:w-4" />
+          </button>
+          <button
+            onClick={() => setMcpModalOpen(true)}
+            className={cn(
+              'rounded-md p-2 md:p-1',
+              isDark ? 'text-neutral-500 hover:bg-surface-3 hover:text-neutral-300 active:bg-surface-3' : 'text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 active:bg-neutral-100',
+            )}
+            title="MCP Connection Guide"
+          >
+            <Plug className="h-5 w-5 md:h-4 md:w-4" />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <span className={cn('text-xs', isDark ? 'text-neutral-500' : 'text-neutral-400')}>
+            {isDark ? 'Dark' : 'Light'}
+          </span>
+          <button
+            onClick={toggleTheme}
+            className={cn(
+              'rounded-md p-2 md:p-1',
+              isDark ? 'text-neutral-500 hover:bg-surface-3 hover:text-neutral-300 active:bg-surface-3' : 'text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 active:bg-neutral-100',
+            )}
+            title="Toggle theme"
+          >
+            {isDark ? <Sun className="h-5 w-5 md:h-4 md:w-4" /> : <Moon className="h-5 w-5 md:h-4 md:w-4" />}
+          </button>
+        </div>
+      </div>
+
+      <CreateFolderModal
+        open={folderModalOpen}
+        onClose={() => setFolderModalOpen(false)}
+        onSubmit={handleNewFolder}
+      />
+      <McpGuideModal open={mcpModalOpen} onClose={() => setMcpModalOpen(false)} />
     </div>
   )
 }

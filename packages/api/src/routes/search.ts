@@ -1,32 +1,166 @@
-/** Search routes — hybrid keyword + semantic */
+/** Search routes — hybrid trigram + semantic, faceted filtering, autocomplete suggestions */
 
 import { Hono } from 'hono'
-import { searchDocuments } from '../services/search-service'
+import { eq, and, isNull } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/d1'
+import { documents } from '../db/schema'
+import { searchDocuments, getFacetCounts, type SearchSource } from '../services/search-service'
+import { getSuggestions, recordSearchHistory } from '../services/suggest-service'
+import { recordSearch, recordClick } from '../services/analytics-service'
 import { authGuard } from '../middleware/auth-guard'
+import { requirePermission } from '../middleware/require-permission'
 import { rateLimiter } from '../middleware/rate-limiter'
 import { RATE_LIMITS } from '@agentwiki/shared'
 import type { Env } from '../env'
-import type { AuthContext } from '@agentwiki/shared'
+import type { AuthContext, SearchFilters, SearchClickEvent } from '@agentwiki/shared'
 
 type AuthEnv = { Bindings: Env; Variables: { auth: AuthContext } }
 
 const searchRouter = new Hono<AuthEnv>()
 searchRouter.use('*', authGuard)
-searchRouter.use('*', rateLimiter(RATE_LIMITS.search))
 
-// Search documents
-searchRouter.get('/', async (c) => {
+// Search documents with optional faceted filtering
+// Applies stricter rate limit when expand=true (AI cost surface)
+searchRouter.get(
+  '/',
+  rateLimiter(RATE_LIMITS.search), // base rate limit for all search requests
+  async (c) => {
+    const { tenantId } = c.get('auth')
+    const query = c.req.query('q')
+    if (!query) return c.json({ error: 'Query parameter "q" is required' }, 400)
+
+    const type = (c.req.query('type') ?? 'hybrid') as 'hybrid' | 'keyword' | 'semantic'
+    const limit = Math.min(50, parseInt(c.req.query('limit') ?? '10', 10))
+    const rawSource = c.req.query('source') ?? 'docs'
+    const source: SearchSource = ['docs', 'storage', 'all'].includes(rawSource) ? rawSource as SearchSource : 'docs'
+    const includeFacets = c.req.query('facets') === 'true'
+
+    // Parse filter params
+    const filters: SearchFilters = {
+      category: c.req.query('category') || undefined,
+      tags: c.req.queries('tags[]')?.filter(Boolean) || undefined,
+      dateFrom: c.req.query('dateFrom') || undefined,
+      dateTo: c.req.query('dateTo') || undefined,
+    }
+
+    const debug = c.req.query('debug') === 'true'
+    const expand = c.req.query('expand') === 'true' // UI default: off, opt-in
+    const rawKwSource = c.req.query('keyword-source')
+    const keywordSource = rawKwSource === 'fts5' || rawKwSource === 'trigram' ? rawKwSource : undefined
+
+    // Enforce stricter rate limit for expand=true (AI cost surface: 10 req/min)
+    // NOTE: KV get+put is non-atomic — concurrent requests can race past the limit.
+    // Acceptable at 10 req/min; if limit is tightened, consider a Durable Object counter.
+    if (expand) {
+      const ip = c.req.header('CF-Connecting-IP') ?? 'unknown'
+      const userId = c.get('auth').userId ?? ip
+      const window = Math.floor(Date.now() / (RATE_LIMITS.searchExpand.windowSec * 1000))
+      const expandKey = `rl:expand:${userId}:${window}`
+      const count = parseInt((await c.env.KV.get(expandKey)) ?? '0', 10)
+      if (count >= RATE_LIMITS.searchExpand.limit) {
+        return c.json({ error: 'Query expansion rate limit exceeded' }, 429)
+      }
+      c.executionCtx.waitUntil(
+        c.env.KV.put(expandKey, String(count + 1), { expirationTtl: RATE_LIMITS.searchExpand.windowSec * 2 }),
+      )
+    }
+
+    // Run search + facets in parallel when requested
+    const [searchResult, facets] = await Promise.all([
+      searchDocuments(c.env, { tenantId, query, type, limit, filters, source, debug, expand, keywordSource }),
+      includeFacets ? getFacetCounts(c.env, tenantId) : undefined,
+    ])
+
+    // Record search history + analytics async (fire-and-forget)
+    const searchId = crypto.randomUUID()
+    c.executionCtx.waitUntil(
+      Promise.all([
+        recordSearchHistory(c.env, tenantId, query, searchResult.results.length),
+        recordSearch(c.env, searchId, tenantId, query, type, searchResult.results.length),
+      ]),
+    )
+
+    return c.json({
+      results: searchResult.results,
+      facets,
+      query,
+      type,
+      searchId,
+      ...(debug ? { debug: searchResult.debug } : {}),
+    })
+  },
+)
+
+// Autocomplete suggestions
+searchRouter.get(
+  '/suggest',
+  rateLimiter(RATE_LIMITS.suggest),
+  async (c) => {
+    const { tenantId } = c.get('auth')
+    const query = c.req.query('q')
+    if (!query || query.length < 1) {
+      return c.json({ suggestions: [], query: '' })
+    }
+
+    const limit = Math.min(10, parseInt(c.req.query('limit') ?? '7', 10))
+    const suggestions = await getSuggestions(c.env, tenantId, query, limit)
+
+    return c.json({ suggestions, query })
+  },
+)
+
+// Record search result click
+searchRouter.post(
+  '/track',
+  rateLimiter(RATE_LIMITS.api),
+  async (c) => {
+    const { tenantId } = c.get('auth')
+    const body = await c.req.json<SearchClickEvent>()
+    if (!body.searchId || !body.documentId) {
+      return c.json({ error: 'searchId and documentId required' }, 400)
+    }
+
+    c.executionCtx.waitUntil(
+      recordClick(c.env, tenantId, body.searchId, body.documentId, body.position),
+    )
+
+    return c.json({ ok: true })
+  },
+)
+
+// Backfill search indexes (trigram + FTS5 + embeddings + summaries) for tenant documents (admin only)
+// Paginated: processes up to 500 docs per call, returns nextOffset if more remain
+searchRouter.post('/backfill-index', requirePermission('tenant:manage'), async (c) => {
   const { tenantId } = c.get('auth')
-  const query = c.req.query('q')
-  if (!query) return c.json({ error: 'Query parameter "q" is required' }, 400)
+  const db = drizzle(c.env.DB)
+  const BATCH_SIZE = 500
+  const offset = Math.max(0, parseInt(c.req.query('offset') ?? '0', 10))
 
-  const type = (c.req.query('type') ?? 'hybrid') as 'hybrid' | 'keyword' | 'semantic'
-  const limit = Math.min(50, parseInt(c.req.query('limit') ?? '10', 10))
-  const category = c.req.query('category')
+  const docs = await db
+    .select({ id: documents.id })
+    .from(documents)
+    .where(and(eq(documents.tenantId, tenantId), isNull(documents.deletedAt)))
+    .limit(BATCH_SIZE + 1)
+    .offset(offset)
 
-  const results = await searchDocuments(c.env, { tenantId, query, type, limit, category })
+  const hasMore = docs.length > BATCH_SIZE
+  const batch = hasMore ? docs.slice(0, BATCH_SIZE) : docs
 
-  return c.json({ results, query, type })
+  // Enqueue full pipeline per document:
+  // generate-summary → indexFTS5Job + embedDocumentJob (chained internally)
+  // index-trigrams runs independently (no summary dependency)
+  for (const doc of batch) {
+    try { await c.env.QUEUE.send({ type: 'generate-summary', documentId: doc.id, tenantId }) } catch { /* */ }
+    try { await c.env.QUEUE.send({ type: 'index-trigrams', documentId: doc.id, tenantId }) } catch { /* */ }
+  }
+
+  return c.json({
+    ok: true,
+    indexed: batch.length,
+    offset,
+    nextOffset: hasMore ? offset + BATCH_SIZE : null,
+    hasMore,
+  })
 })
 
 export { searchRouter }

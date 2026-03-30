@@ -3,6 +3,14 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+export interface UploadQueueItem {
+  id: string
+  file: File
+  progress: number // 0-100
+  status: 'queued' | 'uploading' | 'complete' | 'error'
+  error?: string
+}
+
 export interface Tab {
   id: string
   documentId: string
@@ -25,6 +33,34 @@ interface AppState {
   metadataPanelCollapsed: boolean
   setSidebarCollapsed: (collapsed: boolean) => void
   setMetadataPanelCollapsed: (collapsed: boolean) => void
+
+  // Mobile drawer state
+  mobileSidebarOpen: boolean
+  mobileMetadataOpen: boolean
+  setMobileSidebarOpen: (open: boolean) => void
+  setMobileMetadataOpen: (open: boolean) => void
+
+  // Command palette
+  commandPaletteOpen: boolean
+  setCommandPaletteOpen: (open: boolean) => void
+  toggleCommandPalette: () => void
+
+  // Storage drawer
+  storageDrawerOpen: boolean
+  setStorageDrawerOpen: (open: boolean) => void
+  toggleStorageDrawer: () => void
+
+  // Upload queue (for progress tracking)
+  uploadQueue: UploadQueueItem[]
+  addToUploadQueue: (items: Array<{ id: string; file: File }>) => void
+  updateUploadProgress: (id: string, progress: number) => void
+  updateUploadStatus: (id: string, status: UploadQueueItem['status'], error?: string) => void
+  removeFromUploadQueue: (id: string) => void
+
+  // Folder expanded state (persisted across refreshes)
+  expandedFolderIds: string[]
+  toggleFolderExpanded: (folderId: string) => void
+  setFolderExpanded: (folderId: string, expanded: boolean) => void
 
   // Theme
   theme: 'dark' | 'light'
@@ -87,6 +123,62 @@ export const useAppStore = create<AppState>()(
       setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
       setMetadataPanelCollapsed: (collapsed) => set({ metadataPanelCollapsed: collapsed }),
 
+      // Mobile drawers
+      mobileSidebarOpen: false,
+      mobileMetadataOpen: false,
+      setMobileSidebarOpen: (open) => set({ mobileSidebarOpen: open, mobileMetadataOpen: false }),
+      setMobileMetadataOpen: (open) => set({ mobileMetadataOpen: open, mobileSidebarOpen: false }),
+
+      // Command palette
+      commandPaletteOpen: false,
+      setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
+      toggleCommandPalette: () => set((s) => ({ commandPaletteOpen: !s.commandPaletteOpen })),
+
+      // Storage drawer
+      storageDrawerOpen: false,
+      setStorageDrawerOpen: (open) => set({ storageDrawerOpen: open }),
+      toggleStorageDrawer: () => set((s) => ({ storageDrawerOpen: !s.storageDrawerOpen })),
+
+      // Upload queue
+      uploadQueue: [],
+      addToUploadQueue: (items) => set((s) => ({
+        uploadQueue: [
+          ...s.uploadQueue,
+          ...items.map(({ id, file }) => ({
+            id,
+            file,
+            progress: 0,
+            status: 'queued' as const,
+          })),
+        ],
+      })),
+      updateUploadProgress: (id, progress) => set((s) => ({
+        uploadQueue: s.uploadQueue.map((u) => u.id === id ? { ...u, progress } : u),
+      })),
+      updateUploadStatus: (id, status, error) => set((s) => ({
+        uploadQueue: s.uploadQueue.map((u) => u.id === id ? { ...u, status, error } : u),
+      })),
+      removeFromUploadQueue: (id) => set((s) => ({
+        uploadQueue: s.uploadQueue.filter((u) => u.id !== id),
+      })),
+
+      // Folder expanded state
+      expandedFolderIds: [],
+      toggleFolderExpanded: (folderId) =>
+        set((s) => ({
+          expandedFolderIds: s.expandedFolderIds.includes(folderId)
+            ? s.expandedFolderIds.filter((id) => id !== folderId)
+            : [...s.expandedFolderIds, folderId],
+        })),
+      setFolderExpanded: (folderId, expanded) =>
+        set((s) => ({
+          expandedFolderIds: expanded
+            ? s.expandedFolderIds.includes(folderId)
+              ? s.expandedFolderIds
+              : [...s.expandedFolderIds, folderId]
+            : s.expandedFolderIds.filter((id) => id !== folderId),
+        })),
+
       // Theme
       theme: 'dark',
       toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
@@ -96,6 +188,7 @@ export const useAppStore = create<AppState>()(
       partialize: (s) => ({
         sidebarCollapsed: s.sidebarCollapsed,
         metadataPanelCollapsed: s.metadataPanelCollapsed,
+        expandedFolderIds: s.expandedFolderIds,
         theme: s.theme,
       }),
     },

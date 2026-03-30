@@ -4,6 +4,7 @@ export interface Document {
   id: string
   tenantId: string
   folderId: string | null
+  position: string
   title: string
   slug: string
   content: string
@@ -15,6 +16,8 @@ export interface Document {
   updatedBy: string | null
   createdAt: Date
   updatedAt: Date
+  authorName?: string
+  authorAvatar?: string | null
 }
 
 export interface Folder {
@@ -23,7 +26,7 @@ export interface Folder {
   parentId: string | null
   name: string
   slug: string
-  position: number
+  positionIndex: string
   createdAt: Date
   updatedAt: Date
 }

@@ -11,6 +11,9 @@ interface ListDocumentsParams {
   category?: string
   page?: number
   limit?: number
+  sort?: string
+  order?: string
+  enabled?: boolean
 }
 
 interface PaginatedDocuments {
@@ -40,17 +43,21 @@ interface UpdateDocumentBody {
 }
 
 export function useDocuments(params: ListDocumentsParams = {}) {
+  const { enabled, ...queryParams } = params
   const search = new URLSearchParams()
-  if (params.folderId) search.set('folderId', params.folderId)
-  if (params.search) search.set('search', params.search)
-  if (params.tag) search.set('tag', params.tag)
-  if (params.category) search.set('category', params.category)
-  if (params.page) search.set('page', String(params.page))
-  if (params.limit) search.set('limit', String(params.limit))
+  if (queryParams.folderId) search.set('folderId', queryParams.folderId)
+  if (queryParams.search) search.set('search', queryParams.search)
+  if (queryParams.tag) search.set('tag', queryParams.tag)
+  if (queryParams.category) search.set('category', queryParams.category)
+  if (queryParams.page) search.set('page', String(queryParams.page))
+  if (queryParams.limit) search.set('limit', String(queryParams.limit))
+  if (queryParams.sort) search.set('sort', queryParams.sort)
+  if (queryParams.order) search.set('order', queryParams.order)
 
   return useQuery<PaginatedDocuments>({
-    queryKey: ['documents', params],
+    queryKey: ['documents', queryParams],
     queryFn: () => apiClient.get<PaginatedDocuments>(`/api/documents?${search}`),
+    enabled: enabled ?? true,
   })
 }
 
@@ -59,6 +66,14 @@ export function useDocument(id: string | null) {
     queryKey: ['documents', id],
     queryFn: () => apiClient.get<Document>(`/api/documents/${id}`),
     enabled: !!id,
+  })
+}
+
+export function useDocumentBySlug(slug: string | undefined) {
+  return useQuery<Document>({
+    queryKey: ['documents', 'by-slug', slug],
+    queryFn: () => apiClient.get<Document>(`/api/documents/by-slug/${slug}`),
+    enabled: !!slug,
   })
 }
 
@@ -74,7 +89,10 @@ export function useCreateDocument() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (body: CreateDocumentBody) => apiClient.post<Document>('/api/documents', body),
-    onSuccess: () => {
+    onSuccess: (doc) => {
+      // Cache the newly created document so subsequent useDocument(id) hits cache
+      // instead of firing a GET that may 404 due to D1 eventual consistency
+      qc.setQueryData(['documents', doc.id], doc)
       qc.invalidateQueries({ queryKey: ['documents'] })
     },
   })

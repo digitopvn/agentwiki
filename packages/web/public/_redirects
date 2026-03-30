@@ -1,0 +1,2 @@
+# Catch-all: redirect all API requests to the API worker (302 for backward compat)
+/api/* https://api.agentwiki.cc/api/:splat 302

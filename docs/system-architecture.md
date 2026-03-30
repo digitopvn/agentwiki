@@ -8,7 +8,7 @@ Comprehensive architecture documentation covering layers, data flow, deployment 
 ┌─────────────────────────────────────────────────────────────┐
 │                        Frontend Layer                       │
 │        React 19 + BlockNote + TailwindCSS v4               │
-│      Cloudflare Pages (cdn.agentwiki.cc)                   │
+│      Cloudflare Pages (app.agentwiki.cc)                   │
 └────────────────────────┬────────────────────────────────────┘
                          │ HTTPS REST API
                          │
@@ -22,31 +22,49 @@ Comprehensive architecture documentation covering layers, data flow, deployment 
 │  └──────────────────────────────────────────────────────┘  │
 └────────────────────────┬────────────────────────────────────┘
                          │
-        ┌────────────────┼────────────────┐
-        │                │                │
-    ┌───▼──┐         ┌───▼──┐        ┌───▼──┐
-    │  D1  │         │  R2  │        │  KV  │
-    │(SQL) │         │Files │        │Cache │
-    └──────┘         └──────┘        └──────┘
+     ┌──────────────────┼──────────────────┐
+     │                  │                  │
+┌────▼──────────────┐   │          ┌───────▼────────────┐
+│   MCP Server      │   │          │   Shared Bindings  │
+│ Cloudflare Worker │   │          │  (D1, R2, KV, AI)  │
+│ (mcp.agentwiki.cc)    │          │                    │
+│ ┌────────────────┐    │          └────────────────────┘
+│ │ 25 Tools       │    │
+│ │ 6 Resources    │    │
+│ │ 4 Prompts      │    │
+│ │ Auth: API Keys │    │
+│ └────────────────┘    │
+└──────────────────────┘│
+                        │
+        ┌───────────────┼───────────────┐
+        │               │               │
+    ┌───▼──┐        ┌───▼──┐      ┌───▼────────┐
+    │  D1  │        │  R2  │      │ Workers AI │
+    │(SQL) │        │Files │      │+ Vectorize │
+    └──────┘        └──────┘      └────────────┘
         │
-        └──────────────┬──────────────┐
-                       │              │
-                   ┌───▼──┐      ┌───▼────────┐
-                   │Queue │      │ Workers AI │
-                   └──────┘      │+ Vectorize │
-                                 └────────────┘
+    ┌───▼──┐
+    │  KV  │
+    │Cache │
+    └──────┘
+        │
+    ┌───▼────┐
+    │ Queue  │
+    └────────┘
 ```
 
 ## Layered Architecture
 
 ### 1. Presentation Layer (Frontend)
 
-**Technology**: React 19, Vite, TailwindCSS v4, BlockNote
+**Technology**: React 19, Vite, TailwindCSS v4, BlockNote, @dnd-kit (DnD), fractional-indexing
 
 **Responsibilities**:
 - User authentication UI (OAuth login page)
 - Document editor (BlockNote WYSIWYG)
-- Folder tree navigation
+- Folder tree navigation (with drag-and-drop sorting)
+- Sort controls: Manual (DnD), By Name, By Date Modified
+- Recent modifications section
 - Search interface (Cmd+K command palette)
 - Settings & API key management
 - Document sharing & publishing
@@ -96,7 +114,7 @@ Route Handler
 Response (JSON)
 ```
 
-**Key Routes** (9 route groups, ~20 endpoints):
+**Key Routes** (11 route groups, ~23 endpoints):
 - `/api/auth` — OAuth, JWT refresh, logout
 - `/api/documents` — Full CRUD + versions
 - `/api/folders` — Tree operations
@@ -106,8 +124,113 @@ Response (JSON)
 - `/api/keys` — API key management
 - `/api/tags` — Tag enumeration
 - `/api/graph` — Document graph export
+- `/api/reorder` — DnD position updates (fractional indexing)
+- `/api/preferences` — User preferences (key-value)
 
-### 3. Service Layer
+### 3. MCP Server Layer (Agent Integration)
+
+**Technology**: Model Context Protocol (MCP) on Cloudflare Workers
+
+**Deployment**: `mcp.agentwiki.cc` (stateless HTTP)
+
+**Responsibilities**:
+- Expose AgentWiki capabilities via standardized MCP protocol
+- Enable AI agents to manage documents, search, and collaborate
+- Provide 25 MCP tools covering core operations
+- Offer 6 context resources for multi-step AI workflows
+- Supply 4 system prompts for consistent agent behavior
+
+**Authentication**:
+- API keys (format: `aw_*`) via header, Bearer token, or query param
+- PBKDF2 hashing with scope-based RBAC (same as REST API)
+- Key validation against `api_keys` table
+
+**Direct Bindings**:
+- Shares same D1, R2, KV, Vectorize, Queue, and AI bindings as REST API
+- Code reuse: Imports services from `packages/api`
+
+**Tool Categories** (25 tools):
+
+| Category | Count | Examples |
+|----------|-------|----------|
+| Documents | 7 | create, read, update, delete, list, get versions, extract links |
+| Search & Graph | 4 | keyword search, semantic search, get graph, analyze relationships |
+| Folders | 4 | create, move, list, delete |
+| Tags | 2 | add tag, list tags |
+| Uploads | 2 | upload file, delete upload |
+| Members | 2 | invite user, list members |
+| API Keys | 2 | create key, revoke key |
+| Sharing | 2 | create share link, revoke share link |
+
+**Resources** (6 total):
+- Document contents (full markdown)
+- Search results (snippets + metadata)
+- Folder structure (tree view)
+- Member list (team info)
+- API key metadata (for audit)
+- Share link status
+
+**Prompts** (4 system prompts):
+- Wiki writer (document creation)
+- Research assistant (search + analysis)
+- Team coordinator (member management)
+- Knowledge architect (graph analysis)
+
+**Request Format**:
+```
+POST /mcp/message HTTP/1.1
+Host: mcp.agentwiki.cc
+Authorization: Bearer aw_key_xxxxx
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "create_document",
+    "arguments": { "title": "...", "content": "..." }
+  }
+}
+```
+
+### 3.5. Knowledge Graph Layer
+
+**Technology**: Typed edges in D1 + Vectorize similarity + MCP tools
+
+**Architecture**: Dual-layer graph with explicit (typed wikilinks & markdown links) and implicit (semantic similarity) edges:
+- **Layer 1 (Explicit)**: `document_links` table with 6 edge types (relates-to, depends-on, extends, references, contradicts, implements)
+  - **Source 1**: Wikilinks `[[target|type:edge-type]]` — regex-extracted, support full type annotations
+  - **Source 2**: Markdown links `[text](/doc/slug)` — regex-extracted, always `relates-to` type
+  - **Extraction**: Automatic on document create/update; manual via `POST /api/graph/backfill-edges` (admin)
+- **Layer 2 (Implicit)**: `document_similarities` table caching top-5 semantic neighbors via Vectorize (default enabled)
+- **Traversal**: BFS in-memory for neighbors, subgraph, shortest path queries
+- **Auto-organization**: Queue jobs infer edge types via Workers AI (>80% accuracy target)
+
+**Services**:
+- `graph-service.ts`: Full graph queries, traversal (neighbors, subgraph, paths), analytics
+- `similarity-service.ts`: Vectorize integration, cache management, on-demand similarity queries
+
+**API Endpoints** (8 total):
+- `GET /api/graph` — Full graph with typed edges, optional implicit merging
+- `GET /api/graph/neighbors/:id` — N-hop neighborhood traversal
+- `GET /api/graph/subgraph/:id` — Ego network extraction
+- `GET /api/graph/path/:from/:to` — Shortest path via BFS
+- `GET /api/graph/stats` — Node/edge counts, density, orphan detection
+- `GET /api/graph/similar/:id` — On-demand semantic similarity
+- `GET /api/graph/suggest-links/:id` — AI-recommended missing links
+- `POST /api/graph/backfill-edges` — Re-extract edges from all documents (admin only)
+
+**MCP Tools** (6 tools for AI agents):
+- `graph_get` — Full graph with filters
+- `graph_traverse` — Multi-hop traversal with edge type filter
+- `graph_find_path` — Shortest path reasoning
+- `graph_clusters` — Topic clustering via similarity
+- `graph_suggest_links` — Link recommendations
+- `graph_explain_connection` — Natural language relationship explanation
+
+**Frontend**: `/graph` page with Cytoscape.js visualization, edge-type styling, AI insight panel showing clusters/suggestions.
+
+### 4. Service Layer
 
 **Responsibilities**:
 - Pure business logic (no HTTP concerns)
@@ -126,19 +249,39 @@ Response (JSON)
 #### DocumentService
 - CRUD operations
 - Version history tracking
-- Wikilink extraction
+- Link extraction (`syncWikilinks()`) — combines wikilinks + markdown links
 - Category/tag association
 
 #### SearchService
-- Keyword search via D1 FTS
-- Semantic search via Vectorize
-- Reciprocal Rank Fusion (RRF) combining results
-- Caching recent searches in KV
+- Keyword search via D1 FTS or trigram (configurable)
+- Semantic search via Vectorize (smart markdown chunking with heading chains)
+- Position-aware Reciprocal Rank Fusion (RRF) with signal weighting
+  - Keyword/semantic/default signal types with top-rank bonus
+  - Inverted position weighting for tail results (semantic favored)
+- KV search caching (5-min TTL, skipped with `?debug=true`)
+- Parallel AI query expansion via tenant provider (Promise.all for latency optimization)
+- Folder context enrichment in result metadata
+- Search debug mode (`?debug=true`) returns timing, cache status, expansion count
 
 #### EmbeddingService
 - Query vectorization (bge-base-en)
-- Batch document embedding
+- Batch document embedding with content hash skip (SHA-256 check)
+- Smart markdown chunking (2000→1200 char blocks, heading chain metadata)
 - Vectorize API integration
+- Overlap guard prevents infinite loops
+
+#### QueryExpansionService (NEW)
+- AI-powered synonym generation via tenant's configured provider
+- 1-hour KV cache per tenant
+- System/user message separation for prompt injection defense
+- Configurable per channel (UI=off, MCP=on, API=off)
+
+#### Fts5SearchService (NEW)
+- BM25 keyword search via D1 FTS5 virtual table
+- Porter stemming + Unicode61 tokenizer
+- Query sanitization (strip `:`, balanced quotes, boolean ops)
+- Backfill indexing for existing documents
+- Ready for staged rollout (not yet wired as primary)
 
 #### UploadService
 - R2 presigned URL generation
@@ -150,7 +293,7 @@ Response (JSON)
 - Expiration tracking
 - Public access validation
 
-### 4. Data Access Layer (Drizzle ORM)
+### 5. Data Access Layer (Drizzle ORM)
 
 **Technology**: Drizzle ORM on Cloudflare D1 (SQLite)
 
@@ -176,7 +319,7 @@ await db.transaction(async (tx) => {
 })
 ```
 
-### 5. Data Storage Layer
+### 6. Data Storage Layer
 
 #### D1 (SQLite Database)
 - **Multi-tenant schema**: All tables have `tenantId` column
@@ -241,47 +384,73 @@ await db.transaction(async (tx) => {
     - Updates document.summary field
 ```
 
-## Data Flow: Search Query
+## Data Flow: Search Query (Post-QMD Improvements)
 
 ```
 1. User types in search box
    ↓
 2. 300ms debounce delay
    ↓
-3. React Query fires GET /api/search?q=query&type=hybrid
+3. React Query fires GET /api/search?q=query&type=hybrid[&debug=true][&expand=true]
    ↓
 4. SearchService.searchDocuments() called
-   ├─ Check KV cache (searchCache key)
-   │  ├─ Hit: return cached results
-   │  └─ Miss: continue to step 5
+   ├─ Check KV cache (deterministic key: search:{tenantId}:{query})
+   │  ├─ Hit (and not debug=true): return cached results with cache:hit metadata
+   │  └─ Miss or debug=true: continue to step 5
    ↓
-5. Parallel execution:
-   ├─ Keyword search:
-   │  └─ SELECT * FROM documents WHERE tenantId=? AND (title LIKE ? OR content LIKE ?)
-   │     Returns: [{ id, title, slug, snippet }, ...]
+5. Parallel execution (Promise.all for latency optimization):
    │
-   └─ Semantic search:
-      └─ Call Vectorize.query(embeddedQuery, { limit: 20 })
-         Returns: [{ id, score }, ...] (pre-filtered by tenantId in Vectorize index)
+   ├─ Query Expansion (if enabled):
+   │  ├─ QueryExpansionService.expandQuery(query, tenantId)
+   │  ├─ Call tenant's configured AI provider (with prompt injection defense)
+   │  ├─ Cache result in KV (1-hour TTL per tenant)
+   │  └─ Returns: [expanded_queries, ...] or original if expansion disabled/failed
+   │
+   ├─ Keyword Search:
+   │  └─ SELECT * FROM documents WHERE tenantId=? AND (title LIKE ? OR content LIKE ?)
+   │     OR via FTS5: SELECT * FROM fts5_documents WHERE fts5_documents MATCH 'sanitized_query'
+   │     Returns: [{ id, title, slug, snippet, rank }, ...]
+   │
+   └─ Semantic Search:
+      ├─ Embed query via Vectorize (bge-base-en)
+      ├─ Check content hash of query (SHA-256) — skip if seen before (KV cache)
+      ├─ Call Vectorize.query(embeddedQuery, { limit: 20 })
+      └─ Returns: [{ id, score, heading_chain }, ...] (pre-filtered by tenantId, with smart chunks)
    ↓
-6. RRF (Reciprocal Rank Fusion) combines both result sets
-   - Assigns rank-based scores: 1 / (k + rank)
-   - Merges duplicate IDs, sums scores
-   - Sorts by total score descending
+6. Position-Aware RRF combines result sets
+   ├─ For top-3 results: keyword weight=75%, semantic weight=25%
+   ├─ For tail results: inverted weighting (semantic favored)
+   ├─ Apply signal type bonus: keyword/semantic/default
+   ├─ Merges duplicate IDs, sums scores
+   └─ Sorts by total score descending
    ↓
-7. Cache results in KV (1-hour TTL)
+7. Folder Context Enrichment (batch via Promise.all)
+   ├─ FolderContextResolver.buildHierarchy() for each result's folderId
+   ├─ 10-min KV cache per tenant
+   └─ Attach context: { folder: { name, hierarchy, description }, ... }
    ↓
-8. Return fused results to client
-   { results: [{ id, title, snippet, score }, ...], count, elapsed }
+8. Cache results in KV (5-min TTL for main results)
    ↓
-9. React renders search results with preview
+9. Build response with debug metadata (if ?debug=true)
+   ├─ elapsed: total query time (ms)
+   ├─ cache: 'hit' | 'miss'
+   ├─ expansion_count: # of expanded queries generated
+   ├─ results_count: final result count
+   ├─ keyword_sources: # of keyword results used
+   └─ semantic_sources: # of semantic results used
+   ↓
+10. Return fused results to client
+    { results: [{ id, title, snippet, score, folder, heading_chain }, ...],
+      count, elapsed, cache, expansion_count, ... }
+    ↓
+11. React renders search results with preview + folder breadcrumb
 ```
 
 ## Authentication & Authorization Flow
 
 ### OAuth Login Flow
 ```
-1. User visits agentwiki.cc, clicks "Sign in with Google"
+1. User visits app.agentwiki.cc, clicks "Sign in with Google"
    ↓
 2. Frontend redirects to /api/auth/google
    ↓
@@ -370,21 +539,38 @@ Example middleware:
 ```
 Document created/updated
     ↓
-Enqueue job message(s) to Cloudflare Queues
-    ├─ { type: 'embed', documentId, content, tenantId }
-    └─ { type: 'summarize', documentId, content, tenantId }
+Queue Manager checks document state
+    ├─ Calculate content hash (SHA-256)
+    ├─ Skip embedding if hash unchanged (content hash caching)
+    └─ Enqueue job message(s) to Cloudflare Queues
+       ├─ { type: 'embed', documentId, content, contentHash, tenantId }
+       ├─ { type: 'summarize', documentId, content, tenantId }
+       ├─ { type: 'index-fts5', documentId, content, tenantId }  [NEW]
+       └─ { type: 'backfill-fts5', documentId, ... }             [NEW, batched]
     ↓
 Queue consumer (in same Worker)
     ↓
 handleQueueBatch() processes messages
     ├─ For each 'embed' message:
-    │  ├─ Call Workers AI to generate embedding
-    │  ├─ Push vector to Vectorize
-    │  └─ Update document vector_id
+    │  ├─ Chunk content via smart markdown chunker (2000→1200 chars, heading chains)
+    │  ├─ Protect code blocks from splitting
+    │  ├─ Add heading_chain metadata to vectors
+    │  ├─ Call Workers AI to generate embeddings
+    │  ├─ Push vectors to Vectorize
+    │  └─ Update document with vector_ids + contentHash
     │
-    └─ For each 'summarize' message:
-       ├─ Call Workers AI to generate summary
-       └─ Update document.summary
+    ├─ For each 'summarize' message:
+    │  ├─ Call Workers AI to generate summary
+    │  └─ Update document.summary
+    │
+    ├─ For each 'index-fts5' message:  [NEW]
+    │  ├─ Insert/update FTS5 virtual table
+    │  ├─ Sanitize query syntax
+    │  └─ Update search index
+    │
+    └─ For each 'backfill-fts5' message:  [NEW]
+       ├─ Bulk index documents for FTS5
+       └─ Async background task (non-blocking)
     ↓
 On failure:
     ├─ Log error
@@ -397,6 +583,157 @@ On failure:
 - Users don't wait for AI processing
 - Separates concerns (save vs. enrich)
 - Handles large documents without timeouts
+
+## File Extraction & Storage Pipeline
+
+### SP1: File Extraction (Existing)
+AgentWiki includes a distributed file extraction system for converting uploaded documents (PDF, DOCX, PPT, etc.) into searchable, summarizable text. The pipeline separates the extraction work onto a VPS service to avoid compute limits on Cloudflare Workers.
+
+#### Architecture Flow
+```
+User uploads file (max 100MB)
+    ↓
+POST /api/uploads (multipart form)
+    ├─ Store in R2
+    ├─ Create uploads row (extractionStatus='pending')
+    └─ Dispatch extraction job
+    ↓
+dispatchExtractionJob()
+    ├─ Check if content type extractable (PDF, DOCX, PPTX, etc.)
+    ├─ Generate short-lived download token (15 min TTL, stored in KV)
+    ├─ POST job to VPS extraction service with secure file URL
+    └─ Set extractionStatus='processing'
+    ↓
+VPS Extraction Service (FastAPI + BullMQ + Docling + Gemini)
+    ├─ Fetch file via download token (one-time use)
+    ├─ Extract text using Docling library
+    ├─ For unsupported formats, attempt Gemini vision extraction
+    └─ POST result to /api/internal/extraction-result
+    ↓
+handleExtractionResult()
+    ├─ Store extracted text in fileExtractions table
+    ├─ Update uploads.extractionStatus ('completed' | 'failed' | 'unsupported')
+    └─ Enqueue queue jobs if success:
+       ├─ embed-upload: Generate vectors via Workers AI (bge-base-en)
+       └─ summarize-upload: AI summary via provider (OpenAI/Anthropic/Gemini)
+    ↓
+Queue Consumer processes embeddings & summaries
+    ├─ Push vectors to Vectorize
+    └─ Update uploads.summary field
+```
+
+### SP2: Storage UI/UX
+Web interface for viewing and managing uploaded files with progress tracking and extraction status.
+
+#### Storage Drawer Component
+- **Trigger**: Sidebar HardDrive icon or keyboard shortcut
+- **Layout**: Right-sliding drawer (400px on desktop), full-width on mobile
+- **Features**:
+  - File grid display (2-column on desktop)
+  - Search/filter by filename (real-time)
+  - Upload button → file input, multi-file support
+  - 100MB per-file size limit (enforced client-side with alert)
+  - Extraction status badges: pending, processing, completed, failed, unsupported
+  - Auto-polling: Refetch every 5s while any file is processing
+
+#### Upload Progress Tracking
+- **Component**: `UploadProgressList` — shows active uploads in drawer
+- **Mechanism**: XMLHttpRequest with progress events (`xhr.upload.addEventListener('progress')`)
+- **State Management**: Zustand `uploadQueue` store tracks:
+  - `id`: unique upload ID
+  - `file`: File object
+  - `progress`: 0-100 percentage
+  - `status`: queued | uploading | complete | error
+  - `error?`: error message if failed
+- **Actions in Store**:
+  - `addToUploadQueue(files)` — add new uploads
+  - `updateUploadProgress(id, progress)` — track XHR progress events
+  - `updateUploadStatus(id, status, error?)` — mark done/error
+  - `removeFromUploadQueue(id)` — auto-remove after 3s completion
+
+#### Storage File Card
+- Displays filename, size (KB/MB), extraction status
+- Extract status polling: 5s interval when processing
+- Delete action: Confirm dialog before removing upload
+
+### SP3: CLI & MCP Storage Search
+Extends search capabilities to include uploaded files' extracted text. Integrates storage search with document search via source parameter.
+
+#### Search Service Updates
+- **New Type**: `SearchSource = 'docs' | 'storage' | 'all'`
+- **Keyword Search**: `storageKeywordSearch()` — LIKE query on `fileExtractions.extractedText`
+  - Escapes wildcards to prevent injection
+  - Returns results with `resultType: 'upload'`
+- **Semantic Search**: `storageSemanticSearch()` — Vectorize query with filter `source_type: 'upload'`
+  - Fetches vector matches, resolves upload metadata
+  - Extracts snippets from extracted text
+- **Fusion**: RRF combines document + storage results when `source='all'`
+  - Separates upload results (no slug) from document results
+  - Applies tag/date filters only to documents, preserves uploads unfiltered
+
+#### REST API: Search Endpoint
+```
+GET /api/search?q=query&type=hybrid|keyword|semantic&source=docs|storage|all&limit=10&...
+```
+Query parameter `source` (default: 'docs') routes to document-only, storage-only, or fused search.
+
+#### CLI: Search Command
+```bash
+agentwiki search "query" --type hybrid|keyword|semantic --source docs|storage|all --limit 10
+```
+Passes `source` parameter to API. Output includes both document and file results when source != 'docs'.
+
+#### CLI: Upload List Command
+```bash
+agentwiki upload list [--json]
+```
+Lists all uploaded files with:
+- `id`: upload ID
+- `filename`: original filename
+- Size in KB/MB
+- Extraction status: pending | processing | completed | failed | unsupported
+- AI-generated summary (if available)
+
+#### MCP: Search Tool
+MCP `search` tool (in `search-and-graph-tools.ts`) includes:
+```typescript
+{
+  source: z.enum(['docs', 'storage', 'all'])
+    .default('docs')
+    .describe('Search source: docs (wiki documents), storage (uploaded files), all (both)')
+}
+```
+AI agents can call: `search({ query, source: 'all' })` to search both documents and uploaded files.
+
+### Supported File Types
+- **PDF**: via Docling (primary), Gemini fallback
+- **DOCX/DOC**: via Docling
+- **PPTX/PPT**: via Docling
+- **TXT/MD**: Direct text extraction
+- **Unsupported**: Image-only PDFs, proprietary formats → marked 'unsupported'
+
+### Download Token Mechanism
+Extraction jobs use short-lived download tokens instead of presigned URLs to avoid exposing file URLs:
+
+1. **Generation** (in dispatchExtractionJob):
+   - Random 32-byte token generated
+   - Stored in KV with fileKey: `dl:{token} → fileKey` (15-min TTL)
+   - URL: `/api/files/{fileKey}?dl_token={token}`
+
+2. **Validation** (in filesRouter):
+   - Token from URL matched against KV value
+   - If match found, file served and token deleted (one-time use)
+   - If mismatch or expired, returns 403
+
+### Error Handling & Retry
+- **Failed extraction** (status='failed'): Error message stored in fileExtractions.errorMessage
+- **Unsupported format** (status='unsupported'): No retry attempted
+- **Stuck jobs** (status='processing' for >24hrs): Cron-based retry via extraction-retry-service
+- **Manual retry** (admin): `/api/internal/extraction-retry/:id` resets status and redispatches
+
+### Database Schema
+- **uploads**: `extractionStatus` (pending | processing | completed | failed | unsupported), `summary` (AI-generated)
+- **fileExtractions**: `extractedText` (large text body), `charCount`, `vectorId`, `extractionMethod`, `errorMessage`, timestamps
 
 ## Security Architecture
 
@@ -414,7 +751,7 @@ On failure:
                │
 ┌──────────────▼──────────────────┐
 │  CORS Headers                   │
-│  Allow: agentwiki.cc origins    │
+│  Allow: app.agentwiki.cc origins│
 │  Credentials: true              │
 └──────────────┬──────────────────┘
                │
@@ -459,7 +796,7 @@ Assets uploaded to CF CDN
    ↓
 Deploy to edge globally
    ↓
-Available at: https://agentwiki.cc
+Available at: https://app.agentwiki.cc
 ```
 
 **Deployment Files**:
@@ -634,7 +971,10 @@ Middleware checks: ratelimit:{ipOrKey} in KV
 | User session | JWT | 15 min | Expired |
 | Refresh token | KV | 7 days | Logout, revoke |
 | Document list | React Query | 30 sec | Manual invalidate |
-| Search results | KV | 1 hour | Manual |
+| Search results | KV | 5 min | Manual, or `?debug=true` bypasses |
+| Query expansion | KV (per-tenant) | 1 hour | Per-tenant basis |
+| Folder context | KV (per-tenant) | 10 min | Per-tenant basis |
+| Content hash | KV cache | 5 min | Auto-expire |
 | Share tokens | KV | Until expiry | Token expiry |
 | R2 files | CF CDN | 24 hours | Cloudflare |
 | API responses | React Query | 30 sec | Mutation |

@@ -5,6 +5,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useAuth } from './hooks/use-auth'
 import { Layout } from './components/layout/layout'
 import { LoginPage } from './routes/login'
+import { ProfilePage } from './routes/profile'
+import { SettingsPage } from './routes/settings'
+import { ApiDocsPage } from './routes/api-docs'
+import { CliDocsPage } from './routes/cli-docs'
+import { SearchAnalyticsPage } from './routes/search-analytics'
+import { GraphPage } from './routes/graph'
+import { ShareView } from './routes/share-view'
+import { PublishedView } from './routes/published-view'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,8 +29,11 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-neutral-950">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-700 border-t-blue-500" />
+      <div className="flex h-screen items-center justify-center bg-surface-0">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-800 border-t-brand-500" />
+          <span className="text-xs text-neutral-600">Loading...</span>
+        </div>
       </div>
     )
   }
@@ -34,22 +45,28 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-/** Public share view placeholder */
-function ShareView() {
-  return (
-    <div className="flex h-screen items-center justify-center bg-neutral-950 text-neutral-100">
-      <p className="text-sm text-neutral-400">Shared document view (coming soon)</p>
-    </div>
-  )
-}
-
 function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/share/:token" element={<ShareView />} />
+      <Route path="/pub/:slug" element={<PublishedView />} />
+      <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
+      <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
+      <Route path="/docs/api" element={<RequireAuth><ApiDocsPage /></RequireAuth>} />
+      <Route path="/docs/cli" element={<RequireAuth><CliDocsPage /></RequireAuth>} />
+      <Route path="/settings/search-analytics" element={<RequireAuth><SearchAnalyticsPage /></RequireAuth>} />
+      <Route path="/graph" element={<RequireAuth><GraphPage /></RequireAuth>} />
       <Route
         path="/"
+        element={
+          <RequireAuth>
+            <Layout />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/doc/:slug"
         element={
           <RequireAuth>
             <Layout />
