@@ -25,6 +25,7 @@ import { getAISlashMenuItems } from './ai-slash-commands'
 import { AISelectionToolbar } from './ai-selection-toolbar'
 import { cn } from '../../lib/utils'
 import { API_BASE } from '../../lib/api-client'
+import { sanitizeCodeFences } from '../../lib/sanitize-markdown-code-fences'
 import { createPasteMarkdownPlugin, pasteMarkdownPluginKey } from './paste-markdown-extension'
 
 // Safari lacks requestIdleCallback — polyfill with setTimeout (module-level, evaluated once)
@@ -131,10 +132,12 @@ export function Editor({ documentId, tabId }: EditorProps) {
       // Fallback: parse markdown content (e.g. imported .md files have content but no contentJson)
       if (doc.content) {
         try {
-          const blocks = await editor.tryParseMarkdownToBlocks(doc.content)
+          // Sanitize bare code fences (``` without language) — BlockNote crashes on them
+          const safeMd = sanitizeCodeFences(doc.content)
+          const blocks = await editor.tryParseMarkdownToBlocks(safeMd)
           editor.replaceBlocks(editor.document, blocks)
-        } catch {
-          // Leave editor empty if parsing fails
+        } catch (err) {
+          console.error('Markdown→blocks parse failed:', err)
         }
       }
     }
