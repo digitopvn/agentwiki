@@ -103,8 +103,8 @@ export async function createDocument(
   }
 
   // Enqueue AI summary generation + search indexing
-  // NOTE: index-fts5 is triggered by generateSummary after summary is written (so FTS5 includes summary)
   try { await env.QUEUE.send({ type: 'generate-summary', documentId: id, tenantId }) } catch { /* dev */ }
+  try { await env.QUEUE.send({ type: 'index-fts5', documentId: id, tenantId }) } catch { /* dev */ }
   try { await env.QUEUE.send({ type: 'index-trigrams', documentId: id, tenantId }) } catch { /* dev */ }
 
   return { id, slug, title: input.title, content: input.content ?? '', contentJson: input.contentJson ?? null }
@@ -405,8 +405,8 @@ export async function updateDocument(
   }
 
   // Enqueue summary regeneration + search re-indexing
-  // NOTE: index-fts5 is triggered by generateSummary after summary is written (so FTS5 includes summary)
   try { await env.QUEUE.send({ type: 'generate-summary', documentId: docId, tenantId }) } catch { /* dev */ }
+  try { await env.QUEUE.send({ type: 'index-fts5', documentId: docId, tenantId }) } catch { /* dev */ }
   try { await env.QUEUE.send({ type: 'index-trigrams', documentId: docId, tenantId }) } catch { /* dev */ }
 
   return { id: docId }

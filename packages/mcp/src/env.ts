@@ -10,6 +10,7 @@ export type Env = {
   AI: Ai
   APP_URL: string
   API_URL?: string
+  USE_FTS5?: string
 }
 
 /** Auth context derived from API key validation */

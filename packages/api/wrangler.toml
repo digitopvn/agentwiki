@@ -12,6 +12,7 @@ routes = [
 [vars]
 APP_URL = "https://app.agentwiki.cc"
 API_URL = "https://api.agentwiki.cc"
+USE_FTS5 = "true"
 # EXTRACTION_SERVICE_URL: VPS extraction service URL (non-secret)
 EXTRACTION_SERVICE_URL = "https://extract.agentwiki.cc"
 # EXTRACTION_INTERNAL_SECRET: set via `wrangler secret put EXTRACTION_INTERNAL_SECRET`

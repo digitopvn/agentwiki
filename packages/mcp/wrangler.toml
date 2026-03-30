@@ -11,6 +11,7 @@ routes = [
 [vars]
 APP_URL = "https://app.agentwiki.cc"
 API_URL = "https://api.agentwiki.cc"
+USE_FTS5 = "true"
 
 [[d1_databases]]
 binding = "DB"
