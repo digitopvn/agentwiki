@@ -263,17 +263,21 @@ async function summarizeUploadJob(env: Env, uploadId: string, tenantId: string) 
     console.warn('AI provider summary failed for upload, falling back to Workers AI:', err)
   }
 
-  // Fallback: Workers AI
-  const result = await (env.AI as Ai).run('@cf/meta/llama-3.1-8b-instruct' as never, {
-    messages: [
-      { role: 'system', content: 'Summarize the following file content in 1-2 concise sentences. Return only the summary.' },
-      { role: 'user', content: truncated },
-    ],
-    max_tokens: 150,
-  } as never) as { response: string }
+  // Fallback: Workers AI — wrapped in try/catch so failure doesn't crash the queue job
+  try {
+    const result = await (env.AI as Ai).run('@cf/meta/llama-3.1-8b-instruct' as never, {
+      messages: [
+        { role: 'system', content: 'Summarize the following file content in 1-2 concise sentences. Return only the summary.' },
+        { role: 'user', content: truncated },
+      ],
+      max_tokens: 150,
+    } as never) as { response: string }
 
-  if (result.response) {
-    await db.update(uploads).set({ summary: result.response.trim() }).where(eq(uploads.id, uploadId))
+    if (result.response) {
+      await db.update(uploads).set({ summary: result.response.trim() }).where(eq(uploads.id, uploadId))
+    }
+  } catch (err) {
+    console.warn('Workers AI fallback failed for upload:', err)
   }
 }
 
