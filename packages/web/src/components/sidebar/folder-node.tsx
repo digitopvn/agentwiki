@@ -162,7 +162,7 @@ export function FolderNode({
     navigate(`/doc/${doc.slug}`)
   }
 
-  const paddingLeft = depth * 12 + 8
+  const paddingLeft = depth * 16 + 8
 
   const filterMatch = (title: string) =>
     !searchQuery || title.toLowerCase().includes(searchQuery.toLowerCase())
