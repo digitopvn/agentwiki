@@ -14,11 +14,20 @@ export async function storageKeywordSearch(
   tenantId: string,
   query: string,
   limit: number,
+  contentTypes?: string[],
 ): Promise<RankedResult[]> {
   const db = drizzle(env.DB)
   // Escape LIKE meta-characters to prevent wildcard injection
   const escapedQuery = query.replace(/[%_\\]/g, '\\$&')
   const likeQuery = `%${escapedQuery}%`
+
+  const conditions = [
+    eq(fileExtractions.tenantId, tenantId),
+    sql`${fileExtractions.extractedText} LIKE ${likeQuery} ESCAPE '\\'`,
+  ]
+  if (contentTypes?.length) {
+    conditions.push(sql`${uploads.contentType} IN (${sql.join(contentTypes.map((ct) => sql`${ct}`), sql`, `)})`)
+  }
 
   const results = await db
     .select({
@@ -28,12 +37,7 @@ export async function storageKeywordSearch(
     })
     .from(fileExtractions)
     .innerJoin(uploads, eq(fileExtractions.uploadId, uploads.id))
-    .where(
-      and(
-        eq(fileExtractions.tenantId, tenantId),
-        sql`${fileExtractions.extractedText} LIKE ${likeQuery} ESCAPE '\\'`,
-      ),
-    )
+    .where(and(...conditions))
     .limit(limit)
 
   return results.map((r) => ({
@@ -52,6 +56,7 @@ export async function storageSemanticSearch(
   tenantId: string,
   query: string,
   limit: number,
+  contentTypes?: string[],
 ): Promise<RankedResult[]> {
   try {
     const queryVector = await embedQuery(env, query)
@@ -75,12 +80,19 @@ export async function storageSemanticSearch(
 
     if (!uploadIds.length) return []
 
-    // Fetch upload metadata
+    // Fetch upload metadata (with tenant isolation + optional contentType filter)
     const db = drizzle(env.DB)
+    const uploadConditions = [
+      eq(uploads.tenantId, tenantId),
+      sql`${uploads.id} IN (${sql.join(uploadIds.map((id) => sql`${id}`), sql`, `)})`,
+    ]
+    if (contentTypes?.length) {
+      uploadConditions.push(sql`${uploads.contentType} IN (${sql.join(contentTypes.map((ct) => sql`${ct}`), sql`, `)})`)
+    }
     const uploadRows = await db
       .select({ id: uploads.id, filename: uploads.filename })
       .from(uploads)
-      .where(sql`${uploads.id} IN (${sql.join(uploadIds.map((id) => sql`${id}`), sql`, `)})`)
+      .where(and(...uploadConditions))
 
     const uploadMap = new Map(uploadRows.map((u) => [u.id, u]))
 

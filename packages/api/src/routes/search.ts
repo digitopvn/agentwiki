@@ -5,6 +5,7 @@ import { eq, and, isNull } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { documents } from '../db/schema'
 import { searchDocuments, getFacetCounts, type SearchSource } from '../services/search-service'
+import { searchImages } from '../services/image-search-service'
 import { getSuggestions, recordSearchHistory } from '../services/suggest-service'
 import { recordSearch, recordClick } from '../services/analytics-service'
 import { authGuard } from '../middleware/auth-guard'
@@ -127,6 +128,26 @@ searchRouter.post(
     return c.json({ ok: true })
   },
 )
+
+// Search images by text query (semantic + keyword on extracted descriptions)
+searchRouter.get('/images', rateLimiter(RATE_LIMITS.search), async (c) => {
+  const { tenantId } = c.get('auth')
+  const query = c.req.query('q')
+  if (!query) return c.json({ error: 'Query parameter "q" is required' }, 400)
+
+  const type = (c.req.query('type') ?? 'hybrid') as 'hybrid' | 'keyword' | 'semantic'
+  const limit = Math.min(50, Math.max(1, parseInt(c.req.query('limit') ?? '10', 10) || 10))
+  const documentId = c.req.query('documentId') || undefined
+  const dateFrom = c.req.query('dateFrom') || undefined
+  const dateTo = c.req.query('dateTo') || undefined
+
+  const results = await searchImages(c.env, {
+    tenantId, query, type, limit,
+    filters: { documentId, dateFrom, dateTo },
+  })
+
+  return c.json({ results, query, type })
+})
 
 // Backfill search indexes (trigram + FTS5 + embeddings + summaries) for tenant documents (admin only)
 // Paginated: processes up to 500 docs per call, returns nextOffset if more remain
