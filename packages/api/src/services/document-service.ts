@@ -107,7 +107,7 @@ export async function createDocument(
   try { await env.QUEUE.send({ type: 'generate-summary', documentId: id, tenantId }) } catch { /* dev */ }
   try { await env.QUEUE.send({ type: 'index-trigrams', documentId: id, tenantId }) } catch { /* dev */ }
 
-  return { id, slug, title: input.title }
+  return { id, slug, title: input.title, content: input.content ?? '', contentJson: input.contentJson ?? null }
 }
 
 /** Get a single document by ID */

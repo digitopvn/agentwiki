@@ -89,7 +89,10 @@ export function useCreateDocument() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (body: CreateDocumentBody) => apiClient.post<Document>('/api/documents', body),
-    onSuccess: () => {
+    onSuccess: (doc) => {
+      // Cache the newly created document so subsequent useDocument(id) hits cache
+      // instead of firing a GET that may 404 due to D1 eventual consistency
+      qc.setQueryData(['documents', doc.id], doc)
       qc.invalidateQueries({ queryKey: ['documents'] })
     },
   })

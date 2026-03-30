@@ -13,7 +13,7 @@ interface McpGuideModalProps {
 
 type TabId = 'claude-desktop' | 'claude-code' | 'cursor'
 
-const MCP_URL = 'https://mcp.agentwiki.cc/sse'
+const MCP_URL = 'https://mcp.agentwiki.cc/mcp'
 
 const TABS: { id: TabId; label: string; configPath: string; steps: string[] }[] = [
   {

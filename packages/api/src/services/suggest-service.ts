@@ -33,8 +33,15 @@ export async function getSuggestions(
   const suggestions: SuggestItem[] = []
   const seenTexts = new Set<string>()
 
-  // Source 1: Title prefix match (up to 3)
-  const prefixPattern = `${escaped}%`
+  // Source 1: Title match — prefix for single word, contains-all-words for multi-word
+  const words = escaped.split(/\s+/).filter((w) => w.length >= 2)
+  const isMultiWord = words.length > 1
+
+  // Multi-word: title must contain ALL words (any order), Single-word: title starts with query
+  const titleCondition = isMultiWord
+    ? and(...words.map((w) => like(documents.title, `%${w}%`)))
+    : like(documents.title, `${escaped}%`)
+
   const titleRows = await db
     .select({ id: documents.id, title: documents.title, slug: documents.slug })
     .from(documents)
@@ -42,7 +49,7 @@ export async function getSuggestions(
       and(
         eq(documents.tenantId, tenantId),
         isNull(documents.deletedAt),
-        like(documents.title, prefixPattern),
+        titleCondition,
       ),
     )
     .orderBy(documents.updatedAt)
@@ -63,13 +70,18 @@ export async function getSuggestions(
   }
 
   // Source 2: Search history (up to 2)
+  // Multi-word: history must contain ALL words, Single-word: prefix match
+  const historyCondition = isMultiWord
+    ? and(...words.map((w) => like(searchHistory.query, `%${w}%`)))
+    : like(searchHistory.query, `${escaped}%`)
+
   const historyRows = await db
     .select({ query: searchHistory.query })
     .from(searchHistory)
     .where(
       and(
         eq(searchHistory.tenantId, tenantId),
-        like(searchHistory.query, prefixPattern),
+        historyCondition,
         sql`${searchHistory.resultCount} > 0`,
       ),
     )
