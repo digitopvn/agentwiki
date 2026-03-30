@@ -21,7 +21,7 @@ const CODE_FENCE_REGEX = /```[\w-]*\r?\n[\s\S]*?\r?\n```/
  * Only triggers on multi-line text to avoid false positives on regular text.
  */
 const MARKDOWN_BLOCK_REGEX =
-  /^(#{1,6}\s|[-*+]\s|>\s|\d+\.\s|---|\[.+\]\(.+\)|- \[[ x]\])/m
+  /^(#{1,6}\s|[-*+]\s|>\s|\d+\.\s|---|- \[[ x]\])/m
 
 /** Exported key so editor.tsx can properly unregister the plugin on cleanup */
 export const pasteMarkdownPluginKey = new PluginKey('pasteMarkdownWithCodeBlocks')
