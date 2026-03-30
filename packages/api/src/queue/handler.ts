@@ -12,7 +12,7 @@ import { ObsidianAdapter } from '../services/import/adapters/obsidian-adapter'
 import { NotionAdapter } from '../services/import/adapters/notion-adapter'
 import { LarkAdapter } from '../services/import/adapters/lark-adapter'
 import { drizzle } from 'drizzle-orm/d1'
-import { eq } from 'drizzle-orm'
+import { eq, and, isNull } from 'drizzle-orm'
 import { documents, uploads, fileExtractions, importJobs } from '../db/schema'
 import { chunkMarkdown } from '../utils/chunker'
 import { computeHash } from '../utils/hash'
@@ -82,9 +82,6 @@ async function processMessage(msg: QueueMessage, env: Env) {
     case 'infer-edge-types':
       if (msg.documentId) await inferEdgeTypesForDoc(env, msg.documentId, msg.tenantId)
       break
-    case 'index-fts5':
-      if (msg.documentId) await indexFTS5Job(env, msg.documentId, msg.tenantId)
-      break
     case 'backfill-fts5': {
       const result = await backfillFTS5Index(env, msg.offset ?? 0)
       // Re-enqueue if more documents to process
@@ -107,7 +104,7 @@ async function generateSummary(env: Env, documentId: string, tenantId: string) {
   const doc = await db
     .select({ content: documents.content, title: documents.title })
     .from(documents)
-    .where(eq(documents.id, documentId))
+    .where(and(eq(documents.id, documentId), isNull(documents.deletedAt)))
     .limit(1)
 
   if (!doc.length || !doc[0].content) return
@@ -115,42 +112,50 @@ async function generateSummary(env: Env, documentId: string, tenantId: string) {
   const truncated = doc[0].content.slice(0, 3000)
 
   // Try tenant's configured AI provider first
+  let summaryGenerated = false
   try {
     const summary = await generateSummaryWithProvider(env, tenantId, doc[0].title, truncated)
     if (summary) {
       await db.update(documents).set({ summary }).where(eq(documents.id, documentId))
-      await embedDocumentJob(env, documentId, tenantId)
-      return
+      summaryGenerated = true
     }
   } catch (err) {
     console.warn('AI provider summary failed, falling back to Workers AI:', err)
   }
 
-  // Fallback: Workers AI (Llama 3.1 8B)
-  const result = await (env.AI as Ai).run('@cf/meta/llama-3.1-8b-instruct' as never, {
-    messages: [
-      {
-        role: 'system',
-        content: 'Summarize the following document in 1-2 concise sentences. Return only the summary.',
-      },
-      {
-        role: 'user',
-        content: `Title: ${doc[0].title}\n\n${truncated}`,
-      },
-    ],
-    max_tokens: 150,
-  } as never) as { response: string }
+  // Fallback: Workers AI (Llama 3.1 8B) — wrapped in try/catch so AI failure
+  // doesn't prevent FTS5 + embedding indexing below
+  if (!summaryGenerated) {
+    try {
+      const result = await (env.AI as Ai).run('@cf/meta/llama-3.1-8b-instruct' as never, {
+        messages: [
+          {
+            role: 'system',
+            content: 'Summarize the following document in 1-2 concise sentences. Return only the summary.',
+          },
+          {
+            role: 'user',
+            content: `Title: ${doc[0].title}\n\n${truncated}`,
+          },
+        ],
+        max_tokens: 150,
+      } as never) as { response: string }
 
-  if (result.response) {
-    await db
-      .update(documents)
-      .set({ summary: result.response.trim() })
-      .where(eq(documents.id, documentId))
+      if (result.response) {
+        await db
+          .update(documents)
+          .set({ summary: result.response.trim() })
+          .where(eq(documents.id, documentId))
+      }
+    } catch (err) {
+      console.warn('Workers AI fallback failed:', err)
+    }
   }
 
-  // Also trigger embedding and trigram indexing
-  await embedDocumentJob(env, documentId, tenantId)
-  await indexDocumentTrigrams(env, documentId, tenantId)
+  // Always run FTS5 + embed after summary generation, each isolated so one failure doesn't block the other
+  // FTS5 first (no skip-guard — upsert is idempotent), then embed (sets contentHash for dedup)
+  try { await indexFTS5Job(env, documentId, tenantId) } catch (err) { console.warn('FTS5 index failed:', err) }
+  try { await embedDocumentJob(env, documentId, tenantId) } catch (err) { console.warn('Embed failed:', err) }
 }
 
 /** Generate embeddings for a document — skips if content unchanged (hash check) */
@@ -271,17 +276,21 @@ async function summarizeUploadJob(env: Env, uploadId: string, tenantId: string) 
     console.warn('AI provider summary failed for upload, falling back to Workers AI:', err)
   }
 
-  // Fallback: Workers AI
-  const result = await (env.AI as Ai).run('@cf/meta/llama-3.1-8b-instruct' as never, {
-    messages: [
-      { role: 'system', content: 'Summarize the following file content in 1-2 concise sentences. Return only the summary.' },
-      { role: 'user', content: truncated },
-    ],
-    max_tokens: 150,
-  } as never) as { response: string }
+  // Fallback: Workers AI — wrapped in try/catch so failure doesn't crash the queue job
+  try {
+    const result = await (env.AI as Ai).run('@cf/meta/llama-3.1-8b-instruct' as never, {
+      messages: [
+        { role: 'system', content: 'Summarize the following file content in 1-2 concise sentences. Return only the summary.' },
+        { role: 'user', content: truncated },
+      ],
+      max_tokens: 150,
+    } as never) as { response: string }
 
-  if (result.response) {
-    await db.update(uploads).set({ summary: result.response.trim() }).where(eq(uploads.id, uploadId))
+    if (result.response) {
+      await db.update(uploads).set({ summary: result.response.trim() }).where(eq(uploads.id, uploadId))
+    }
+  } catch (err) {
+    console.warn('Workers AI fallback failed for upload:', err)
   }
 }
 
@@ -293,7 +302,6 @@ async function indexFTS5Job(env: Env, documentId: string, tenantId: string) {
       title: documents.title,
       summary: documents.summary,
       content: documents.content,
-      contentHash: documents.contentHash,
     })
     .from(documents)
     .where(eq(documents.id, documentId))
@@ -302,12 +310,8 @@ async function indexFTS5Job(env: Env, documentId: string, tenantId: string) {
   if (!rows.length) return
   const doc = rows[0]
 
-  // Skip re-indexing if content hasn't changed (same optimization as embedDocumentJob).
-  // NOTE: contentHash is populated by embedDocumentJob, not indexFTS5Job. If embedding
-  // hasn't run yet, contentHash is null and this guard won't fire (benign: just redundant work).
-  const newHash = await computeHash(doc.content)
-  if (doc.contentHash && doc.contentHash === newHash) return
-
+  // No skip-guard here — FTS5 indexes title+summary+content, so any field change
+  // must update the index. The upsert (delete+insert) is cheap for a single row.
   await indexDocumentFTS5(env, documentId, tenantId, doc.title, doc.summary ?? '', doc.content)
 }
 

@@ -1,10 +1,14 @@
 /** Search routes — hybrid trigram + semantic, faceted filtering, autocomplete suggestions */
 
 import { Hono } from 'hono'
+import { eq, and, isNull } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/d1'
+import { documents } from '../db/schema'
 import { searchDocuments, getFacetCounts, type SearchSource } from '../services/search-service'
 import { getSuggestions, recordSearchHistory } from '../services/suggest-service'
 import { recordSearch, recordClick } from '../services/analytics-service'
 import { authGuard } from '../middleware/auth-guard'
+import { requirePermission } from '../middleware/require-permission'
 import { rateLimiter } from '../middleware/rate-limiter'
 import { RATE_LIMITS } from '@agentwiki/shared'
 import type { Env } from '../env'
@@ -123,5 +127,40 @@ searchRouter.post(
     return c.json({ ok: true })
   },
 )
+
+// Backfill search indexes (trigram + FTS5 + embeddings + summaries) for tenant documents (admin only)
+// Paginated: processes up to 500 docs per call, returns nextOffset if more remain
+searchRouter.post('/backfill-index', requirePermission('tenant:manage'), async (c) => {
+  const { tenantId } = c.get('auth')
+  const db = drizzle(c.env.DB)
+  const BATCH_SIZE = 500
+  const offset = Math.max(0, parseInt(c.req.query('offset') ?? '0', 10))
+
+  const docs = await db
+    .select({ id: documents.id })
+    .from(documents)
+    .where(and(eq(documents.tenantId, tenantId), isNull(documents.deletedAt)))
+    .limit(BATCH_SIZE + 1)
+    .offset(offset)
+
+  const hasMore = docs.length > BATCH_SIZE
+  const batch = hasMore ? docs.slice(0, BATCH_SIZE) : docs
+
+  // Enqueue full pipeline per document:
+  // generate-summary → indexFTS5Job + embedDocumentJob (chained internally)
+  // index-trigrams runs independently (no summary dependency)
+  for (const doc of batch) {
+    try { await c.env.QUEUE.send({ type: 'generate-summary', documentId: doc.id, tenantId }) } catch { /* */ }
+    try { await c.env.QUEUE.send({ type: 'index-trigrams', documentId: doc.id, tenantId }) } catch { /* */ }
+  }
+
+  return c.json({
+    ok: true,
+    indexed: batch.length,
+    offset,
+    nextOffset: hasMore ? offset + BATCH_SIZE : null,
+    hasMore,
+  })
+})
 
 export { searchRouter }

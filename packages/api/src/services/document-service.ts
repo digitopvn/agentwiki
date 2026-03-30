@@ -4,6 +4,7 @@ import { eq, and, isNull, desc, asc, sql, like, inArray } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { generateKeyBetween } from 'fractional-indexing'
 import { deleteDocumentTrigrams } from './trigram-service'
+import { removeDocumentFTS5 } from './fts5-search-service'
 import {
   documents,
   documentVersions,
@@ -101,12 +102,10 @@ export async function createDocument(
     try { await env.QUEUE.send({ type: 'infer-edge-types', documentId: id, tenantId }) } catch { /* dev */ }
   }
 
-  // Enqueue AI summary generation
-  try {
-    await env.QUEUE.send({ type: 'generate-summary', documentId: id, tenantId })
-  } catch {
-    // Queue may not be available in dev
-  }
+  // Enqueue AI summary generation + search indexing
+  // NOTE: index-fts5 is triggered by generateSummary after summary is written (so FTS5 includes summary)
+  try { await env.QUEUE.send({ type: 'generate-summary', documentId: id, tenantId }) } catch { /* dev */ }
+  try { await env.QUEUE.send({ type: 'index-trigrams', documentId: id, tenantId }) } catch { /* dev */ }
 
   return { id, slug, title: input.title, content: input.content ?? '', contentJson: input.contentJson ?? null }
 }
@@ -405,12 +404,10 @@ export async function updateDocument(
     try { await env.QUEUE.send({ type: 'infer-edge-types', documentId: docId, tenantId }) } catch { /* dev */ }
   }
 
-  // Enqueue summary regeneration
-  try {
-    await env.QUEUE.send({ type: 'generate-summary', documentId: docId, tenantId })
-  } catch {
-    // Queue may not be available in dev
-  }
+  // Enqueue summary regeneration + search re-indexing
+  // NOTE: index-fts5 is triggered by generateSummary after summary is written (so FTS5 includes summary)
+  try { await env.QUEUE.send({ type: 'generate-summary', documentId: docId, tenantId }) } catch { /* dev */ }
+  try { await env.QUEUE.send({ type: 'index-trigrams', documentId: docId, tenantId }) } catch { /* dev */ }
 
   return { id: docId }
 }
@@ -457,8 +454,9 @@ export async function deleteDocument(env: Env, tenantId: string, docId: string) 
     .set({ deletedAt: new Date() })
     .where(and(eq(documents.id, docId), eq(documents.tenantId, tenantId), isNull(documents.deletedAt)))
 
-  // Clean up trigram index for deleted document
+  // Clean up search indexes for deleted document
   await deleteDocumentTrigrams(env, docId).catch(() => {})
+  await removeDocumentFTS5(env, docId).catch(() => {})
 
   return result
 }
@@ -517,7 +515,7 @@ export async function syncWikilinks(
   // Guard: skip if content is empty (contentJson-only saves have no markdown yet)
   if (!content?.trim()) return
 
-  // Delete existing explicit links from this source (preserve auto-inferred links)
+  // Delete only explicit wikilinks — preserve AI-inferred edges (inferred=1) and user-confirmed (inferred=2)
   await db.delete(documentLinks).where(and(eq(documentLinks.sourceDocId, docId), eq(documentLinks.inferred, 0)))
 
   const links = extractAllLinks(content)
