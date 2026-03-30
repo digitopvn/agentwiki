@@ -11,6 +11,7 @@ interface ListDocumentsParams {
   category?: string
   page?: number
   limit?: number
+  enabled?: boolean
 }
 
 interface PaginatedDocuments {
@@ -51,6 +52,7 @@ export function useDocuments(params: ListDocumentsParams = {}) {
   return useQuery<PaginatedDocuments>({
     queryKey: ['documents', params],
     queryFn: () => apiClient.get<PaginatedDocuments>(`/api/documents?${search}`),
+    enabled: params.enabled ?? true,
   })
 }
 

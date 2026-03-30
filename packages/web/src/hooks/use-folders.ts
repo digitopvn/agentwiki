@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../lib/api-client'
 import type { Folder } from '@agentwiki/shared'
 
-interface FolderTree extends Folder {
+export interface FolderTree extends Folder {
   children: FolderTree[]
 }
 
@@ -29,7 +29,7 @@ export function useCreateFolder() {
 export function useUpdateFolder() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; name?: string; parentId?: string | null }) =>
+    mutationFn: ({ id, ...body }: { id: string; name?: string; parentId?: string | null; position?: number }) =>
       apiClient.put<Folder>(`/api/folders/${id}`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['folders'] })

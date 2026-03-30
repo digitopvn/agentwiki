@@ -1,21 +1,17 @@
-/** Single folder item with expand/collapse and context menu */
+/** Single folder item with expand/collapse, context menu, and drag & drop */
 
 import { useState, useRef, useEffect } from 'react'
-import { ChevronRight, Folder, FolderOpen, FileText, Plus, Pencil, Trash2 } from 'lucide-react'
+import { useDraggable, useDroppable } from '@dnd-kit/core'
+import { ChevronRight, Folder, FolderOpen, Plus, Pencil, Trash2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAppStore } from '../../stores/app-store'
-import { useUpdateFolder, useDeleteFolder, useCreateFolder } from '../../hooks/use-folders'
-import { useCreateDocument } from '../../hooks/use-documents'
-import { useDocuments } from '../../hooks/use-documents'
-
-interface FolderTreeNode {
-  id: string
-  name: string
-  children: FolderTreeNode[]
-}
+import { useUpdateFolder, useDeleteFolder, useCreateFolder, type FolderTree } from '../../hooks/use-folders'
+import { useCreateDocument, useDocuments } from '../../hooks/use-documents'
+import { DraggableDoc } from './draggable-doc'
+import { useLeftClickDragListeners, type DragData } from '../../lib/dnd-utils'
 
 interface FolderNodeProps {
-  folder: FolderTreeNode
+  folder: FolderTree
   depth?: number
   searchQuery?: string
 }
@@ -31,8 +27,29 @@ export function FolderNode({ folder, depth = 0, searchQuery = '' }: FolderNodePr
   const createFolder = useCreateFolder()
   const createDocument = useCreateDocument()
 
-  const { data: docData } = useDocuments({ folderId: folder.id })
+  const { data: docData } = useDocuments({ folderId: folder.id, enabled: expanded })
   const docs = docData?.data ?? []
+
+  // Drag: make this folder draggable
+  const dragData: DragData = {
+    type: 'folder',
+    id: folder.id,
+    name: folder.name,
+    parentId: folder.parentId,
+  }
+  const {
+    attributes: dragAttributes,
+    listeners: rawDragListeners,
+    setNodeRef: setDragRef,
+    isDragging,
+  } = useDraggable({ id: `folder-${folder.id}`, data: dragData })
+  const dragListeners = useLeftClickDragListeners(rawDragListeners)
+
+  // Drop: entire folder area (row + children) is a drop target
+  const { setNodeRef: setDropRef, isOver } = useDroppable({
+    id: `drop-folder-${folder.id}`,
+    data: { type: 'folder', id: folder.id },
+  })
 
   // Close context menu on outside click
   useEffect(() => {
@@ -90,9 +107,19 @@ export function FolderNode({ folder, depth = 0, searchQuery = '' }: FolderNodePr
   const hasChildren = folder.children.length > 0 || visibleDocs.length > 0
 
   return (
-    <div>
-      {/* Folder row */}
+    <div
+      ref={setDropRef}
+      className={cn(
+        'rounded-sm transition-colors',
+        isOver && !isDragging && 'bg-blue-500/10 ring-1 ring-inset ring-blue-500/30',
+        isDragging && 'opacity-40',
+      )}
+    >
+      {/* Folder row - draggable */}
       <div
+        ref={setDragRef}
+        {...dragAttributes}
+        {...dragListeners}
         className={cn(
           'group flex cursor-pointer items-center gap-1 rounded py-0.5 text-xs select-none',
           theme === 'dark'
@@ -143,20 +170,12 @@ export function FolderNode({ folder, depth = 0, searchQuery = '' }: FolderNodePr
             <FolderNode key={child.id} folder={child} depth={depth + 1} searchQuery={searchQuery} />
           ))}
           {visibleDocs.map((doc) => (
-            <div
+            <DraggableDoc
               key={doc.id}
-              className={cn(
-                'flex cursor-pointer items-center gap-1.5 rounded py-0.5 text-xs',
-                theme === 'dark'
-                  ? 'text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100'
-                  : 'text-neutral-600 hover:bg-neutral-100',
-              )}
-              style={{ paddingLeft: paddingLeft + 20 }}
-              onClick={() => handleOpenDoc(doc)}
-            >
-              <FileText className="h-3 w-3 shrink-0" />
-              <span className="truncate">{doc.title}</span>
-            </div>
+              doc={{ ...doc, folderId: folder.id }}
+              paddingLeft={paddingLeft + 20}
+              onOpen={() => handleOpenDoc(doc)}
+            />
           ))}
         </div>
       )}
