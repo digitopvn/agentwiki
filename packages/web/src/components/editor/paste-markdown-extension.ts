@@ -11,6 +11,7 @@
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import type { EditorView } from '@tiptap/pm/view'
 import type { BlockNoteEditor } from '@blocknote/core'
+import { sanitizeCodeFences } from '../../lib/sanitize-markdown-code-fences'
 
 /** Matches actual code fence blocks: ```<lang>\n...\n``` (handles \r\n for Windows) */
 const CODE_FENCE_REGEX = /```[\w-]*\r?\n[\s\S]*?\r?\n```/
@@ -46,8 +47,11 @@ export function createPasteMarkdownPlugin(editor: BlockNoteEditor) {
           // Prevent default and BlockNote's handler
           clipboardEvent.preventDefault()
 
+          // Sanitize bare code fences before parsing (BlockNote crashes without language)
+          const safeMd = sanitizeCodeFences(plainText)
+
           // Async: parse markdown and insert blocks at cursor
-          editor.tryParseMarkdownToBlocks(plainText).then((blocks) => {
+          editor.tryParseMarkdownToBlocks(safeMd).then((blocks) => {
             if (!blocks.length) return
 
             const cursorBlock = editor.getTextCursorPosition().block
