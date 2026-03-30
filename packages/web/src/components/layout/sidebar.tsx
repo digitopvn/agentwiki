@@ -1,7 +1,8 @@
 /** Left sidebar panel: folder tree, search, theme toggle */
 
 import { useState } from 'react'
-import { Search, Plus, Sun, Moon, ChevronLeft, FolderPlus } from 'lucide-react'
+import { Search, Plus, Sun, Moon, ChevronLeft, FolderPlus, HardDrive } from 'lucide-react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { cn } from '../../lib/utils'
 import { useAppStore } from '../../stores/app-store'
 import { FolderTree } from '../sidebar/folder-tree'
@@ -14,6 +15,8 @@ export function Sidebar() {
   const createFolder = useCreateFolder()
   const createDocument = useCreateDocument()
   const { openTab, setActiveTab } = useAppStore()
+  const navigate = useNavigate()
+  const location = useLocation()
 
   const handleNewDocument = async () => {
     try {
@@ -106,6 +109,22 @@ export function Sidebar() {
           className="flex items-center gap-1.5 rounded px-2 py-1.5 text-xs text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100"
         >
           <FolderPlus className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {/* Storage link */}
+      <div className="px-2 pb-1">
+        <button
+          onClick={() => navigate('/storage')}
+          className={cn(
+            'flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-xs',
+            location.pathname.startsWith('/storage')
+              ? 'bg-blue-500/20 text-blue-400'
+              : 'text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100',
+          )}
+        >
+          <HardDrive className="h-3.5 w-3.5" />
+          Storage
         </button>
       </div>
 

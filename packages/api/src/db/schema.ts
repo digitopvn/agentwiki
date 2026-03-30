@@ -140,11 +140,25 @@ export const shareLinks = sqliteTable('share_links', {
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 })
 
+/** Storage folders for file organization (separate from document folders) */
+export const storageFolders = sqliteTable('storage_folders', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  parentId: text('parent_id'), // self-ref, null = root
+  name: text('name').notNull(),
+  slug: text('slug').notNull(),
+  position: integer('position').notNull().default(0),
+  createdBy: text('created_by').notNull().references(() => users.id),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
 /** File uploads (R2 metadata) */
 export const uploads = sqliteTable('uploads', {
   id: text('id').primaryKey(),
   tenantId: text('tenant_id').notNull().references(() => tenants.id),
   documentId: text('document_id'),
+  folderId: text('folder_id'), // storage folder assignment, null = root
   fileKey: text('file_key').notNull(),
   filename: text('filename').notNull(),
   contentType: text('content_type').notNull(),

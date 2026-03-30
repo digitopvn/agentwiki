@@ -1,8 +1,8 @@
 /** R2 file upload/download service */
 
-import { eq, and } from 'drizzle-orm'
+import { eq, and, isNull } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
-import { uploads } from '../db/schema'
+import { uploads, storageFolders } from '../db/schema'
 import { generateId } from '../utils/crypto'
 import type { Env } from '../env'
 
@@ -15,7 +15,19 @@ export async function uploadFile(
   contentType: string,
   body: ReadableStream | ArrayBuffer,
   documentId?: string,
+  folderId?: string,
 ) {
+  // Verify folderId belongs to this tenant
+  if (folderId) {
+    const db = drizzle(env.DB)
+    const folder = await db
+      .select({ id: storageFolders.id })
+      .from(storageFolders)
+      .where(and(eq(storageFolders.id, folderId), eq(storageFolders.tenantId, tenantId)))
+      .limit(1)
+    if (!folder.length) return { error: 'Target folder not found' }
+  }
+
   const id = generateId()
   const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, '_')
   const fileKey = `${tenantId}/media/${id}/${safeFilename}`
@@ -36,6 +48,7 @@ export async function uploadFile(
     id,
     tenantId,
     documentId: documentId ?? null,
+    folderId: folderId ?? null,
     fileKey,
     filename: safeFilename,
     contentType,
@@ -68,22 +81,71 @@ export async function getFile(env: Env, fileKey: string, tenantId: string) {
   }
 }
 
-/** List uploads for a tenant */
-export async function listUploads(env: Env, tenantId: string, documentId?: string) {
+/** List uploads for a tenant, optionally filtered by documentId or folderId */
+export async function listUploads(
+  env: Env,
+  tenantId: string,
+  options?: { documentId?: string; folderId?: string | null },
+) {
   const db = drizzle(env.DB)
   const conditions = [eq(uploads.tenantId, tenantId)]
-  if (documentId) conditions.push(eq(uploads.documentId, documentId))
+  if (options?.documentId) conditions.push(eq(uploads.documentId, options.documentId))
+  // folderId: null = root files only, string = specific folder, undefined = all files
+  if (options?.folderId !== undefined) {
+    if (options.folderId === null) {
+      conditions.push(isNull(uploads.folderId))
+    } else {
+      conditions.push(eq(uploads.folderId, options.folderId))
+    }
+  }
 
   return db
     .select({
       id: uploads.id,
+      folderId: uploads.folderId,
+      fileKey: uploads.fileKey,
       filename: uploads.filename,
       contentType: uploads.contentType,
       sizeBytes: uploads.sizeBytes,
+      uploadedBy: uploads.uploadedBy,
       createdAt: uploads.createdAt,
     })
     .from(uploads)
     .where(and(...conditions))
+}
+
+/** Move a file to a different storage folder */
+export async function moveUploadToFolder(
+  env: Env,
+  uploadId: string,
+  tenantId: string,
+  folderId: string | null,
+) {
+  const db = drizzle(env.DB)
+
+  // Verify target folder belongs to tenant
+  if (folderId) {
+    const folder = await db
+      .select({ id: storageFolders.id })
+      .from(storageFolders)
+      .where(and(eq(storageFolders.id, folderId), eq(storageFolders.tenantId, tenantId)))
+      .limit(1)
+    if (!folder.length) return { error: 'Target folder not found' }
+  }
+
+  // Verify upload exists and belongs to tenant
+  const upload = await db
+    .select({ id: uploads.id })
+    .from(uploads)
+    .where(and(eq(uploads.id, uploadId), eq(uploads.tenantId, tenantId)))
+    .limit(1)
+  if (!upload.length) return { error: 'Upload not found' }
+
+  await db
+    .update(uploads)
+    .set({ folderId })
+    .where(eq(uploads.id, uploadId))
+  return { ok: true }
 }
 
 /** Delete a file from R2 + D1 */

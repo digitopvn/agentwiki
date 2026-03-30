@@ -1,7 +1,8 @@
 /** File upload routes — proxy through Worker to R2 */
 
 import { Hono } from 'hono'
-import { uploadFile, getFile, listUploads, deleteFile } from '../services/upload-service'
+import { uploadFile, getFile, listUploads, deleteFile, moveUploadToFolder } from '../services/upload-service'
+import { moveFileSchema } from '@agentwiki/shared'
 import { authGuard } from '../middleware/auth-guard'
 import { optionalAuth } from '../middleware/auth-guard'
 import { requirePermission } from '../middleware/require-permission'
@@ -18,6 +19,7 @@ uploadsRouter.post('/', authGuard, requirePermission('doc:create'), async (c) =>
   const formData = await c.req.formData()
   const file = formData.get('file') as File | null
   const documentId = formData.get('documentId') as string | null
+  const folderId = formData.get('folderId') as string | null
 
   if (!file) return c.json({ error: 'No file provided' }, 400)
   if (file.size > 10 * 1024 * 1024) return c.json({ error: 'File too large (max 10MB)' }, 400)
@@ -30,17 +32,39 @@ uploadsRouter.post('/', authGuard, requirePermission('doc:create'), async (c) =>
     file.type,
     await file.arrayBuffer(),
     documentId ?? undefined,
+    folderId ?? undefined,
   )
 
+  if ('error' in result) return c.json({ error: result.error }, 400)
   return c.json(result, 201)
 })
 
-// List uploads
+// List uploads (supports folderId filter: absent=all, "root"=root only, id=specific folder)
 uploadsRouter.get('/', authGuard, requirePermission('doc:read'), async (c) => {
   const { tenantId } = c.get('auth')
   const documentId = c.req.query('documentId')
-  const files = await listUploads(c.env, tenantId, documentId)
+  const folderIdParam = c.req.query('folderId')
+
+  const options: { documentId?: string; folderId?: string | null } = {}
+  if (documentId) options.documentId = documentId
+  if (folderIdParam === 'root') options.folderId = null
+  else if (folderIdParam) options.folderId = folderIdParam
+
+  const files = await listUploads(c.env, tenantId, options)
   return c.json({ files })
+})
+
+// Move file to folder
+uploadsRouter.put('/:id/move', authGuard, requirePermission('doc:update'), async (c) => {
+  const { tenantId } = c.get('auth')
+  const uploadId = c.req.param('id')
+  const body = await c.req.json()
+  const parsed = moveFileSchema.safeParse(body)
+  if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400)
+
+  const result = await moveUploadToFolder(c.env, uploadId, tenantId, parsed.data.folderId)
+  if ('error' in result) return c.json({ error: result.error }, 404)
+  return c.json({ ok: true })
 })
 
 // Delete upload

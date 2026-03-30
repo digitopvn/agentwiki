@@ -10,6 +10,8 @@ import { uploadsRouter, filesRouter } from './routes/uploads'
 import { searchRouter } from './routes/search'
 import { shareRouter } from './routes/share'
 import { graphRouter } from './routes/graph'
+import { storageFoldersRouter } from './routes/storage-folders'
+import { storageBulkRouter } from './routes/storage-bulk-actions'
 import { rateLimiter } from './middleware/rate-limiter'
 import { handleQueueBatch } from './queue/handler'
 import { RATE_LIMITS } from '@agentwiki/shared'
@@ -48,6 +50,8 @@ app.route('/api/uploads', uploadsRouter)
 app.route('/api/search', searchRouter)
 app.route('/api/share', shareRouter)
 app.route('/api/graph', graphRouter)
+app.route('/api/storage-folders', storageFoldersRouter)
+app.route('/api/storage/bulk', storageBulkRouter)
 
 // Security headers
 app.use('*', async (c, next) => {

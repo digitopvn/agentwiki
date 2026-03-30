@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useAuth } from './hooks/use-auth'
 import { Layout } from './components/layout/layout'
 import { LoginPage } from './routes/login'
+import { StoragePage } from './routes/storage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,6 +57,8 @@ function AppRoutes() {
           </RequireAuth>
         }
       />
+      <Route path="/storage" element={<RequireAuth><StoragePage /></RequireAuth>} />
+      <Route path="/storage/:folderId" element={<RequireAuth><StoragePage /></RequireAuth>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

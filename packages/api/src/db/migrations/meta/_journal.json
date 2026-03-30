@@ -15,6 +15,13 @@
       "when": 1773830068987,
       "tag": "0001_harsh_silhouette",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1774876736910,
+      "tag": "0002_ordinary_skrulls",
+      "breakpoints": true
     }
   ]
 }
