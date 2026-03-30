@@ -54,6 +54,9 @@ async function processMessage(msg: QueueMessage, env: Env) {
     case 'index-trigrams':
       if (msg.documentId) await indexDocumentTrigrams(env, msg.documentId, msg.tenantId)
       break
+    case 'index-fts5':
+      if (msg.documentId) await indexFTS5Job(env, msg.documentId, msg.tenantId)
+      break
     case 'cleanup-analytics':
       await pruneOldAnalytics(env, msg.tenantId, 90)
       break
